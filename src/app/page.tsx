@@ -325,7 +325,13 @@ export default function HomePage() {
                   whileTap={{ scale: 0.98 }}
                   transition={{ type: "spring", stiffness: 400, damping: 25 }}
                   className={`relative group bg-white rounded-3xl p-5 border-2 border-slate-200/90 shadow-sm hover:border-indigo-400 ${card.shadow} transition-all cursor-pointer flex flex-col justify-between overflow-hidden`}
-                  onClick={() => alert(`"${card.title}" oluşturma sihirbazı başlatılıyor.`)}
+                  onClick={() => {
+                    if (card.id === "movie") {
+                      router.push("/containers/movie");
+                    } else {
+                      alert(`"${card.title}" oluşturma sihirbazı başlatılıyor.`);
+                    }
+                  }}
                 >
                   {/* Üst Renkli Arka Plan Işıltısı */}
                   <div
@@ -471,6 +477,8 @@ export default function HomePage() {
                     onClick={() => {
                       if (item.formatTitle === "Metin" || item.id === "c5") {
                         router.push("/containers/text");
+                      } else if (item.formatTitle === "Film & Dizi" || item.id === "c1") {
+                        router.push("/containers/movie");
                       } else {
                         alert(`"${item.title}" açılıyor...`);
                       }
