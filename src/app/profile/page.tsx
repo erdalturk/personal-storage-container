@@ -33,6 +33,7 @@ interface SharedLink {
   itemTitle: string;
   containerName: string;
   type: "text" | "movie" | "container";
+  scope: "container" | "item";
   createdAt: string;
   views: number;
   isActive: boolean; // Aktif veya İptal Edilmiş (Revoked)
@@ -49,33 +50,47 @@ const AVATAR_PALETTES = [
 const INITIAL_SHARES: SharedLink[] = [
   {
     id: "s1",
-    token: "mavi-aksamustu",
-    itemTitle: "Mavi Bir Akşamüstü (Şiir)",
-    containerName: "Gece Düşünceleri & Şiirlerim",
-    type: "text",
-    createdAt: "Dün",
-    views: 14,
+    token: "sinema-kulubu-deposu",
+    itemTitle: "Sinema Kulübü & Başyapıtlar",
+    containerName: "Sinema Kulübü & Başyapıtlar",
+    type: "container",
+    scope: "container",
+    createdAt: "Ekim 2026",
+    views: 42,
     isActive: true,
   },
   {
     id: "s2",
+    token: "gece-siirleri-deposu",
+    itemTitle: "Gece Düşünceleri & Şiirlerim",
+    containerName: "Gece Düşünceleri & Şiirlerim",
+    type: "container",
+    scope: "container",
+    createdAt: "Ekim 2026",
+    views: 19,
+    isActive: true,
+  },
+  {
+    id: "s3",
     token: "inception-arsiv",
     itemTitle: "Inception & Arşiv Notlarım",
     containerName: "Sinema Kulübü & Başyapıtlar",
     type: "movie",
+    scope: "item",
     createdAt: "3 gün önce",
     views: 28,
     isActive: true,
   },
   {
-    id: "s3",
-    token: "eski-proje-fikirleri",
-    itemTitle: "Eski Proje Fikirleri 2025",
+    id: "s4",
+    token: "mavi-aksamustu",
+    itemTitle: "Mavi Bir Akşamüstü (Şiir)",
     containerName: "Gece Düşünceleri & Şiirlerim",
     type: "text",
-    createdAt: "2 hafta önce",
-    views: 6,
-    isActive: false, // Daha önce iptal edilmiş
+    scope: "item",
+    createdAt: "Dün",
+    views: 14,
+    isActive: true,
   },
 ];
 
@@ -140,6 +155,16 @@ export default function ProfilePage() {
     navigator.clipboard.writeText(fullUrl);
     setCopiedToken(token);
     setTimeout(() => setCopiedToken(null), 2500);
+  };
+
+  // Paylaşım Bağlantısını Tamamen Sil / Kaldır (Otomatik Silinme Kuralı)
+  const handleDeleteShare = (id: string) => {
+    const target = sharedLinks.find((s) => s.id === id);
+    setSharedLinks((prev) => prev.filter((s) => s.id !== id));
+    setToastMessage(
+      `"${target?.itemTitle}" paylaşım bağlantısı iptal edildi ve paylaşılanlar listesinden kaldırıldı.`
+    );
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   return (
@@ -224,6 +249,14 @@ export default function ProfilePage() {
             </span>
           </div>
 
+          {/* Otomatik İptal & Temizleme Güvenlik Bilgilendirmesi */}
+          <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center gap-3 text-xs text-indigo-900">
+            <Shield className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>
+              <b>Otomatik İptal Kuralı:</b> Silinen içerik veya depolara ait tüm dış bağlantılar anında sonlandırılır ve bu listeden otomatik olarak kaldırılır.
+            </span>
+          </div>
+
           {sharedLinks.length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 space-y-2">
               <Share2 className="w-8 h-8 text-slate-300 mx-auto" />
@@ -246,10 +279,16 @@ export default function ProfilePage() {
                   <div className="flex items-start gap-3.5">
                     <div
                       className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 ${
-                        link.type === "text" ? "bg-blue-500" : "bg-purple-600"
+                        link.type === "container"
+                          ? "bg-indigo-600"
+                          : link.type === "text"
+                          ? "bg-blue-500"
+                          : "bg-purple-600"
                       }`}
                     >
-                      {link.type === "text" ? (
+                      {link.type === "container" ? (
+                        <Layers className="w-5 h-5" />
+                      ) : link.type === "text" ? (
                         <FileText className="w-5 h-5" />
                       ) : (
                         <Film className="w-5 h-5" />
@@ -257,10 +296,19 @@ export default function ProfilePage() {
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="font-bold text-sm text-slate-900">
                           {link.itemTitle}
                         </h4>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            link.scope === "container"
+                              ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                              : "bg-slate-100 text-slate-600 border border-slate-200"
+                          }`}
+                        >
+                          {link.scope === "container" ? "Tüm Depo" : "Tekil İçerik"}
+                        </span>
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             link.isActive
@@ -272,7 +320,7 @@ export default function ProfilePage() {
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500 font-medium">
+                      <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500 font-medium flex-wrap">
                         <span>Depo: {link.containerName}</span>
                         <span>•</span>
                         <span>{link.createdAt}</span>
@@ -289,7 +337,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {/* Sağ Eylemler: Kopyala, Aç, İptal Et */}
+                  {/* Sağ Eylemler: Kopyala, Aç, İptal Et, Sil */}
                   <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                     {/* Linki Aç */}
                     <Link
@@ -330,6 +378,15 @@ export default function ProfilePage() {
                     >
                       <Ban className="w-3.5 h-3.5" />
                       <span>{link.isActive ? "Erişimi İptal Et" : "Yeniden Aç"}</span>
+                    </button>
+
+                    {/* Bağlantıyı Tamamen Sil / Kaldır */}
+                    <button
+                      onClick={() => handleDeleteShare(link.id)}
+                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      title="Paylaşım Bağlantısını İptal Et ve Listeden Kaldır"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>

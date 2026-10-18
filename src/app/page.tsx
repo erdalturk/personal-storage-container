@@ -577,10 +577,13 @@ export default function HomePage() {
 
                         <div className="flex items-center gap-1">
                           <button
-                            title="Salt Okunur Paylaşım Bağlantısını Aç"
+                            title="Tüm Depoyu Salt Okunur Paylaş"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const token = item.formatTitle === "Metin" ? "mavi-aksamustu" : "inception-arsiv";
+                              const token =
+                                item.formatTitle === "Metin" || item.id === "c5"
+                                  ? "gece-siirleri-deposu"
+                                  : "sinema-kulubu-deposu";
                               window.open(`/share/${token}`, "_blank");
                             }}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors"

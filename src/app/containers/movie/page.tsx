@@ -829,12 +829,22 @@ export default function MovieContainerPage() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
 
-                <button
-                  onClick={() => setSelectedMovie(null)}
-                  className="absolute top-4 right-4 p-2 rounded-full bg-black/50 text-white/80 hover:text-white backdrop-blur-md"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="absolute top-4 right-4 flex items-center gap-2">
+                  <button
+                    onClick={() => window.open("/share/inception-arsiv", "_blank")}
+                    title="Bu Filmi Salt Okunur Paylaş (Tekil İçerik)"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 hover:bg-purple-600 text-white text-xs font-bold backdrop-blur-md border border-white/20 transition-all shadow-md"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Bu Filmi Paylaş</span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedMovie(null)}
+                    className="p-2 rounded-full bg-black/50 text-white/80 hover:text-white backdrop-blur-md"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
 
                 {/* Başlık ve Temel Bilgiler Backdrop Üzerinde */}
                 <div className="absolute bottom-4 left-6 right-6">
