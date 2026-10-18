@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Film,
@@ -184,6 +185,7 @@ const INITIAL_CONTAINERS: ContainerItem[] = [
 ];
 
 export default function HomePage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"updated" | "alpha" | "manual">("updated");
   const [containers, setContainers] = useState<ContainerItem[]>(INITIAL_CONTAINERS);
@@ -466,6 +468,13 @@ export default function HomePage() {
                     whileHover={{ y: -5 }}
                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
                     className="bg-white rounded-3xl border-2 border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all overflow-hidden flex flex-col justify-between group cursor-pointer"
+                    onClick={() => {
+                      if (item.formatTitle === "Metin" || item.id === "c5") {
+                        router.push("/containers/text");
+                      } else {
+                        alert(`"${item.title}" açılıyor...`);
+                      }
+                    }}
                   >
                     {/* Depo Kapak Görseli / Gradyan Başlığı */}
                     <div
@@ -654,8 +663,12 @@ export default function HomePage() {
                 <button
                   disabled={!selectedFormat}
                   onClick={() => {
-                    alert(`Seçilen format: ${selectedFormat}. Özelleştirme ekranı açılıyor.`);
                     setIsCreateModalOpen(false);
+                    if (selectedFormat === "text") {
+                      router.push("/containers/text");
+                    } else {
+                      alert(`Seçilen format: ${selectedFormat}. Bu formatın tasarım ekranı bir sonraki adımda inşa edilecek.`);
+                    }
                   }}
                   className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md ${
                     selectedFormat
