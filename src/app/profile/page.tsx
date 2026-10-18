@@ -20,6 +20,11 @@ import {
   AlertCircle,
   Ban,
   Sparkles,
+  Settings,
+  Edit3,
+  X,
+  User,
+  Lock,
 } from "lucide-react";
 
 interface SharedLink {
@@ -32,6 +37,14 @@ interface SharedLink {
   views: number;
   isActive: boolean; // Aktif veya İptal Edilmiş (Revoked)
 }
+
+const AVATAR_PALETTES = [
+  { id: "purple", name: "Mor & İndigo", gradient: "from-purple-500 to-indigo-600" },
+  { id: "blue", name: "Mavi & Cyan", gradient: "from-blue-500 to-cyan-500" },
+  { id: "emerald", name: "Zümrüt & Yeşil", gradient: "from-emerald-500 to-teal-600" },
+  { id: "amber", name: "Turuncu & Amber", gradient: "from-amber-500 to-orange-600" },
+  { id: "rose", name: "Kırmızı & Pembe", gradient: "from-rose-500 to-pink-600" },
+];
 
 const INITIAL_SHARES: SharedLink[] = [
   {
@@ -67,11 +80,40 @@ const INITIAL_SHARES: SharedLink[] = [
 ];
 
 export default function ProfilePage() {
+  // Profil State'leri
   const [displayName, setDisplayName] = useState("Erdal Türk");
   const [email] = useState("erdalturk@example.com");
+  const [avatarGradient, setAvatarGradient] = useState("from-purple-500 to-indigo-600");
+
+  // Düzenleme Modalı State'leri
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [tempDisplayName, setTempDisplayName] = useState(displayName);
+  const [tempAvatarGradient, setTempAvatarGradient] = useState(avatarGradient);
+
+  // Paylaşılan Linkler
   const [sharedLinks, setSharedLinks] = useState<SharedLink[]>(INITIAL_SHARES);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Düzenleme Modalını Aç
+  const handleOpenEdit = () => {
+    setTempDisplayName(displayName);
+    setTempAvatarGradient(avatarGradient);
+    setIsEditModalOpen(true);
+  };
+
+  // Düzenlemeyi Kaydet
+  const handleSaveProfile = () => {
+    if (!tempDisplayName.trim()) {
+      alert("Lütfen geçerli bir görünen ad yazın.");
+      return;
+    }
+    setDisplayName(tempDisplayName.trim());
+    setAvatarGradient(tempAvatarGradient);
+    setIsEditModalOpen(false);
+    setToastMessage("Profil bilgileriniz başarıyla güncellendi.");
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   // Paylaşım Bağlantısını İptal Et (Revoke - Bölüm 15.2)
   const handleToggleShareActive = (id: string) => {
@@ -126,36 +168,42 @@ export default function ProfilePage() {
 
       {/* ANA İÇERİK ALANI */}
       <main className="max-w-4xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8 flex-1">
-        {/* 1. KULLANICI KİMLİK KARTI (Bölüm 13.2 & 13.3 - Kesinlikle Bio Alanı Yok) */}
+        {/* 1. KULLANICI KİMLİK KARTI (Görüntüleme Modu - Sade, Temiz, Düzenle Butonlu) */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-md shadow-indigo-100 shrink-0">
-              ET
+            <div
+              className={`w-16 h-16 rounded-2xl bg-gradient-to-tr ${avatarGradient} flex items-center justify-center text-white text-xl font-bold shadow-md shadow-indigo-100 shrink-0 transition-all`}
+            >
+              {displayName.slice(0, 2).toUpperCase() || "ET"}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="font-extrabold text-xl sm:text-2xl text-slate-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none transition-colors"
-                  title="Görünen Adı Düzenle"
-                />
+                <h2 className="font-extrabold text-xl sm:text-2xl text-slate-900 tracking-tight">
+                  {displayName}
+                </h2>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">{email}</p>
-              <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
-                <Shield className="w-3 h-3 text-emerald-600" />
-                <span>Kişisel Arşiv Sahibi</span>
+              
+              <div className="flex items-center gap-2 mt-2">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
+                  <Shield className="w-3 h-3 text-emerald-600" />
+                  <span>Kişisel Arşiv Sahibi</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  • Ekim 2026'dan beri üye
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center">
+          {/* DÜZENLE BUTONU (Kullanıcının talep ettiği estetik düğme) */}
+          <div className="self-end sm:self-center">
             <button
-              onClick={() => alert("Profil bilgileriniz güncellendi.")}
-              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-colors"
+              onClick={handleOpenEdit}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold transition-all border border-slate-200 shadow-xs"
             >
-              Kaydet
+              <Settings className="w-4 h-4 text-slate-500" />
+              <span>Profili Düzenle</span>
             </button>
           </div>
         </div>
@@ -290,6 +338,131 @@ export default function ProfilePage() {
           )}
         </section>
       </main>
+
+      {/* 3. PROFİLİ DÜZENLE MODALI (Section 13.2 & 13.3) */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsEditModalOpen(false)}
+              className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 z-10 space-y-6"
+            >
+              {/* Modal Başlık */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-slate-900">
+                      Profili Düzenle
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Salt okunur paylaşımlarda görünecek kimliğinizi güncelleyin
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form Alanları */}
+              <div className="space-y-4">
+                {/* 1. Görünen Ad / Takma Ad */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                    Görünen Ad / Takma Ad
+                  </label>
+                  <input
+                    type="text"
+                    value={tempDisplayName}
+                    onChange={(e) => setTempDisplayName(e.target.value)}
+                    placeholder="Örn: Erdal Türk"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Bu isim dışarıya paylaştığınız içeriklerde imzanız olarak görünür.
+                  </span>
+                </div>
+
+                {/* 2. Avatar Renk Paleti */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-2">
+                    Avatar Rengi Seçin
+                  </label>
+                  <div className="flex items-center gap-2.5">
+                    {AVATAR_PALETTES.map((palette) => (
+                      <button
+                        key={palette.id}
+                        type="button"
+                        onClick={() => setTempAvatarGradient(palette.gradient)}
+                        className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${palette.gradient} flex items-center justify-center text-white transition-all shadow-xs ${
+                          tempAvatarGradient === palette.gradient
+                            ? "ring-3 ring-indigo-500 ring-offset-2 scale-110"
+                            : "hover:scale-105 opacity-80 hover:opacity-100"
+                        }`}
+                        title={palette.name}
+                      >
+                        {tempAvatarGradient === palette.gradient && (
+                          <Check className="w-4 h-4 stroke-[3]" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. E-posta (Salt Okunur) */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                    Giriş E-postası (Değiştirilemez)
+                  </label>
+                  <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-100 border border-slate-200/80 rounded-xl text-xs text-slate-500 font-medium">
+                    <span>{email}</span>
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  </div>
+                </div>
+
+                {/* Bölüm 13.3 Kural Hatırlatması */}
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-[10px] text-slate-500 leading-relaxed">
+                  💡 <b>Not:</b> Platform sosyal medya olmadığı için biyografi (bio), takipçi ve benzeri alanlar bulunmamaktadır.
+                </div>
+              </div>
+
+              {/* Alt Eylemler: Vazgeç & Kaydet */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveProfile}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-colors"
+                >
+                  Değişiklikleri Kaydet
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* TOAST BİLDİRİMİ */}
       <AnimatePresence>
