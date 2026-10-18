@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -12,6 +13,7 @@ import {
   Search,
   Lock,
   Unlock,
+  KeyRound,
   Trash2,
   FileText,
   Music,
@@ -193,6 +195,26 @@ export default function HomePage() {
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "smart" | "standard">("all");
 
+  // Depo Kilidi (PIN) Doğrulama Durumları
+  const [pinModalTarget, setPinModalTarget] = useState<ContainerItem | null>(null);
+  const [enteredPin, setEnteredPin] = useState("");
+  const [pinError, setPinError] = useState(false);
+
+  const handleVerifyPin = () => {
+    // Demo varsayılan PIN: 1234
+    if (enteredPin === "1234" && pinModalTarget) {
+      const target = pinModalTarget;
+      setPinModalTarget(null);
+      if (target.formatTitle === "Metin" || target.id === "c5") {
+        router.push("/containers/text");
+      } else if (target.formatTitle === "Film & Dizi" || target.id === "c1") {
+        router.push("/containers/movie");
+      }
+    } else {
+      setPinError(true);
+    }
+  };
+
   // Kilit açma/kapama fonksiyonu (Depo Kilidi On/Off Switch)
   const toggleLock = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -240,22 +262,27 @@ export default function HomePage() {
 
           {/* Sağ Eylemler: Çöp Kutusu & Profil */}
           <div className="flex items-center gap-3">
-            <button
+            <Link
+              href="/trash"
               title="Çöp Kutusu (30 gün saklanır)"
               className="p-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors relative"
             >
               <Trash2 className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
-            </button>
+            </Link>
 
-            <button className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/80 transition-colors border border-slate-200/60">
+            <Link
+              href="/profile"
+              title="Hesap ve Paylaşım Yönetimi"
+              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/80 transition-colors border border-slate-200/60"
+            >
               <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shadow-xs">
                 ET
               </div>
               <span className="text-xs font-semibold text-slate-700 hidden sm:inline">
                 Erdal Türk
               </span>
-            </button>
+            </Link>
           </div>
         </div>
       </header>
@@ -475,6 +502,12 @@ export default function HomePage() {
                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
                     className="bg-white rounded-3xl border-2 border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all overflow-hidden flex flex-col justify-between group cursor-pointer"
                     onClick={() => {
+                      if (item.isLocked) {
+                        setPinModalTarget(item);
+                        setEnteredPin("");
+                        setPinError(false);
+                        return;
+                      }
                       if (item.formatTitle === "Metin" || item.id === "c5") {
                         router.push("/containers/text");
                       } else if (item.formatTitle === "Film & Dizi" || item.id === "c1") {
@@ -544,12 +577,13 @@ export default function HomePage() {
 
                         <div className="flex items-center gap-1">
                           <button
-                            title="Salt Okunur Paylaş"
+                            title="Salt Okunur Paylaşım Bağlantısını Aç"
                             onClick={(e) => {
                               e.stopPropagation();
-                              alert(`"${item.title}" için salt okunur paylaşım linki oluşturuldu.`);
+                              const token = item.formatTitle === "Metin" ? "mavi-aksamustu" : "inception-arsiv";
+                              window.open(`/share/${token}`, "_blank");
                             }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
                           >
                             <Share2 className="w-4 h-4" />
                           </button>
@@ -685,6 +719,104 @@ export default function HomePage() {
                   }`}
                 >
                   Devam Et →
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 6. DEPO KİLİDİ (PIN) DOĞRULAMA MODALI (Bölüm 14.2) */}
+      <AnimatePresence>
+        {pinModalTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPinModalTarget(null)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-sm bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200 z-10 text-center space-y-5"
+            >
+              {/* Kilit İkonu */}
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100 shadow-xs">
+                <KeyRound className="w-7 h-7" />
+              </div>
+
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900">
+                  Bu Depo Korumalı
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  "{pinModalTarget.title}" deposuna erişmek için lütfen 4 haneli PIN şifrenizi girin.
+                </p>
+                <div className="mt-2 text-[11px] font-semibold text-indigo-600 bg-indigo-50 py-1 px-2.5 rounded-lg inline-block">
+                  Demo PIN: 1234
+                </div>
+              </div>
+
+              {/* PIN Giriş Alanı */}
+              <div className="space-y-3">
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={enteredPin}
+                  onChange={(e) => {
+                    setEnteredPin(e.target.value);
+                    setPinError(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleVerifyPin();
+                  }}
+                  placeholder="••••"
+                  className={`w-40 mx-auto text-center tracking-[0.5em] text-2xl font-mono font-bold py-2.5 bg-slate-50 border-2 rounded-2xl outline-none transition-all ${
+                    pinError
+                      ? "border-rose-500 bg-rose-50 text-rose-700 focus:ring-4 focus:ring-rose-100"
+                      : "border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                  }`}
+                  autoFocus
+                />
+
+                {pinError && (
+                  <p className="text-xs text-rose-600 font-bold animate-shake">
+                    Hatalı PIN! Lütfen tekrar deneyin.
+                  </p>
+                )}
+              </div>
+
+              {/* Butonlar ve Şifremi Unuttum */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setPinModalTarget(null)}
+                    className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    onClick={handleVerifyPin}
+                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-colors"
+                  >
+                    Kilidi Aç →
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    alert(
+                      "Şifre Kurtarma: Güvenlik politikası gereği, kayıtlı e-posta adresinize (erdalturk@example.com) tek kullanımlık depo PIN sıfırlama kodu gönderilebilir."
+                    )
+                  }
+                  className="text-[11px] font-semibold text-slate-400 hover:text-indigo-600 transition-colors block mx-auto underline"
+                >
+                  Depo PIN'ini mi unuttun?
                 </button>
               </div>
             </motion.div>

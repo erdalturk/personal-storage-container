@@ -709,6 +709,13 @@ export default function TextContainerPage() {
                     )}
                   </button>
                   <button
+                    onClick={() => window.open("/share/mavi-aksamustu", "_blank")}
+                    className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+                    title="Salt Okunur Önizleme Bağlantısını Aç"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={handleDownloadTxt}
                     className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
                     title="TXT Olarak İndir"
