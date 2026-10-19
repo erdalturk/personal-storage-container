@@ -130,7 +130,30 @@ interface ContainerItem {
   lastUpdated: string;
   isLocked: boolean;
   coverGradient: string;
-  icon: any;
+  icon?: any;
+}
+
+function getContainerIcon(item: ContainerItem) {
+  if (typeof item.icon === "function") return item.icon;
+  if (
+    item.icon &&
+    typeof item.icon === "object" &&
+    ("render" in item.icon || "$$typeof" in item.icon)
+  ) {
+    return item.icon;
+  }
+  const title = (item.formatTitle || item.title || "").toLowerCase();
+  const id = item.id || "";
+
+  if (title.includes("film") || title.includes("sinema") || id === "c1") return Film;
+  if (title.includes("kod") || title.includes("snippet") || id === "c2") return Code2;
+  if (title.includes("gezi") || title.includes("seyahat") || id === "c3") return Compass;
+  if (title.includes("ders") || title.includes("algoritma") || id === "c4") return GraduationCap;
+  if (title.includes("metin") || title.includes("şiir") || id === "c5") return FileText;
+  if (title.includes("ses") || title.includes("müzik")) return Music;
+  if (title.includes("görüntü") || title.includes("foto")) return ImageIcon;
+  if (title.includes("dosya") || title.includes("belge")) return FolderArchive;
+  return Layers;
 }
 
 const INITIAL_CONTAINERS: ContainerItem[] = [
@@ -529,7 +552,7 @@ export default function HomePage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredContainers.map((item) => {
-                const IconComp = item.icon;
+                const IconComp = getContainerIcon(item);
                 return (
                   <motion.div
                     key={item.id}
