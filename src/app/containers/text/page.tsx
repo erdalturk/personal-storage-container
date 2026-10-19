@@ -1,8 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  addToTrash,
+  getStoredCollection,
+  saveStoredCollection,
+} from "@/lib/appStore";
 import {
   ArrowLeft,
   LayoutGrid,
@@ -106,7 +111,18 @@ export default function TextContainerPage() {
 
   // Veri Durumları
   const [folders, setFolders] = useState<FolderItem[]>(INITIAL_FOLDERS);
-  const [texts, setTexts] = useState<TextItem[]>(INITIAL_TEXTS);
+  const [texts, setTexts] = useState<TextItem[]>([]);
+
+  useEffect(() => {
+    setTexts(getStoredCollection("texts", INITIAL_TEXTS));
+
+    const handleUpdate = () => {
+      setTexts(getStoredCollection("texts", INITIAL_TEXTS));
+    };
+
+    window.addEventListener("psc-store-updated", handleUpdate);
+    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+  }, []);
 
   // Editör Modalı
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -178,22 +194,22 @@ export default function TextContainerPage() {
 
     if (editingItem) {
       // Güncelle
-      setTexts((prev) =>
-        prev.map((t) =>
-          t.id === editingItem.id
-            ? {
-                ...t,
-                title: editTitle,
-                content: editContent,
-                formatType: editFormatType,
-                folderId: editFolderId,
-                lastUpdated: "Az önce",
-                wordCount: words,
-                lineCount: lines,
-              }
-            : t
-        )
+      const updated = texts.map((t) =>
+        t.id === editingItem.id
+          ? {
+              ...t,
+              title: editTitle,
+              content: editContent,
+              formatType: editFormatType,
+              folderId: editFolderId,
+              lastUpdated: "Az önce",
+              wordCount: words,
+              lineCount: lines,
+            }
+          : t
       );
+      setTexts(updated);
+      saveStoredCollection("texts", updated);
     } else {
       // Yeni Ekle
       const newItem: TextItem = {
@@ -206,20 +222,33 @@ export default function TextContainerPage() {
         wordCount: words,
         lineCount: lines,
       };
-      setTexts([newItem, ...texts]);
+      const updated = [newItem, ...texts];
+      setTexts(updated);
+      saveStoredCollection("texts", updated);
     }
 
     setIsEditorOpen(false);
   };
 
-  // Metni Sil ve Hızlı Geri Al (Undo) Başlat (Bölüm 12.1)
+  // Metni Sil ve Hızlı Geri Al (Undo) Başlat (Bölüm 12.1 + Çöp Kutusu ve Paylaşım İptali)
   const handleDeleteText = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const itemToDelete = texts.find((t) => t.id === id);
     if (!itemToDelete) return;
 
+    // 1. Çöp Kutusuna Gönder (Bu işlem varsa paylaşılan içeriklerden de anında kaldırır ve iptal eder!)
+    addToTrash({
+      title: itemToDelete.title,
+      originContainer: "Gece Düşünceleri & Şiirlerim",
+      type: "text",
+      contentPreview: itemToDelete.content.slice(0, 100),
+      originalData: itemToDelete,
+    });
+
     setDeletedItemBackup(itemToDelete);
-    setTexts((prev) => prev.filter((t) => t.id !== id));
+    const updated = texts.filter((t) => t.id !== id);
+    setTexts(updated);
+    saveStoredCollection("texts", updated);
     setToastMessage(`"${itemToDelete.title}" Çöp Kutusu'na taşındı.`);
 
     // 5 saniye sonra geri alma imkanını temizle
@@ -231,7 +260,9 @@ export default function TextContainerPage() {
   // Hızlı Geri Al Fonksiyonu
   const handleUndoDelete = () => {
     if (deletedItemBackup) {
-      setTexts((prev) => [deletedItemBackup, ...prev]);
+      const updated = [deletedItemBackup, ...texts];
+      setTexts(updated);
+      saveStoredCollection("texts", updated);
       setDeletedItemBackup(null);
       setToastMessage(null);
     }
@@ -252,9 +283,9 @@ export default function TextContainerPage() {
   // Klasör Silme — Bölüm 10.7 Seçenekleri:
   // Seçenek 1: İçerikleri koru (klasörsüz yap)
   const handleDeleteFolderKeepItems = (folderId: string) => {
-    setTexts((prev) =>
-      prev.map((t) => (t.folderId === folderId ? { ...t, folderId: null } : t))
-    );
+    const updated = texts.map((t) => (t.folderId === folderId ? { ...t, folderId: null } : t));
+    setTexts(updated);
+    saveStoredCollection("texts", updated);
     setFolders((prev) => prev.filter((f) => f.id !== folderId));
     if (selectedFolderId === folderId) setSelectedFolderId("all");
     setFolderToDelete(null);
@@ -262,7 +293,19 @@ export default function TextContainerPage() {
 
   // Seçenek 2: Klasör ve içeriklerini birlikte sil (Çöp kutusuna at)
   const handleDeleteFolderWithItems = (folderId: string) => {
-    setTexts((prev) => prev.filter((t) => t.folderId !== folderId));
+    const itemsInFolder = texts.filter((t) => t.folderId === folderId);
+    itemsInFolder.forEach((t) => {
+      addToTrash({
+        title: t.title,
+        originContainer: "Gece Düşünceleri & Şiirlerim",
+        type: "text",
+        contentPreview: t.content.slice(0, 100),
+        originalData: t,
+      });
+    });
+    const updated = texts.filter((t) => t.folderId !== folderId);
+    setTexts(updated);
+    saveStoredCollection("texts", updated);
     setFolders((prev) => prev.filter((f) => f.id !== folderId));
     if (selectedFolderId === folderId) setSelectedFolderId("all");
     setFolderToDelete(null);

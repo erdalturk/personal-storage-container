@@ -1,8 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  addToTrash,
+  getStoredCollection,
+  saveStoredCollection,
+} from "@/lib/appStore";
 import {
   ArrowLeft,
   Search,
@@ -213,11 +218,22 @@ const SEARCH_DATABASE = [
 ];
 
 export default function MovieContainerPage() {
-  const [movies, setMovies] = useState<MovieItem[]>(INITIAL_MOVIES);
+  const [movies, setMovies] = useState<MovieItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<"all" | "watched" | "watchlist" | "favorites">("all");
   const [sortBy, setSortBy] = useState<"rating" | "year" | "title">("rating");
   const [isLocked, setIsLocked] = useState(false);
+
+  useEffect(() => {
+    setMovies(getStoredCollection("movies", INITIAL_MOVIES));
+
+    const handleUpdate = () => {
+      setMovies(getStoredCollection("movies", INITIAL_MOVIES));
+    };
+
+    window.addEventListener("psc-store-updated", handleUpdate);
+    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+  }, []);
 
   // Detay Modalı
   const [selectedMovie, setSelectedMovie] = useState<MovieItem | null>(null);
@@ -245,32 +261,46 @@ export default function MovieContainerPage() {
     e?: React.MouseEvent
   ) => {
     if (e) e.stopPropagation();
-    setMovies((prev) =>
-      prev.map((m) => {
+    setMovies((prev) => {
+      const updated = prev.map((m) => {
         if (m.id === movieId) {
-          const updated = { ...m, [statusKey]: !m[statusKey] };
-          // Eğer film detay modalı açıksa onu da güncelle
+          const item = { ...m, [statusKey]: !m[statusKey] };
           if (selectedMovie && selectedMovie.id === movieId) {
-            setSelectedMovie(updated);
+            setSelectedMovie(item);
           }
-          return updated;
+          return item;
         }
         return m;
-      })
-    );
+      });
+      saveStoredCollection("movies", updated);
+      return updated;
+    });
   };
 
-  // Film Sil ve Geri Al (Undo Toast)
+  // Film Sil ve Geri Al (Çöp Kutusuna Atar & Varsa Paylaşımını Otomatik İptal Eder)
   const handleDeleteMovie = (movieId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const movieToDelete = movies.find((m) => m.id === movieId);
     if (!movieToDelete) return;
 
+    // 1. Çöp Kutusuna Gönder (Bu işlem varsa paylaşılan içeriklerden de anında kaldırır ve iptal eder!)
+    addToTrash({
+      title: movieToDelete.title,
+      originContainer: "Sinema Kulübü & Başyapıtlar",
+      type: "movie",
+      posterUrl: movieToDelete.posterUrl,
+      contentPreview: `${movieToDelete.director} • ${movieToDelete.year} • ${movieToDelete.genres.join(", ")}`,
+      originalData: movieToDelete,
+    });
+
     setDeletedMovieBackup(movieToDelete);
-    setMovies((prev) => prev.filter((m) => m.id !== movieId));
+    const updated = movies.filter((m) => m.id !== movieId);
+    setMovies(updated);
+    saveStoredCollection("movies", updated);
+
     if (selectedMovie?.id === movieId) setSelectedMovie(null);
 
-    setToastMessage(`"${movieToDelete.title}" Çöp Kutusu'na taşındı.`);
+    setToastMessage(`"${movieToDelete.title}" Çöp Kutusu'na taşındı. Varsa paylaşım bağlantısı otomatik iptal edildi.`);
     setTimeout(() => setToastMessage(null), 5000);
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -27,18 +27,12 @@ import {
   Lock,
   Code2,
 } from "lucide-react";
-
-interface SharedLink {
-  id: string;
-  token: string;
-  itemTitle: string;
-  containerName: string;
-  type: "text" | "movie" | "code" | "container";
-  scope: "container" | "item";
-  createdAt: string;
-  views: number;
-  isActive: boolean; // Aktif veya İptal Edilmiş (Revoked)
-}
+import {
+  getSharedLinks,
+  toggleShareLinkActive,
+  deleteSharedLink,
+  SharedLink,
+} from "@/lib/appStore";
 
 const AVATAR_PALETTES = [
   { id: "purple", name: "Mor & İndigo", gradient: "from-purple-500 to-indigo-600" },
@@ -128,10 +122,21 @@ export default function ProfilePage() {
   const [tempDisplayName, setTempDisplayName] = useState(displayName);
   const [tempAvatarGradient, setTempAvatarGradient] = useState(avatarGradient);
 
-  // Paylaşılan Linkler
-  const [sharedLinks, setSharedLinks] = useState<SharedLink[]>(INITIAL_SHARES);
+  // Paylaşılan Linkler (Merkezi Store ile Tam Senkronize)
+  const [sharedLinks, setSharedLinks] = useState<SharedLink[]>([]);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSharedLinks(getSharedLinks());
+
+    const handleUpdate = () => {
+      setSharedLinks(getSharedLinks());
+    };
+
+    window.addEventListener("psc-store-updated", handleUpdate);
+    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+  }, []);
 
   // Düzenleme Modalını Aç
   const handleOpenEdit = () => {
@@ -153,23 +158,17 @@ export default function ProfilePage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Paylaşım Bağlantısını İptal Et (Revoke - Bölüm 15.2)
+  // Paylaşım Bağlantısını İptal Et / Yeniden Aç (Revoke - Bölüm 15.2)
   const handleToggleShareActive = (id: string) => {
-    setSharedLinks((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          const newStatus = !s.isActive;
-          setToastMessage(
-            newStatus
-              ? `"${s.itemTitle}" paylaşım bağlantısı yeniden aktif edildi.`
-              : `"${s.itemTitle}" paylaşım bağlantısı iptal edildi. Dış erişim kapatıldı.`
-          );
-          setTimeout(() => setToastMessage(null), 4000);
-          return { ...s, isActive: newStatus };
-        }
-        return s;
-      })
-    );
+    const updated = toggleShareLinkActive(id);
+    if (updated) {
+      setToastMessage(
+        updated.isActive
+          ? `"${updated.itemTitle}" paylaşım bağlantısı yeniden aktif edildi.`
+          : `"${updated.itemTitle}" paylaşım bağlantısı iptal edildi. Dış erişim kapatıldı.`
+      );
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
   // Link Kopyala
@@ -183,9 +182,9 @@ export default function ProfilePage() {
   // Paylaşım Bağlantısını Tamamen Sil / Kaldır (Otomatik Silinme Kuralı)
   const handleDeleteShare = (id: string) => {
     const target = sharedLinks.find((s) => s.id === id);
-    setSharedLinks((prev) => prev.filter((s) => s.id !== id));
+    deleteSharedLink(id);
     setToastMessage(
-      `"${target?.itemTitle}" paylaşım bağlantısı iptal edildi ve paylaşılanlar listesinden kaldırıldı.`
+      `"${target?.itemTitle}" paylaşım bağlantısı iptal edildi ve paylaşılan içerikler listesinden kaldırıldı.`
     );
     setTimeout(() => setToastMessage(null), 4000);
   };

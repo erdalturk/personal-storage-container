@@ -1,8 +1,13 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  addToTrash,
+  getStoredCollection,
+  saveStoredCollection,
+} from "@/lib/appStore";
 import {
   ArrowLeft,
   Search,
@@ -408,7 +413,19 @@ function highlightCode(code: string, language: SupportedLang): React.ReactNode[]
 }
 
 export default function CodeContainerPage() {
-  const [snippets, setSnippets] = useState<CodeSnippet[]>(INITIAL_SNIPPETS);
+  const [snippets, setSnippets] = useState<CodeSnippet[]>([]);
+
+  useEffect(() => {
+    setSnippets(getStoredCollection("snippets", INITIAL_SNIPPETS));
+
+    const handleUpdate = () => {
+      setSnippets(getStoredCollection("snippets", INITIAL_SNIPPETS));
+    };
+
+    window.addEventListener("psc-store-updated", handleUpdate);
+    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLang, setSelectedLang] = useState<string>("all");
   const [selectedTag, setSelectedTag] = useState<string>("all");
@@ -515,20 +532,21 @@ export default function CodeContainerPage() {
 
     if (editingSnippet) {
       // Güncelleme
-      setSnippets((prev) =>
-        prev.map((s) =>
-          s.id === editingSnippet.id
-            ? {
-                ...s,
-                title: editTitle.trim(),
-                language: editLang,
-                code: editCode,
-                description: editDescription.trim(),
-                tags: parsedTags.length > 0 ? parsedTags : ["#snippet"],
-              }
-            : s
-        )
+      const updated = snippets.map((s) =>
+        s.id === editingSnippet.id
+          ? {
+              ...s,
+              title: editTitle.trim(),
+              language: editLang,
+              code: editCode,
+              description: editDescription.trim(),
+              tags: parsedTags.length > 0 ? parsedTags : ["#snippet"],
+            }
+          : s
       );
+      setSnippets(updated);
+      saveStoredCollection("snippets", updated);
+
       if (detailSnippet && detailSnippet.id === editingSnippet.id) {
         setDetailSnippet({
           ...detailSnippet,
@@ -552,7 +570,9 @@ export default function CodeContainerPage() {
         createdAt: "Az önce",
         isFavorite: false,
       };
-      setSnippets((prev) => [newSnippet, ...prev]);
+      const updated = [newSnippet, ...snippets];
+      setSnippets(updated);
+      saveStoredCollection("snippets", updated);
       setToastMessage("Yeni kod parçacığı arşive eklendi.");
     }
 
@@ -560,15 +580,26 @@ export default function CodeContainerPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Kodu Sil (5 Saniyelik Geri Alma Toast'ı)
+  // Kodu Sil (Çöp Kutusuna Gönder & Varsa Paylaşımını Otomatik İptal Et)
   const handleDeleteSnippet = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const index = snippets.findIndex((s) => s.id === id);
     if (index === -1) return;
     const target = snippets[index];
 
+    // 1. Çöp Kutusuna Gönder (Bu işlem varsa paylaşılan içeriklerden de anında kaldırır ve iptal eder!)
+    addToTrash({
+      title: target.title,
+      originContainer: "Frontend & Fullstack Snippet'lar",
+      type: "code",
+      contentPreview: target.description || target.code.slice(0, 80),
+      originalData: target,
+    });
+
     setDeletedSnippetCache({ item: target, index });
-    setSnippets((prev) => prev.filter((s) => s.id !== id));
+    const updated = snippets.filter((s) => s.id !== id);
+    setSnippets(updated);
+    saveStoredCollection("snippets", updated);
     if (detailSnippet && detailSnippet.id === id) {
       setDetailSnippet(null);
     }
@@ -583,11 +614,10 @@ export default function CodeContainerPage() {
   const handleUndoDelete = () => {
     if (!deletedSnippetCache) return;
     const { item, index } = deletedSnippetCache;
-    setSnippets((prev) => {
-      const next = [...prev];
-      next.splice(index, 0, item);
-      return next;
-    });
+    const next = [...snippets];
+    next.splice(index, 0, item);
+    setSnippets(next);
+    saveStoredCollection("snippets", next);
     setDeletedSnippetCache(null);
     setToastMessage(`"${item.title}" geri yüklendi.`);
     setTimeout(() => setToastMessage(null), 2500);

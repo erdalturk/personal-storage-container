@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -16,68 +16,47 @@ import {
   CheckCircle2,
   X,
   Info,
+  Layers,
+  Code2,
 } from "lucide-react";
-
-interface TrashItem {
-  id: string;
-  title: string;
-  originContainer: string;
-  type: "text" | "movie" | "file";
-  deletedAt: string;
-  daysRemaining: number; // Varsayılan 30 günden geri sayım (Bölüm 12.3)
-  contentPreview?: string;
-  posterUrl?: string;
-}
-
-const INITIAL_TRASH_ITEMS: TrashItem[] = [
-  {
-    id: "tr1",
-    title: "Eski Taslak Şiir Denemesi",
-    originContainer: "Gece Düşünceleri & Şiirlerim",
-    type: "text",
-    deletedAt: "Bugün 13:40",
-    daysRemaining: 30,
-    contentPreview: "Yarım kalan kelimelerin ardında saklanan sessizlik...",
-  },
-  {
-    id: "tr2",
-    title: "Tenet (2020)",
-    originContainer: "Sinema Kulübü & Başyapıtlar",
-    type: "movie",
-    deletedAt: "Dün",
-    daysRemaining: 29,
-    contentPreview: "Christopher Nolan • Bilim Kurgu / Aksiyon • Zamanın tersine akışı",
-    posterUrl: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: "tr3",
-    title: "Eski Web Sitesi Fikirleri 2025",
-    originContainer: "Gece Düşünceleri & Şiirlerim",
-    type: "text",
-    deletedAt: "6 gün önce",
-    daysRemaining: 24,
-    contentPreview: "Kullanıcıların dijital arşivlerini yönetebileceği sade bir container tasarımı...",
-  },
-];
+import {
+  getTrashItems,
+  restoreFromTrash,
+  permanentDeleteFromTrash,
+  emptyTrash,
+  TrashItem,
+} from "@/lib/appStore";
 
 export default function TrashPage() {
-  const [items, setItems] = useState<TrashItem[]>(INITIAL_TRASH_ITEMS);
+  const [items, setItems] = useState<TrashItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"all" | "text" | "movie">("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "container" | "text" | "movie" | "code">("all");
   const [itemToDeletePermanently, setItemToDeletePermanently] = useState<TrashItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Merkezi depodan canlı yükleme ve olay dinleyici
+  useEffect(() => {
+    setItems(getTrashItems());
+
+    const handleUpdate = () => {
+      setItems(getTrashItems());
+    };
+
+    window.addEventListener("psc-store-updated", handleUpdate);
+    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+  }, []);
+
   // Geri Yükle
   const handleRestore = (item: TrashItem) => {
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
-    setToastMessage(`"${item.title}" başarıyla "${item.originContainer}" deposuna geri yüklendi.`);
+    restoreFromTrash(item.id);
+    setToastMessage(`"${item.title}" başarıyla "${item.originContainer}" konumuna geri yüklendi.`);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
   // Kalıcı Olarak Sil
   const handlePermanentDelete = () => {
     if (!itemToDeletePermanently) return;
-    setItems((prev) => prev.filter((i) => i.id !== itemToDeletePermanently.id));
+    permanentDeleteFromTrash(itemToDeletePermanently.id);
     setToastMessage(`"${itemToDeletePermanently.title}" kalıcı olarak silindi.`);
     setItemToDeletePermanently(null);
     setTimeout(() => setToastMessage(null), 4000);
@@ -87,7 +66,7 @@ export default function TrashPage() {
   const handleEmptyTrash = () => {
     if (items.length === 0) return;
     if (confirm("Çöp kutusundaki tüm içerikler kalıcı olarak silinecektir. Bu işlem geri alınamaz. Onaylıyor musunuz?")) {
-      setItems([]);
+      emptyTrash();
       setToastMessage("Çöp kutusu tamamen boşaltıldı.");
       setTimeout(() => setToastMessage(null), 4000);
     }
@@ -98,8 +77,10 @@ export default function TrashPage() {
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.originContainer.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
+    if (activeFilter === "container") return item.type === "container";
     if (activeFilter === "text") return item.type === "text";
     if (activeFilter === "movie") return item.type === "movie";
+    if (activeFilter === "code") return item.type === "code";
     return true;
   });
 
@@ -121,11 +102,16 @@ export default function TrashPage() {
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-bold text-base sm:text-lg text-slate-900">
-                Çöp Kutusu
-              </h1>
-              <p className="text-[11px] text-slate-500">
-                {items.length} silinmiş öğe • 30 gün sonra otomatik temizlenir
+              <div className="flex items-center gap-2">
+                <h1 className="font-bold text-base sm:text-lg text-slate-900">
+                  Çöp Kutusu
+                </h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                  {items.length} Öğe
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                Silinen depolar ve içerikler 30 gün boyunca burada saklanır
               </p>
             </div>
           </div>
@@ -148,13 +134,13 @@ export default function TrashPage() {
         <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-start gap-3 text-xs text-indigo-900">
           <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
           <div>
-            <span className="font-bold">Otomatik Silme Kuralı:</span> Silinen içerikler varsayılan olarak 30 gün boyunca burada saklanır. Süre dolduğunda depolama tasarrufu amacıyla kalıcı olarak temizlenir. Dilediğiniz içeriği süresi dolmadan geri yükleyebilirsiniz.
+            <span className="font-bold">Otomatik Silme Kuralı:</span> Silinen içerikler ve depolar varsayılan olarak 30 gün boyunca burada saklanır. Bir içerik silindiğinde ona ait dış paylaşımlar otomatik olarak sonlandırılır. Dilediğiniz içeriği süresi dolmadan geri yükleyebilirsiniz.
           </div>
         </div>
 
         {/* Filtre ve Arama */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl">
+          <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl flex-wrap">
             <button
               onClick={() => setActiveFilter("all")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
@@ -162,6 +148,22 @@ export default function TrashPage() {
               }`}
             >
               Tümü ({items.length})
+            </button>
+            <button
+              onClick={() => setActiveFilter("container")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                activeFilter === "container" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Depolar ({items.filter((i) => i.type === "container").length})
+            </button>
+            <button
+              onClick={() => setActiveFilter("movie")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                activeFilter === "movie" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Filmler ({items.filter((i) => i.type === "movie").length})
             </button>
             <button
               onClick={() => setActiveFilter("text")}
@@ -172,12 +174,12 @@ export default function TrashPage() {
               Metinler ({items.filter((i) => i.type === "text").length})
             </button>
             <button
-              onClick={() => setActiveFilter("movie")}
+              onClick={() => setActiveFilter("code")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "movie" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "code" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Filmler ({items.filter((i) => i.type === "movie").length})
+              Kodlar ({items.filter((i) => i.type === "code").length})
             </button>
           </div>
 
@@ -188,15 +190,15 @@ export default function TrashPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Çöp kutusunda ara..."
-              className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 shadow-xs"
+              className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 shadow-2xs"
             />
           </div>
         </div>
 
-        {/* Silinmiş Öğeler Listesi */}
+        {/* LİSTE */}
         {filteredItems.length === 0 ? (
-          <div className="bg-white rounded-3xl p-16 text-center border-2 border-slate-200 space-y-3">
-            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+          <div className="bg-white rounded-3xl p-16 text-center border-2 border-dashed border-slate-200 space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto border border-emerald-100">
               <CheckCircle2 className="w-6 h-6 text-emerald-500" />
             </div>
             <h3 className="font-bold text-slate-800">Çöp kutusu tertemiz</h3>
@@ -215,38 +217,57 @@ export default function TrashPage() {
                 <div className="flex items-start gap-3.5">
                   <div
                     className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-xs ${
-                      item.type === "text"
+                      item.type === "container"
+                        ? "bg-indigo-600"
+                        : item.type === "text"
                         ? "bg-blue-500"
                         : item.type === "movie"
                         ? "bg-purple-600"
-                        : "bg-emerald-500"
+                        : item.type === "code"
+                        ? "bg-emerald-600"
+                        : "bg-slate-600"
                     }`}
                   >
-                    {item.type === "text" ? (
+                    {item.type === "container" ? (
+                      <Layers className="w-5 h-5" />
+                    ) : item.type === "text" ? (
                       <FileText className="w-5 h-5" />
                     ) : item.type === "movie" ? (
                       <Film className="w-5 h-5" />
+                    ) : item.type === "code" ? (
+                      <Code2 className="w-5 h-5" />
                     ) : (
                       <FolderArchive className="w-5 h-5" />
                     )}
                   </div>
 
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-bold text-sm text-slate-900">{item.title}</h4>
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
                         {item.originContainer}
                       </span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
+                        {item.type === "container"
+                          ? "Depo"
+                          : item.type === "movie"
+                          ? "Film"
+                          : item.type === "code"
+                          ? "Kod"
+                          : "Metin"}
+                      </span>
                     </div>
 
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-1">
-                      {item.contentPreview}
-                    </p>
+                    {item.contentPreview && (
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-1">
+                        {item.contentPreview}
+                      </p>
+                    )}
 
                     <div className="flex items-center gap-3 mt-2 text-[11px] font-semibold text-slate-400">
                       <span>Silindi: {item.deletedAt}</span>
                       <span>•</span>
-                      <span className="flex items-center gap-1 text-amber-600">
+                      <span className="flex items-center gap-1 text-amber-600 font-bold">
                         <Clock className="w-3 h-3" />
                         {item.daysRemaining} gün kaldı
                       </span>
@@ -278,56 +299,63 @@ export default function TrashPage() {
         )}
       </main>
 
-      {/* KALICI SİLME ONAY MODALI (Bölüm 12.2) */}
+      {/* KALICI SİLME ONAY MODALI */}
       <AnimatePresence>
         {itemToDeletePermanently && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               onClick={() => setItemToDeletePermanently(null)}
               className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"
             />
-            <div className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 z-10 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 z-10 space-y-4"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100">
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
                 <h3 className="font-extrabold text-base text-slate-900">
                   Kalıcı Olarak Silinsin mi?
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  "{itemToDeletePermanently.title}" içeriği tamamen silinecek ve geri alınamayacaktır.
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  <b className="text-slate-800">"{itemToDeletePermanently.title}"</b> öğesi tamamen silinecektir. Bu işlem geri alınamaz.
                 </p>
               </div>
-
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   onClick={() => setItemToDeletePermanently(null)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800"
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition-colors"
                 >
                   Vazgeç
                 </button>
                 <button
                   onClick={handlePermanentDelete}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white shadow-md hover:bg-rose-700 transition-colors"
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-200 transition-colors"
                 >
-                  Kalıcı Sil
+                  Evet, Kalıcı Olarak Sil
                 </button>
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* TOAST BİLDİRİMİ */}
+      {/* BİLDİRİM TOASTI */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl text-xs font-semibold"
+            className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-slate-700 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-semibold"
           >
-            {toastMessage}
+            <span>{toastMessage}</span>
           </motion.div>
         )}
       </AnimatePresence>

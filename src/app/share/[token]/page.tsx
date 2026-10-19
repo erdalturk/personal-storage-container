@@ -23,6 +23,7 @@ import {
   X,
   Clapperboard,
 } from "lucide-react";
+import { isTokenDeleted } from "@/lib/appStore";
 
 interface SharedRecord {
   title: string;
@@ -306,7 +307,34 @@ function ShareContent() {
     }
   };
 
-  // 1. Durum: Bağlantı Bulunamadı
+  // 1. Durum: İçerik Silindiği İçin Otomatik İptal Edilmiş Bağlantı (Merkezi Store ile Tam Senkronize!)
+  if (isTokenDeleted(token) || (item && item.isDeleted)) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center border border-slate-200 shadow-xl space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+            <Trash2 className="w-7 h-7" />
+          </div>
+          <h2 className="text-xl font-extrabold text-slate-900">
+            İçerik Silinmiş
+          </h2>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Bu içerik veya ait olduğu depo sahibi tarafından silindiği için paylaşım bağlantısı otomatik olarak sonlandırılmıştır.
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+            >
+              Kişisel Depo'ya Dön
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Durum: Bağlantı Bulunamadı
   if (!item) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -324,33 +352,6 @@ function ShareContent() {
           >
             Kişisel Depo Ana Sayfasına Git
           </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. Durum: İçerik Silindiği İçin Otomatik İptal Edilmiş Bağlantı (Kullanıcının İstediği Kural!)
-  if (item.isDeleted) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center border border-slate-200 shadow-xl space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
-            <Trash2 className="w-7 h-7" />
-          </div>
-          <h2 className="text-xl font-extrabold text-slate-900">
-            İçerik Silinmiş
-          </h2>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Bu içerik sahibi tarafından silindiği için paylaşım bağlantısı otomatik olarak sonlandırılmıştır.
-          </p>
-          <div className="pt-2">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
-            >
-              Kişisel Depo'ya Dön
-            </Link>
-          </div>
         </div>
       </div>
     );

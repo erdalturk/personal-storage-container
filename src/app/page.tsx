@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,6 +30,11 @@ import {
   CheckCircle2,
   Eye,
 } from "lucide-react";
+import {
+  addToTrash,
+  getStoredCollection,
+  saveStoredCollection,
+} from "@/lib/appStore";
 
 // Akıllı Depo Tanımları (Vitrindeki 4 Sabit Kart)
 const SMART_CONTAINERS = [
@@ -190,10 +195,39 @@ export default function HomePage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"updated" | "alpha" | "manual">("updated");
-  const [containers, setContainers] = useState<ContainerItem[]>(INITIAL_CONTAINERS);
+  const [containers, setContainers] = useState<ContainerItem[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "smart" | "standard">("all");
+
+  useEffect(() => {
+    setContainers(getStoredCollection("containers", INITIAL_CONTAINERS));
+
+    const handleUpdate = () => {
+      setContainers(getStoredCollection("containers", INITIAL_CONTAINERS));
+    };
+
+    window.addEventListener("psc-store-updated", handleUpdate);
+    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+  }, []);
+
+  // Depo Silme Fonksiyonu (Çöp Kutusuna Atar ve Varsa Paylaşım Bağlantılarını Otomatik İptal Eder)
+  const handleDeleteContainer = (container: ContainerItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm(`"${container.title}" deposunu Çöp Kutusu'na taşımak istediğinize emin misiniz?`)) {
+      addToTrash({
+        title: container.title,
+        originContainer: "Kişisel Depolarım",
+        type: "container",
+        contentPreview: `${container.formatTitle} • ${container.itemCount} içerik`,
+        originalData: container,
+      });
+
+      const updated = containers.filter((c) => c.id !== container.id);
+      setContainers(updated);
+      saveStoredCollection("containers", updated);
+    }
+  };
 
   // Depo Kilidi (PIN) Doğrulama Durumları
   const [pinModalTarget, setPinModalTarget] = useState<ContainerItem | null>(null);
@@ -597,11 +631,11 @@ export default function HomePage() {
                             <Share2 className="w-4 h-4" />
                           </button>
                           <button
-                            title="Diğer Seçenekler"
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            title="Depoyu Çöp Kutusuna Taşı (Sil)"
+                            onClick={(e) => handleDeleteContainer(item, e)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                           >
-                            <MoreVertical className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
