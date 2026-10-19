@@ -266,6 +266,10 @@ export default function HomePage() {
         router.push("/containers/text");
       } else if (target.formatTitle === "Film & Dizi" || target.id === "c1") {
         router.push("/containers/movie");
+      } else if (target.formatTitle === "Kod Parçacıkları" || target.id === "c2") {
+        router.push("/containers/code");
+      } else if (target.formatTitle === "Gezi & Seyahat" || target.id === "c3") {
+        router.push("/containers/travel");
       }
     } else {
       setPinError(true);
@@ -414,6 +418,8 @@ export default function HomePage() {
                       router.push("/containers/movie");
                     } else if (card.id === "code") {
                       router.push("/containers/code");
+                    } else if (card.id === "travel") {
+                      router.push("/containers/travel");
                     } else {
                       alert(`"${card.title}" oluşturma sihirbazı başlatılıyor.`);
                     }
@@ -573,6 +579,8 @@ export default function HomePage() {
                         router.push("/containers/movie");
                       } else if (item.formatTitle === "Kod Parçacıkları" || item.id === "c2") {
                         router.push("/containers/code");
+                      } else if (item.formatTitle === "Gezi & Seyahat" || item.id === "c3") {
+                        router.push("/containers/travel");
                       } else {
                         alert(`"${item.title}" açılıyor...`);
                       }

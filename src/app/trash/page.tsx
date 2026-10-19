@@ -18,6 +18,7 @@ import {
   Info,
   Layers,
   Code2,
+  Compass,
 } from "lucide-react";
 import {
   getTrashItems,
@@ -30,7 +31,7 @@ import {
 export default function TrashPage() {
   const [items, setItems] = useState<TrashItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"all" | "container" | "text" | "movie" | "code">("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "container" | "text" | "movie" | "code" | "travel">("all");
   const [itemToDeletePermanently, setItemToDeletePermanently] = useState<TrashItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -81,6 +82,7 @@ export default function TrashPage() {
     if (activeFilter === "text") return item.type === "text";
     if (activeFilter === "movie") return item.type === "movie";
     if (activeFilter === "code") return item.type === "code";
+    if (activeFilter === "travel") return item.type === "travel";
     return true;
   });
 
@@ -181,6 +183,14 @@ export default function TrashPage() {
             >
               Kodlar ({items.filter((i) => i.type === "code").length})
             </button>
+            <button
+              onClick={() => setActiveFilter("travel")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                activeFilter === "travel" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Geziler ({items.filter((i) => i.type === "travel").length})
+            </button>
           </div>
 
           <div className="relative w-full sm:w-64">
@@ -225,6 +235,8 @@ export default function TrashPage() {
                         ? "bg-purple-600"
                         : item.type === "code"
                         ? "bg-emerald-600"
+                        : item.type === "travel"
+                        ? "bg-amber-500"
                         : "bg-slate-600"
                     }`}
                   >
@@ -236,6 +248,8 @@ export default function TrashPage() {
                       <Film className="w-5 h-5" />
                     ) : item.type === "code" ? (
                       <Code2 className="w-5 h-5" />
+                    ) : item.type === "travel" ? (
+                      <Compass className="w-5 h-5" />
                     ) : (
                       <FolderArchive className="w-5 h-5" />
                     )}

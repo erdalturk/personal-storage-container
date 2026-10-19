@@ -8,7 +8,7 @@ export interface TrashItem {
   id: string;
   title: string;
   originContainer: string;
-  type: "container" | "text" | "movie" | "code" | "file";
+  type: "container" | "text" | "movie" | "code" | "travel" | "file";
   deletedAt: string;
   daysRemaining: number;
   contentPreview?: string;
@@ -21,7 +21,7 @@ export interface SharedLink {
   token: string;
   itemTitle: string;
   containerName: string;
-  type: "text" | "movie" | "code" | "container";
+  type: "text" | "movie" | "code" | "travel" | "container";
   scope: "container" | "item";
   createdAt: string;
   views: number;
@@ -36,6 +36,7 @@ const STORAGE_KEYS = {
   MOVIES: "psc_movies",
   TEXTS: "psc_texts",
   SNIPPETS: "psc_snippets",
+  TRAVELS: "psc_travels",
 };
 
 // 1. Çöp Kutusu Başlangıç Verileri
@@ -213,6 +214,9 @@ export function restoreFromTrash(trashId: string): TrashItem | null {
     } else if (target.type === "code") {
       const snippets = safeGet<any[]>(STORAGE_KEYS.SNIPPETS, []);
       safeSet(STORAGE_KEYS.SNIPPETS, [target.originalData, ...snippets]);
+    } else if (target.type === "travel") {
+      const travels = safeGet<any[]>(STORAGE_KEYS.TRAVELS, []);
+      safeSet(STORAGE_KEYS.TRAVELS, [target.originalData, ...travels]);
     }
   }
 
@@ -321,7 +325,7 @@ export function deleteSharedLink(id: string): void {
 /* KOLEKSİYONLAR (CONTAINERS, MOVIES, TEXTS, SNIPPETS) SENKRONİZASYONU        */
 /* ========================================================================== */
 
-export function getStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets", fallback: T[]): T[] {
+export function getStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets" | "travels", fallback: T[]): T[] {
   const storageKey =
     key === "containers"
       ? STORAGE_KEYS.CONTAINERS
@@ -329,12 +333,14 @@ export function getStoredCollection<T>(key: "containers" | "movies" | "texts" | 
       ? STORAGE_KEYS.MOVIES
       : key === "texts"
       ? STORAGE_KEYS.TEXTS
-      : STORAGE_KEYS.SNIPPETS;
+      : key === "snippets"
+      ? STORAGE_KEYS.SNIPPETS
+      : STORAGE_KEYS.TRAVELS;
 
   return safeGet<T[]>(storageKey, fallback);
 }
 
-export function saveStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets", data: T[]): void {
+export function saveStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets" | "travels", data: T[]): void {
   const storageKey =
     key === "containers"
       ? STORAGE_KEYS.CONTAINERS
@@ -342,7 +348,9 @@ export function saveStoredCollection<T>(key: "containers" | "movies" | "texts" |
       ? STORAGE_KEYS.MOVIES
       : key === "texts"
       ? STORAGE_KEYS.TEXTS
-      : STORAGE_KEYS.SNIPPETS;
+      : key === "snippets"
+      ? STORAGE_KEYS.SNIPPETS
+      : STORAGE_KEYS.TRAVELS;
 
   safeSet(storageKey, data);
   notifyStoreUpdate();

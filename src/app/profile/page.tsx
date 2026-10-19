@@ -26,6 +26,7 @@ import {
   User,
   Lock,
   Code2,
+  Compass,
 } from "lucide-react";
 import {
   getSharedLinks,
@@ -307,6 +308,8 @@ export default function ProfilePage() {
                           ? "bg-blue-500"
                           : link.type === "code"
                           ? "bg-emerald-600"
+                          : link.type === "travel"
+                          ? "bg-amber-500"
                           : "bg-purple-600"
                       }`}
                     >
@@ -316,6 +319,8 @@ export default function ProfilePage() {
                         <FileText className="w-5 h-5" />
                       ) : link.type === "code" ? (
                         <Code2 className="w-5 h-5" />
+                      ) : link.type === "travel" ? (
+                        <Compass className="w-5 h-5" />
                       ) : (
                         <Film className="w-5 h-5" />
                       )}

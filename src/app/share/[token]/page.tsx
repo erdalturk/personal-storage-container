@@ -30,7 +30,7 @@ interface SharedRecord {
   author: string;
   authorAvatar: string;
   scope: "container" | "item"; // "container" = Deponun Tamamı, "item" = Tek Bir İçerik
-  type: "text" | "movie" | "code";
+  type: "text" | "movie" | "code" | "travel";
   createdAt: string;
   isActive: boolean;
   isDeleted?: boolean; // Eğer içerik silindiyse otomatik iptal kuralı
@@ -45,6 +45,10 @@ interface SharedRecord {
   genres?: string[];
   overview?: string;
   userNote?: string;
+  destination?: string;
+  country?: string;
+  durationDays?: number;
+  highlightPlaces?: string[];
   // Kod alanları
   code?: string;
   language?: string;
@@ -277,7 +281,26 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         )`,
   },
 
-  // 7. SİLİNMİŞ İÇERİK (Otomatik İptal Örneği)
+  // 7. TEKİL İÇERİK PAYLAŞIMI: Seyahat & Gezi Rotası
+  "ege-akdeniz-gezi-rotasi": {
+    title: "Yaz 2026 Ege & Akdeniz Gezisi",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "item",
+    type: "travel",
+    createdAt: "3 gün önce",
+    isActive: true,
+    destination: "Kaş, Kalkan & Fethiye",
+    country: "Türkiye 🇹🇷",
+    durationDays: 8,
+    rating: 9.8,
+    posterUrl: "https://images.unsplash.com/photo-1544644181-1484b3fdfc62?auto=format&fit=crop&w=1200&q=80",
+    overview: "Turkuaz suların ve antik Likya Yolu patikalarının buluştuğu eşsiz bir yaz rotası. Gün batımını Patara kum tepelerinde izlemek ve Kekova'da şnorkelle antik kalıntıları keşfetmek unutulmazdı.",
+    userNote: "Kaputaş'a sabah 08:30'da git, Kekova tekne turunda batık şehri kano ile gez.",
+    highlightPlaces: ["Kaputaş Plajı", "Kekova Batık Şehir", "Patara Kum Tepeleri", "Saklıkent Kanyonu", "Meis Adası"],
+  },
+
+  // 8. SİLİNMİŞ İÇERİK (Otomatik İptal Örneği)
   "silinmis-icerik-ornegi": {
     title: "Eski Taslak Şiir",
     author: "Erdal Türk",
@@ -696,6 +719,79 @@ function ShareContent() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* C. SEYAHAT / GEZİ ROTASI PAYLAŞIMI */}
+            {item.type === "travel" && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-md max-w-3xl mx-auto space-y-6">
+                <div className="relative h-64 sm:h-80 w-full rounded-2xl overflow-hidden bg-slate-100 shadow-sm">
+                  <img
+                    src={item.posterUrl || "https://images.unsplash.com/photo-1544644181-1484b3fdfc62?auto=format&fit=crop&w=1200&q=80"}
+                    alt={item.title}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <div className="absolute top-4 left-4 flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/95 text-slate-900 shadow-sm">
+                      📍 {item.destination || "Kaş, Kalkan & Fethiye"}
+                    </span>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-black/40 text-white border border-white/20">
+                      {item.country || "Türkiye 🇹🇷"}
+                    </span>
+                  </div>
+                  <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+                    <div>
+                      <h2 className="text-xl sm:text-2xl font-extrabold text-white">
+                        {item.title}
+                      </h2>
+                      <p className="text-xs text-white/80 mt-1">
+                        {item.durationDays || 8} Günlük Keşif Rotası
+                      </p>
+                    </div>
+                    {item.rating && (
+                      <span className="px-3 py-1.5 rounded-xl bg-amber-500 text-white font-extrabold text-sm shadow-md flex items-center gap-1">
+                        ★ {item.rating} / 10
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {item.highlightPlaces && (
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      Ziyaret Edilen Duraklar
+                    </h4>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {item.highlightPlaces.map((place, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold"
+                        >
+                          • {place}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Seyahat Deneyimi & Anılar
+                  </h4>
+                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+                    {item.overview}
+                  </p>
+                </div>
+
+                {item.userNote && (
+                  <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/70 text-xs text-amber-950 space-y-1">
+                    <span className="font-bold text-amber-800 block">
+                      ✨ {item.author}'ın Seyahat Tavsiyesi & İpuçları
+                    </span>
+                    <p className="italic">"{item.userNote}"</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
