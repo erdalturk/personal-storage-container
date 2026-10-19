@@ -105,7 +105,7 @@ const INITIAL_SHARED: SharedLink[] = [
   {
     id: "s4",
     token: "inception-arsiv",
-    itemTitle: "Inception & Arşiv Notlarım",
+    itemTitle: "Inception (2010)",
     containerName: "Sinema Kulübü & Başyapıtlar",
     type: "movie",
     scope: "item",
@@ -116,7 +116,7 @@ const INITIAL_SHARED: SharedLink[] = [
   {
     id: "s5",
     token: "mavi-aksamustu",
-    itemTitle: "Mavi Bir Akşamüstü (Şiir)",
+    itemTitle: "Mavi Bir Akşamüstü",
     containerName: "Gece Düşünceleri & Şiirlerim",
     type: "text",
     scope: "item",
@@ -138,7 +138,7 @@ const INITIAL_SHARED: SharedLink[] = [
   {
     id: "s7",
     token: "gezi-ve-seyahat-deposu",
-    itemTitle: "Yaz 2026 Ege & Akdeniz Gezisi",
+    itemTitle: "Gezi & Seyahat Anıları",
     containerName: "Gezi & Seyahat Anıları",
     type: "container",
     scope: "container",
@@ -149,7 +149,7 @@ const INITIAL_SHARED: SharedLink[] = [
   {
     id: "s8",
     token: "ege-akdeniz-gezi-rotasi",
-    itemTitle: "Kaş, Kalkan & Fethiye Sahil Rotası",
+    itemTitle: "Yaz 2026 Ege & Akdeniz Gezisi",
     containerName: "Gezi & Seyahat Anıları",
     type: "travel",
     scope: "item",
@@ -579,4 +579,590 @@ export function saveStoredCollection<T>(key: CollectionKey, data: T[]): void {
   safeSet(resolveStorageKey(key), data);
   notifyStoreUpdate();
 }
+
+/* ========================================================================== */
+/* KULLANICI OTURUMU (AUTH) YÖNETİMİ                                          */
+/* ========================================================================== */
+
+export interface AuthUser {
+  name: string;
+  email: string;
+  avatar: string;
+  title: string;
+  isAuthenticated: boolean;
+  lastLoginAt: string;
+}
+
+const DEFAULT_AUTH_USER: AuthUser = {
+  name: "Erdal Türk",
+  email: "erdal.turk@kisiseldepo.com",
+  avatar: "ET",
+  title: "Yazılım Geliştirici & Koleksiyoner",
+  isAuthenticated: true,
+  lastLoginAt: "Bugün",
+};
+
+const AUTH_STORAGE_KEY = "psc_auth_user";
+
+export function getCurrentUser(): AuthUser {
+  return safeGet<AuthUser>(AUTH_STORAGE_KEY, DEFAULT_AUTH_USER);
+}
+
+export function loginUser(email: string, name?: string): AuthUser {
+  const cleanEmail = email.trim().toLowerCase() || DEFAULT_AUTH_USER.email;
+  const resolvedName =
+    name?.trim() ||
+    (cleanEmail.startsWith("erdal")
+      ? "Erdal Türk"
+      : cleanEmail
+          .split("@")[0]
+          .replace(/[._-]+/g, " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase()));
+
+  const initials =
+    resolvedName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() || "")
+      .join("") || "KD";
+
+  const user: AuthUser = {
+    name: resolvedName,
+    email: cleanEmail,
+    avatar: initials,
+    title: "Yazılım Geliştirici & Koleksiyoner",
+    isAuthenticated: true,
+    lastLoginAt: "Az önce",
+  };
+  safeSet(AUTH_STORAGE_KEY, user);
+  notifyStoreUpdate();
+  return user;
+}
+
+export function logoutUser(): void {
+  const current = getCurrentUser();
+  safeSet(AUTH_STORAGE_KEY, { ...current, isAuthenticated: false });
+  notifyStoreUpdate();
+}
+
+/* ========================================================================== */
+/* TAM ARŞİV YEDEKLEME (.JSON DIŞA / İÇE AKTARMA)                             */
+/* ========================================================================== */
+
+export interface FullArchiveBackup {
+  app: "Kişisel Depo (Personal Storage Container)";
+  version: "2.0";
+  exportedAt: string;
+  user: AuthUser;
+  collections: {
+    containers: any[];
+    movies: any[];
+    texts: any[];
+    snippets: any[];
+    travels: any[];
+    study: any[];
+    audios: any[];
+    media: any[];
+    files: any[];
+  };
+  trash: TrashItem[];
+  sharedLinks: SharedLink[];
+}
+
+export function exportFullArchive(): string {
+  const backup: FullArchiveBackup = {
+    app: "Kişisel Depo (Personal Storage Container)",
+    version: "2.0",
+    exportedAt: new Date().toISOString(),
+    user: getCurrentUser(),
+    collections: {
+      containers: safeGet<any[]>(STORAGE_KEYS.CONTAINERS, []),
+      movies: safeGet<any[]>(STORAGE_KEYS.MOVIES, []),
+      texts: safeGet<any[]>(STORAGE_KEYS.TEXTS, []),
+      snippets: safeGet<any[]>(STORAGE_KEYS.SNIPPETS, []),
+      travels: safeGet<any[]>(STORAGE_KEYS.TRAVELS, []),
+      study: safeGet<any[]>(STORAGE_KEYS.STUDY, []),
+      audios: safeGet<any[]>(STORAGE_KEYS.AUDIOS, []),
+      media: safeGet<any[]>(STORAGE_KEYS.MEDIA, []),
+      files: safeGet<any[]>(STORAGE_KEYS.FILES, []),
+    },
+    trash: getTrashItems(),
+    sharedLinks: getSharedLinks(),
+  };
+
+  return JSON.stringify(backup, null, 2);
+}
+
+export function importFullArchive(jsonString: string): {
+  success: boolean;
+  message: string;
+  restoredCount?: number;
+} {
+  try {
+    const parsed = JSON.parse(jsonString);
+    if (!parsed || typeof parsed !== "object" || !parsed.collections) {
+      return {
+        success: false,
+        message: "Geçersiz yedek dosyası formatı: 'collections' alanı bulunamadı.",
+      };
+    }
+
+    const cols = parsed.collections;
+    let totalItems = 0;
+
+    if (Array.isArray(cols.containers)) {
+      safeSet(STORAGE_KEYS.CONTAINERS, cols.containers);
+      totalItems += cols.containers.length;
+    }
+    if (Array.isArray(cols.movies)) {
+      safeSet(STORAGE_KEYS.MOVIES, cols.movies);
+      totalItems += cols.movies.length;
+    }
+    if (Array.isArray(cols.texts)) {
+      safeSet(STORAGE_KEYS.TEXTS, cols.texts);
+      totalItems += cols.texts.length;
+    }
+    if (Array.isArray(cols.snippets)) {
+      safeSet(STORAGE_KEYS.SNIPPETS, cols.snippets);
+      totalItems += cols.snippets.length;
+    }
+    if (Array.isArray(cols.travels)) {
+      safeSet(STORAGE_KEYS.TRAVELS, cols.travels);
+      totalItems += cols.travels.length;
+    }
+    if (Array.isArray(cols.study)) {
+      safeSet(STORAGE_KEYS.STUDY, cols.study);
+      totalItems += cols.study.length;
+    }
+    if (Array.isArray(cols.audios)) {
+      safeSet(STORAGE_KEYS.AUDIOS, cols.audios);
+      totalItems += cols.audios.length;
+    }
+    if (Array.isArray(cols.media)) {
+      safeSet(STORAGE_KEYS.MEDIA, cols.media);
+      totalItems += cols.media.length;
+    }
+    if (Array.isArray(cols.files)) {
+      safeSet(STORAGE_KEYS.FILES, cols.files);
+      totalItems += cols.files.length;
+    }
+    if (Array.isArray(parsed.trash)) {
+      safeSet(STORAGE_KEYS.TRASH, parsed.trash);
+    }
+    if (Array.isArray(parsed.sharedLinks)) {
+      safeSet(STORAGE_KEYS.SHARED, parsed.sharedLinks);
+    }
+
+    notifyStoreUpdate();
+    return {
+      success: true,
+      message: `Yedek başarıyla geri yüklendi (${totalItems} kayıt güncellendi).`,
+      restoredCount: totalItems,
+    };
+  } catch {
+    return {
+      success: false,
+      message: "JSON dosyası okunamadı. Lütfen geçerli bir yedek dosyası seçin.",
+    };
+  }
+}
+
+/* ========================================================================== */
+/* GLOBAL ARAMA & KOMUT PALETİ İNDEKSİ (TÜM 8 DEPO)                           */
+/* ========================================================================== */
+
+export interface GlobalSearchResult {
+  id: string;
+  title: string;
+  subtitle: string;
+  containerName: string;
+  type: "container" | "movie" | "text" | "code" | "travel" | "study" | "audio" | "image" | "file";
+  href: string;
+  badge: string;
+  keywords: string;
+}
+
+const DEFAULT_GLOBAL_ITEMS: GlobalSearchResult[] = [
+  // Depolar
+  {
+    id: "g-c1",
+    title: "Sinema Kulübü & Başyapıtlar",
+    subtitle: "Akıllı Özel Depo • Film & Dizi İzleme Listesi",
+    containerName: "Ana Sayfa",
+    type: "container",
+    href: "/containers/movie",
+    badge: "Film Deposu",
+    keywords: "sinema film dizi izleme nolan mubi",
+  },
+  {
+    id: "g-c2",
+    title: "Gece Düşünceleri & Şiirlerim",
+    subtitle: "Standart Depo • Metin & Notlar",
+    containerName: "Ana Sayfa",
+    type: "container",
+    href: "/containers/text",
+    badge: "Metin Deposu",
+    keywords: "metin şiir yazı not makale",
+  },
+  {
+    id: "g-c3",
+    title: "Frontend & Fullstack Snippet'lar",
+    subtitle: "Akıllı Özel Depo • Kod Parçacıkları",
+    containerName: "Ana Sayfa",
+    type: "container",
+    href: "/containers/code",
+    badge: "Kod Deposu",
+    keywords: "kod snippet python sql react docker typescript",
+  },
+  {
+    id: "g-c4",
+    title: "Gezi & Seyahat Anıları",
+    subtitle: "Akıllı Özel Depo • Gezi & Seyahat Planı",
+    containerName: "Ana Sayfa",
+    type: "container",
+    href: "/containers/travel",
+    badge: "Gezi Deposu",
+    keywords: "gezi seyahat rota tatil kaş italya japonya kapadokya",
+  },
+  {
+    id: "g-c5",
+    title: "Yapay Zekâ & Algoritmalar Dersi",
+    subtitle: "Akıllı Özel Depo • Ders & Çalışma Notları",
+    containerName: "Ana Sayfa",
+    type: "container",
+    href: "/containers/study",
+    badge: "Ders Deposu",
+    keywords: "ders sınav vize final algoritma yapay zeka",
+  },
+  {
+    id: "g-c6",
+    title: "Sesli Notlar & Podcast Fikirleri",
+    subtitle: "Standart Depo • Ses Kayıtları",
+    containerName: "Ana Sayfa",
+    type: "container",
+    href: "/containers/audio",
+    badge: "Ses Deposu",
+    keywords: "ses podcast kayıt mp3 wav toplantı",
+  },
+  {
+    id: "g-c7",
+    title: "Tasarım İlhamları & Fotoğraf Arşivi",
+    subtitle: "Standart Depo • Görüntü & Galeri",
+    containerName: "Ana Sayfa",
+    type: "container",
+    href: "/containers/media",
+    badge: "Görüntü Deposu",
+    keywords: "görüntü fotoğraf galeri tasarım mimari kamera",
+  },
+  {
+    id: "g-c8",
+    title: "Sözleşmeler, Faturalar & Belgelerim",
+    subtitle: "Standart Depo • Dosya & Belge",
+    containerName: "Ana Sayfa",
+    type: "container",
+    href: "/containers/files",
+    badge: "Belge Deposu",
+    keywords: "dosya belge pdf xlsx zip sözleşme fatura sunum",
+  },
+  // 1. Filmler
+  {
+    id: "g-m1",
+    title: "Inception (2010)",
+    subtitle: "Christopher Nolan • Bilim Kurgu, Aksiyon • ★ 8.8",
+    containerName: "Sinema Kulübü & Başyapıtlar",
+    type: "movie",
+    href: "/containers/movie",
+    badge: "Film • 2010",
+    keywords: "inception christopher nolan rüya bilim kurgu dicaprio",
+  },
+  {
+    id: "g-m2",
+    title: "Interstellar (2014)",
+    subtitle: "Christopher Nolan • Bilim Kurgu, Macera • ★ 8.7",
+    containerName: "Sinema Kulübü & Başyapıtlar",
+    type: "movie",
+    href: "/containers/movie",
+    badge: "Film • 2014",
+    keywords: "interstellar yıldızlararası nolan uzay karadelik",
+  },
+  {
+    id: "g-m3",
+    title: "Dune: Part Two (2024)",
+    subtitle: "Denis Villeneuve • Bilim Kurgu • ★ 8.5",
+    containerName: "Sinema Kulübü & Başyapıtlar",
+    type: "movie",
+    href: "/containers/movie",
+    badge: "Film • 2024",
+    keywords: "dune çöl gezegeni villeneuve paul atreides fremen",
+  },
+  {
+    id: "g-m4",
+    title: "Kış Uykusu (2014)",
+    subtitle: "Nuri Bilge Ceylan • Dram • ★ 8.1",
+    containerName: "Sinema Kulübü & Başyapıtlar",
+    type: "movie",
+    href: "/containers/movie",
+    badge: "Film • 2014",
+    keywords: "kış uykusu nuri bilge ceylan altın palmiye kapadokya",
+  },
+  // 2. Metinler & Şiirler
+  {
+    id: "g-t1",
+    title: "Mavi Bir Akşamüstü",
+    subtitle: "Şiirlerim & Dizeler • Rüzgâr estiğinde deniz fısıldar...",
+    containerName: "Gece Düşünceleri & Şiirlerim",
+    type: "text",
+    href: "/containers/text",
+    badge: "Şiir / Metin",
+    keywords: "mavi bir akşamüstü şiir deniz rüzgar",
+  },
+  {
+    id: "g-t2",
+    title: "Kişisel Depo — Mimari Düşünceler",
+    subtitle: "Proje Fikirleri • Dağınık dijital varlıkları tek merkezde toplamak...",
+    containerName: "Gece Düşünceleri & Şiirlerim",
+    type: "text",
+    href: "/containers/text",
+    badge: "Proje Notu",
+    keywords: "mimari düşünceler proje fikirleri tasarım",
+  },
+  // 3. Kod Parçacıkları
+  {
+    id: "g-sn1",
+    title: "Supabase RLS Policy with Auth Check",
+    subtitle: "SQL • Kullanıcının sadece kendi depolarını görmesini sağlayan RLS kuralı",
+    containerName: "Frontend & Fullstack Snippet'lar",
+    type: "code",
+    href: "/containers/code",
+    badge: "SQL",
+    keywords: "supabase rls policy sql database güvenlik",
+  },
+  {
+    id: "g-sn2",
+    title: "FastAPI JWT Bearer Middleware",
+    subtitle: "Python • Bearer token kontrolü yapan 401 dependency fonksiyonu",
+    containerName: "Frontend & Fullstack Snippet'lar",
+    type: "code",
+    href: "/containers/code",
+    badge: "Python",
+    keywords: "fastapi jwt bearer auth python token middleware",
+  },
+  {
+    id: "g-sn3",
+    title: "Docker Multi-Stage Next.js Build",
+    subtitle: "Dockerfile • Next.js standalone üretim konteyneri",
+    containerName: "Frontend & Fullstack Snippet'lar",
+    type: "code",
+    href: "/containers/code",
+    badge: "Dockerfile",
+    keywords: "docker nextjs build alpine container devops",
+  },
+  // 4. Gezi Rotaları
+  {
+    id: "g-tr1",
+    title: "Yaz 2026 Ege & Akdeniz Gezisi",
+    subtitle: "Kaş, Kalkan & Fethiye • Türkiye 🇹🇷 • 8 Gün",
+    containerName: "Gezi & Seyahat Anıları",
+    type: "travel",
+    href: "/containers/travel",
+    badge: "Gezi • 8 Gün",
+    keywords: "kaş kalkan fethiye ege akdeniz kaputaş kekova patara",
+  },
+  {
+    id: "g-tr2",
+    title: "Floransa & Toskana Vadisi Rotası",
+    subtitle: "Floransa, Siena & Val d'Orcia • İtalya 🇮🇹 • 7 Gün",
+    containerName: "Gezi & Seyahat Anıları",
+    type: "travel",
+    href: "/containers/travel",
+    badge: "Gezi • 7 Gün",
+    keywords: "floransa toskana italya siena uffizi rönesans",
+  },
+  {
+    id: "g-tr3",
+    title: "Kyoto & Tokyo — Kiraz Çiçekleri Dönemi",
+    subtitle: "Kyoto & Tokyo • Japonya 🇯🇵 • 11 Gün",
+    containerName: "Gezi & Seyahat Anıları",
+    type: "travel",
+    href: "/containers/travel",
+    badge: "Gezi • 11 Gün",
+    keywords: "kyoto tokyo japonya sakura shibuya fushimi inari",
+  },
+  // 5. Ders Notları
+  {
+    id: "g-st1",
+    title: "A* Arama & Heuristic Fonksiyonları",
+    subtitle: "CENG 451 • Yapay Zekâ • Vize Hazırlık + 28 syf PDF",
+    containerName: "Yapay Zekâ & Algoritmalar Dersi",
+    type: "study",
+    href: "/containers/study",
+    badge: "CENG 451 • Vize",
+    keywords: "a star arama heuristic admissibility manhattan yapay zeka",
+  },
+  {
+    id: "g-st2",
+    title: "Gradient Descent & Backpropagation Temelleri",
+    subtitle: "CENG 451 • Yapay Sinir Ağları • Vize Hazırlık + 34 syf PDF",
+    containerName: "Yapay Zekâ & Algoritmalar Dersi",
+    type: "study",
+    href: "/containers/study",
+    badge: "CENG 451 • Vize",
+    keywords: "gradient descent backpropagation sinir ağları overfitting",
+  },
+  {
+    id: "g-st3",
+    title: "Dinamik Programlama: Sırt Çantası & LCS",
+    subtitle: "CENG 301 • Algoritma Analizi • Final Hazırlık",
+    containerName: "Yapay Zekâ & Algoritmalar Dersi",
+    type: "study",
+    href: "/containers/study",
+    badge: "CENG 301 • Final",
+    keywords: "dinamik programlama knapsack lcs algoritma memoization",
+  },
+  // 6. Ses Kayıtları
+  {
+    id: "g-au1",
+    title: "Bölüm 12: Yapay Zekâ Çağında Kişisel Hafıza",
+    subtitle: "Podcast Taslakları • WAV • 04:32",
+    containerName: "Sesli Notlar & Podcast Fikirleri",
+    type: "audio",
+    href: "/containers/audio",
+    badge: "WAV • 04:32",
+    keywords: "podcast bölüm 12 yapay zeka kişisel hafıza ses kaydı",
+  },
+  {
+    id: "g-au2",
+    title: "Q4 Ürün Yol Haritası Beyin Fırtınası",
+    subtitle: "Toplantı Kayıtları • M4A • 08:38",
+    containerName: "Sesli Notlar & Podcast Fikirleri",
+    type: "audio",
+    href: "/containers/audio",
+    badge: "M4A • 08:38",
+    keywords: "toplantı q4 yol haritası beyin fırtınası ses",
+  },
+  // 7. Görseller
+  {
+    id: "g-im1",
+    title: "Nordik Minimalist Mimari & Işık Etüdü",
+    subtitle: "Mimari & İç Mekan • 3840 × 2160 RAW • Sony A7IV",
+    containerName: "Tasarım İlhamları & Fotoğraf Arşivi",
+    type: "image",
+    href: "/containers/media",
+    badge: "RAW • 4K",
+    keywords: "nordik minimalist mimari ışık sony fotoğraf",
+  },
+  {
+    id: "g-im2",
+    title: "Sıcak Krem & Taş Tonları UI Renk Paleti",
+    subtitle: "UI / UX İlhamları • 2560 × 1440 PNG • Figma Export",
+    containerName: "Tasarım İlhamları & Fotoğraf Arşivi",
+    type: "image",
+    href: "/containers/media",
+    badge: "PNG • UI/UX",
+    keywords: "renk paleti ui ux figma tasarım krem",
+  },
+  // 8. Dosya & Belgeler
+  {
+    id: "g-fl1",
+    title: "2026 SaaS Yazılım Geliştirme Sözleşmesi.pdf",
+    subtitle: "Sözleşmeler & Hukuk • PDF • 2.4 MB • v2.1 İmzalı",
+    containerName: "Sözleşmeler, Faturalar & Belgelerim",
+    type: "file",
+    href: "/containers/files",
+    badge: "PDF • 2.4 MB",
+    keywords: "saas yazılım sözleşme hukuk nda pdf",
+  },
+  {
+    id: "g-fl2",
+    title: "Q3-Q4 Gelir Gider ve Bütçe Projeksiyonu.xlsx",
+    subtitle: "Finans & Faturalar • XLSX • 4.8 MB • v4.0 Final",
+    containerName: "Sözleşmeler, Faturalar & Belgelerim",
+    type: "file",
+    href: "/containers/files",
+    badge: "XLSX • 4.8 MB",
+    keywords: "gelir gider bütçe finans excel xlsx fatura",
+  },
+  {
+    id: "g-fl3",
+    title: "Kişisel Depo Yatırımcı Sunumu (Pitch Deck).pptx",
+    subtitle: "Sunum & Raporlar • PPTX • 18.6 MB",
+    containerName: "Sözleşmeler, Faturalar & Belgelerim",
+    type: "file",
+    href: "/containers/files",
+    badge: "PPTX • 18.6 MB",
+    keywords: "yatırımcı sunumu pitch deck pptx rapor",
+  },
+];
+
+export function searchAllItems(query: string): GlobalSearchResult[] {
+  const trashTitles = new Set(
+    getTrashItems().map((t) => t.title.toLowerCase().trim())
+  );
+
+  // Dinamik olarak eklenen öğeleri de arama indeksine dahil et
+  const dynamicItems: GlobalSearchResult[] = [];
+  const seenTitles = new Set(
+    DEFAULT_GLOBAL_ITEMS.map((d) => d.title.toLowerCase().trim())
+  );
+
+  const pushDynamic = (
+    items: any[],
+    type: GlobalSearchResult["type"],
+    containerName: string,
+    href: string,
+    badgePrefix: string
+  ) => {
+    items.forEach((it, idx) => {
+      const title = (it.title || it.name || "").trim();
+      if (!title || seenTitles.has(title.toLowerCase())) return;
+      seenTitles.add(title.toLowerCase());
+      dynamicItems.push({
+        id: `dyn-${type}-${it.id || idx}`,
+        title,
+        subtitle:
+          it.overview ||
+          it.summary ||
+          it.description ||
+          it.transcript ||
+          it.content ||
+          containerName,
+        containerName,
+        type,
+        href,
+        badge: badgePrefix,
+        keywords: `${title} ${it.tags ? it.tags.join(" ") : ""} ${containerName}`,
+      });
+    });
+  };
+
+  pushDynamic(safeGet<any[]>(STORAGE_KEYS.MOVIES, []), "movie", "Sinema Kulübü & Başyapıtlar", "/containers/movie", "Film");
+  pushDynamic(safeGet<any[]>(STORAGE_KEYS.TEXTS, []), "text", "Gece Düşünceleri & Şiirlerim", "/containers/text", "Metin");
+  pushDynamic(safeGet<any[]>(STORAGE_KEYS.SNIPPETS, []), "code", "Frontend & Fullstack Snippet'lar", "/containers/code", "Kod");
+  pushDynamic(safeGet<any[]>(STORAGE_KEYS.TRAVELS, []), "travel", "Gezi & Seyahat Anıları", "/containers/travel", "Gezi");
+  pushDynamic(safeGet<any[]>(STORAGE_KEYS.STUDY, []), "study", "Yapay Zekâ & Algoritmalar Dersi", "/containers/study", "Ders Notu");
+  pushDynamic(safeGet<any[]>(STORAGE_KEYS.AUDIOS, []), "audio", "Sesli Notlar & Podcast Fikirleri", "/containers/audio", "Ses");
+  pushDynamic(safeGet<any[]>(STORAGE_KEYS.MEDIA, []), "image", "Tasarım İlhamları & Fotoğraf Arşivi", "/containers/media", "Görsel");
+  pushDynamic(safeGet<any[]>(STORAGE_KEYS.FILES, []), "file", "Sözleşmeler, Faturalar & Belgelerim", "/containers/files", "Belge");
+
+  const combined = [...dynamicItems, ...DEFAULT_GLOBAL_ITEMS].filter(
+    (item) => !trashTitles.has(item.title.toLowerCase().trim())
+  );
+
+  const q = query.toLowerCase().trim();
+  if (!q) {
+    return combined.slice(0, 12);
+  }
+
+  return combined.filter(
+    (item) =>
+      item.title.toLowerCase().includes(q) ||
+      item.subtitle.toLowerCase().includes(q) ||
+      item.containerName.toLowerCase().includes(q) ||
+      item.badge.toLowerCase().includes(q) ||
+      item.keywords.toLowerCase().includes(q)
+  );
+}
+
+
 

@@ -35,6 +35,9 @@ import {
   activateShareToken,
   getStoredCollection,
   saveStoredCollection,
+  searchAllItems,
+  GlobalSearchResult,
+  getCurrentUser,
 } from "@/lib/appStore";
 
 // Akıllı Depo Tanımları (Vitrindeki 4 Sabit Kart)
@@ -257,6 +260,12 @@ export default function HomePage() {
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "smart" | "standard">("all");
 
+  // Global Arama & Komut Paleti (Ctrl + K) State'leri
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+  const [globalQuery, setGlobalQuery] = useState("");
+  const [userName, setUserName] = useState("Erdal Türk");
+  const [userAvatar, setUserAvatar] = useState("ET");
+
   useEffect(() => {
     const loadAndMerge = () => {
       const stored = getStoredCollection("containers", INITIAL_CONTAINERS);
@@ -273,17 +282,40 @@ export default function HomePage() {
       } else {
         setContainers(stored);
       }
+      const u = getCurrentUser();
+      if (u?.name) setUserName(u.name);
+      if (u?.avatar) setUserAvatar(u.avatar);
     };
 
     loadAndMerge();
 
     const handleUpdate = () => {
       setContainers(getStoredCollection("containers", INITIAL_CONTAINERS));
+      const u = getCurrentUser();
+      if (u?.name) setUserName(u.name);
+      if (u?.avatar) setUserAvatar(u.avatar);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsGlobalSearchOpen((prev) => !prev);
+      } else if (e.key === "Escape") {
+        setIsGlobalSearchOpen(false);
+      }
     };
 
     window.addEventListener("psc-store-updated", handleUpdate);
-    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("psc-store-updated", handleUpdate);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
+
+  const globalResults: GlobalSearchResult[] = searchAllItems(
+    isGlobalSearchOpen ? globalQuery : searchQuery
+  );
 
   // Depo Silme Fonksiyonu (Çöp Kutusuna Atar ve Varsa Paylaşım Bağlantılarını Otomatik İptal Eder)
   const handleDeleteContainer = (container: ContainerItem, e: React.MouseEvent) => {
@@ -384,8 +416,24 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Sağ Eylemler: Çöp Kutusu & Profil */}
-          <div className="flex items-center gap-3">
+          {/* Sağ Eylemler: Global Arama, Çöp Kutusu & Profil */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setGlobalQuery("");
+                setIsGlobalSearchOpen(true);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 border border-slate-200/80 hover:border-indigo-200 transition text-xs font-semibold"
+              title="Tüm Depolarda ve İçeriklerde Ara (Ctrl + K)"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Global Arama</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-white text-slate-500 rounded border border-slate-200 shadow-2xs">
+                Ctrl K
+              </kbd>
+            </button>
+
             <Link
               href="/trash"
               title="Çöp Kutusu (30 gün saklanır)"
@@ -397,14 +445,14 @@ export default function HomePage() {
 
             <Link
               href="/profile"
-              title="Hesap ve Paylaşım Yönetimi"
+              title="Hesap, Yedekleme ve Paylaşım Yönetimi"
               className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/80 transition-colors border border-slate-200/60"
             >
               <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shadow-xs">
-                ET
+                {userAvatar}
               </div>
               <span className="text-xs font-semibold text-slate-700 hidden sm:inline">
-                Erdal Türk
+                {userName}
               </span>
             </Link>
           </div>
@@ -429,7 +477,7 @@ export default function HomePage() {
             Neyi saklamak istiyorsun?
           </h1>
 
-          {/* Büyük Arama Girişi */}
+          {/* Büyük Arama Girişi + Global İçerik Sonuçları */}
           <div className="relative max-w-xl mx-auto group">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-600 transition-colors">
               <Search className="w-5 h-5" />
@@ -438,18 +486,72 @@ export default function HomePage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Depolarında, filmlerinde veya ders notlarında ara..."
-              className="w-full pl-11 pr-4 py-3.5 bg-white rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 text-sm font-medium transition-all shadow-xs outline-none"
+              placeholder="Depolarında, filmlerinde, şiirlerinde veya ders notlarında ara..."
+              className="w-full pl-11 pr-28 py-3.5 bg-white rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 text-sm font-medium transition-all shadow-xs outline-none"
             />
-            {searchQuery && (
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1.5">
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
               <button
-                onClick={() => setSearchQuery("")}
-                className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600"
+                type="button"
+                onClick={() => {
+                  setGlobalQuery(searchQuery);
+                  setIsGlobalSearchOpen(true);
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-[11px] font-mono font-bold text-slate-500 hover:text-indigo-600 border border-slate-200 transition"
+                title="Komut Paletini Aç (Ctrl + K)"
               >
-                <X className="w-4 h-4" />
+                Ctrl + K
               </button>
-            )}
+            </div>
           </div>
+
+          {/* Ana Arama Çubuğuna Yazıldığında Tekil İçerik Eşleşmeleri Özeti */}
+          {searchQuery.trim().length > 0 && globalResults.length > 0 && (
+            <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-lg p-3 text-left space-y-1.5">
+              <div className="flex items-center justify-between px-2 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <span>Tüm Depolardaki İçerik Eşleşmeleri ({globalResults.length})</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGlobalQuery(searchQuery);
+                    setIsGlobalSearchOpen(true);
+                  }}
+                  className="text-indigo-600 hover:underline font-semibold normal-case"
+                >
+                  Tümünü Komut Paletinde Gör →
+                </button>
+              </div>
+              <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                {globalResults.slice(0, 5).map((res) => (
+                  <button
+                    key={res.id}
+                    type="button"
+                    onClick={() => router.push(res.href)}
+                    className="w-full px-3 py-2.5 hover:bg-indigo-50/60 flex items-center justify-between gap-3 rounded-xl transition text-left"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 truncate">
+                        {res.title}
+                      </div>
+                      <div className="text-[11px] text-slate-500 truncate">
+                        {res.containerName} • {res.subtitle}
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                      {res.badge}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 3. VİTRİN: 4 AKILLI DEPO KARTI + 1 STANDART DEPO KARTI (TOPLAM 5 KART) */}
@@ -967,6 +1069,182 @@ export default function HomePage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 7. GLOBAL ARAMA & HIZLI KOMUT PALETİ MODALI (Ctrl + K) */}
+      <AnimatePresence>
+        {isGlobalSearchOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsGlobalSearchOpen(false)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: -10 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden z-10"
+            >
+              {/* Üst Arama Girişi */}
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+                <Search className="w-5 h-5 text-indigo-600 shrink-0" />
+                <input
+                  type="text"
+                  value={globalQuery}
+                  onChange={(e) => setGlobalQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && globalResults.length > 0) {
+                      setIsGlobalSearchOpen(false);
+                      router.push(globalResults[0].href);
+                    }
+                  }}
+                  placeholder="Tüm 8 depoda ara: Film, şiir, kod parçacığı, gezi rotası, ders notu, ses, fotoğraf, PDF..."
+                  className="w-full bg-transparent text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none"
+                  autoFocus
+                />
+                {globalQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setGlobalQuery("")}
+                    className="p-1 text-slate-400 hover:text-slate-700"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsGlobalSearchOpen(false)}
+                  className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10px] font-mono font-bold text-slate-500 hover:text-slate-800"
+                >
+                  ESC
+                </button>
+              </div>
+
+              {/* Hızlı Kategori Filtre Çipleri */}
+              <div className="px-5 py-2.5 bg-white border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto">
+                {[
+                  { label: "Tümü", q: "" },
+                  { label: "🎬 Filmler", q: "film" },
+                  { label: "📝 Şiir & Metin", q: "şiir" },
+                  { label: "💻 Kod", q: "python" },
+                  { label: "✈️ Gezi", q: "gezi" },
+                  { label: "🎓 Ders Notu", q: "ceng" },
+                  { label: "🎙️ Ses & Podcast", q: "podcast" },
+                  { label: "🖼️ Görsel", q: "mimari" },
+                  { label: "📄 Sözleşme & PDF", q: "pdf" },
+                ].map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => setGlobalQuery(chip.q)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition ${
+                      globalQuery.toLowerCase() === chip.q && chip.q !== ""
+                        ? "bg-indigo-600 text-white"
+                        : "bg-slate-100 hover:bg-slate-200/70 text-slate-600"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sonuç Listesi */}
+              <div className="max-h-96 overflow-y-auto p-3 divide-y divide-slate-100">
+                {globalResults.length === 0 ? (
+                  <div className="py-12 text-center space-y-2">
+                    <Search className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="text-sm font-bold text-slate-700">
+                      "{globalQuery}" ile eşleşen içerik bulunamadı
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Farklı bir anahtar kelime (örn. Inception, FastAPI, Kaş, A*, Podcast, PDF) deneyin.
+                    </p>
+                  </div>
+                ) : (
+                  globalResults.map((res) => (
+                    <button
+                      key={res.id}
+                      type="button"
+                      onClick={() => {
+                        setIsGlobalSearchOpen(false);
+                        router.push(res.href);
+                      }}
+                      className="w-full px-4 py-3 hover:bg-indigo-50/70 flex items-center justify-between gap-4 rounded-2xl transition text-left group"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white text-slate-600 flex items-center justify-center shrink-0 transition">
+                          {res.type === "movie" ? (
+                            <Film className="w-4 h-4" />
+                          ) : res.type === "text" ? (
+                            <FileText className="w-4 h-4" />
+                          ) : res.type === "code" ? (
+                            <Code2 className="w-4 h-4" />
+                          ) : res.type === "travel" ? (
+                            <Compass className="w-4 h-4" />
+                          ) : res.type === "study" ? (
+                            <GraduationCap className="w-4 h-4" />
+                          ) : res.type === "audio" ? (
+                            <Music className="w-4 h-4" />
+                          ) : res.type === "image" ? (
+                            <ImageIcon className="w-4 h-4" />
+                          ) : res.type === "file" ? (
+                            <FolderArchive className="w-4 h-4" />
+                          ) : (
+                            <Layers className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-slate-900 group-hover:text-indigo-700 truncate">
+                            {res.title}
+                          </div>
+                          <div className="text-xs text-slate-500 truncate mt-0.5">
+                            <span className="font-semibold text-slate-600">
+                              {res.containerName}
+                            </span>{" "}
+                            • {res.subtitle}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 group-hover:bg-indigo-100 text-slate-600 group-hover:text-indigo-800 border border-slate-200/70">
+                          {res.badge}
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600" />
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {/* Alt Bilgi Çubuğu */}
+              <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                <span>
+                  Toplam <b>{globalResults.length}</b> sonuç listeleniyor
+                </span>
+                <div className="flex items-center gap-3">
+                  <span>
+                    <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono">
+                      Enter
+                    </kbd>{" "}
+                    İlk sonuca git
+                  </span>
+                  <span>
+                    <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono">
+                      ESC
+                    </kbd>{" "}
+                    Kapat
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -31,12 +32,21 @@ import {
   Music,
   Image as ImageIcon,
   FolderArchive,
+  Download,
+  Upload,
+  LogOut,
+  Database,
 } from "lucide-react";
 import {
   getSharedLinks,
   toggleShareLinkActive,
   deleteSharedLink,
   SharedLink,
+  getCurrentUser,
+  loginUser,
+  logoutUser,
+  exportFullArchive,
+  importFullArchive,
 } from "@/lib/appStore";
 
 const AVATAR_PALETTES = [
@@ -48,9 +58,12 @@ const AVATAR_PALETTES = [
 ];
 
 export default function ProfilePage() {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   // Profil State'leri
   const [displayName, setDisplayName] = useState("Erdal Türk");
-  const [email] = useState("erdalturk@example.com");
+  const [email, setEmail] = useState("erdal.turk@kisiseldepo.com");
   const [avatarGradient, setAvatarGradient] = useState("from-purple-500 to-indigo-600");
 
   // Düzenleme Modalı State'leri
@@ -64,14 +77,16 @@ export default function ProfilePage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setSharedLinks(getSharedLinks());
-
-    const handleUpdate = () => {
+    const syncAll = () => {
       setSharedLinks(getSharedLinks());
+      const currentUser = getCurrentUser();
+      if (currentUser?.name) setDisplayName(currentUser.name);
+      if (currentUser?.email) setEmail(currentUser.email);
     };
+    syncAll();
 
-    window.addEventListener("psc-store-updated", handleUpdate);
-    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+    window.addEventListener("psc-store-updated", syncAll);
+    return () => window.removeEventListener("psc-store-updated", syncAll);
   }, []);
 
   // Düzenleme Modalını Aç
@@ -88,10 +103,49 @@ export default function ProfilePage() {
       return;
     }
     setDisplayName(tempDisplayName.trim());
+    loginUser(email, tempDisplayName.trim());
     setAvatarGradient(tempAvatarGradient);
     setIsEditModalOpen(false);
     setToastMessage("Profil bilgileriniz başarıyla güncellendi.");
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Çıkış Yap (Logout)
+  const handleLogout = () => {
+    logoutUser();
+    router.push("/login");
+  };
+
+  // Tam Arşiv Yedeği İndir (.json)
+  const handleExportBackup = () => {
+    const jsonData = exportFullArchive();
+    const blob = new Blob([jsonData], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `kisisel-depo-yedek-${dateStr}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setToastMessage("Tüm arşiv yedeğiniz (.json) başarıyla indirildi.");
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Yedekten Geri Yükle (.json)
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      const result = importFullArchive(content);
+      setToastMessage(result.message);
+      setTimeout(() => setToastMessage(null), 4500);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
   // Paylaşım Bağlantısını İptal Et / Yeniden Aç (Revoke - Bölüm 15.2)
@@ -140,13 +194,21 @@ export default function ProfilePage() {
 
           <div>
             <h1 className="font-bold text-base sm:text-lg text-slate-900">
-              Hesap ve Paylaşım Yönetimi
+              Hesap, Yedekleme ve Paylaşım Yönetimi
             </h1>
             <p className="text-[11px] text-slate-500">
-              Profil bilgileri ve salt okunur dış bağlantılar
+              Profil bilgileri, tam arşiv yedekleme ve salt okunur dış bağlantılar
             </p>
           </div>
         </div>
+
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-colors"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Oturumu Kapat</span>
+        </button>
       </header>
 
       {/* ANA İÇERİK ALANI */}
@@ -180,7 +242,7 @@ export default function ProfilePage() {
           </div>
 
           {/* DÜZENLE BUTONU (Kullanıcının talep ettiği estetik düğme) */}
-          <div className="self-end sm:self-center">
+          <div className="self-end sm:self-center flex items-center gap-2.5">
             <button
               onClick={handleOpenEdit}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold transition-all border border-slate-200 shadow-xs"
@@ -190,6 +252,49 @@ export default function ProfilePage() {
             </button>
           </div>
         </div>
+
+        {/* 1.5 TAM ARŞİV YEDEKLEME VE GERİ YÜKLEME (.JSON) KARTI */}
+        <section className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-lg border border-indigo-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-lg">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-[11px] font-bold">
+              <Database className="w-3.5 h-3.5 text-amber-400" />
+              <span>Taşınabilir Veri & Tam Yedekleme</span>
+            </div>
+            <h3 className="text-lg font-extrabold tracking-tight">
+              Tam Arşiv Yedekleme & Geri Yükleme (.json)
+            </h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Tüm 8 deponuzdaki içeriklerinizi, klasörlerinizi, paylaşım bağlantılarınızı ve çöp kutusu geçmişinizi tek bir <b>.json</b> dosyası olarak bilgisayarınıza indirebilir veya daha önce aldığınız bir yedeği geri yükleyebilirsiniz.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={handleExportBackup}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md transition"
+            >
+              <Download className="w-4 h-4" />
+              <span>Tüm Arşivimi İndir (.json)</span>
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={handleImportBackup}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold transition"
+            >
+              <Upload className="w-4 h-4 text-amber-300" />
+              <span>Yedekten Geri Yükle</span>
+            </button>
+          </div>
+        </section>
 
         {/* 2. PAYLAŞILAN İÇERİKLER BÖLÜMÜ (Bölüm 15.2 - Kritik Yönetim Ekranı) */}
         <section className="space-y-4">
