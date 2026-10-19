@@ -1,110 +1,116 @@
-# Kişisel Depo (Personal Storage Container) — Yol Haritası ve Görevler (Roadmap & Tasks)
+# Kişisel Depo — Scrum Sprint Planı & Yol Haritası (Agile Sprint Roadmap)
 
-Bu belge, **Kişisel Depo** projesinin şu ana kadar tamamlanan aşamalarını ve projenin bir sonraki seviyeye (üretim/production, bulut entegrasyonu, yapay zekâ ve mobil deneyim) taşınması için ihtiyaç duyulabilecek tüm görevleri kapsamlı biçimde listeler.
-
----
-
-## 📌 Durum Özeti (Mevcut Durum)
-
-- [x] **8 Deponun Tamamı Hazır (4 Standart + 4 Akıllı Özel):**
-  - [x] Film & Dizi Deposu (`/containers/movie`)
-  - [x] Gece Düşünceleri & Şiirlerim (`/containers/text`)
-  - [x] Frontend & Fullstack Snippet'lar (`/containers/code`)
-  - [x] Gezi & Seyahat Anıları (`/containers/travel`)
-  - [x] Yapay Zekâ & Algoritmalar Dersi (`/containers/study`)
-  - [x] Sesli Notlar & Podcast Fikirleri (`/containers/audio`)
-  - [x] Tasarım İlhamları & Fotoğraf Arşivi (`/containers/media`)
-  - [x] Sözleşmeler, Faturalar & Belgelerim (`/containers/files`)
-- [x] **30 Günlük Çöp Kutusu & Geri Yükleme (`/trash`)**
-- [x] **Salt Okunur Paylaşım Vitrini (`/share/[token]`) & Dinamik İptal / Güvenlik Kontrolleri**
-- [x] **Profil, Dış Bağlantı Yönetimi & Oturumu Kapat (`/profile`)**
-- [x] **Giriş & Kayıt Ekranı (`/login`)**
-- [x] **Global Arama & Hızlı Komut Paleti (`Ctrl + K`)**
-- [x] **Tam Arşiv JSON Dışa / İçe Aktarma (`.json` Yedekleme)**
-- [x] **Otomatik Test Paketi (`tests/appStore.test.mjs` - 5/5 Başarılı)**
+**Proje:** Kişisel Dijital Depo (Personal Storage Container)  
+**Metodoloji:** Agile / Scrum (Hızlı Micro-Sprint Döngüleri)  
+**Hedef Lansman (Release Target):** 8 Kasım 2026 (~3 Haftalık Hızlı Teslimat)  
 
 ---
 
-## 🚀 Faz 1: Gerçek Backend & Bulut Veritabanı Entegrasyonu (Persistence)
+## 👥 Roller ve Sorumluluklar
 
-Şu anda tüm veriler tarayıcı hafızasında (`localStorage`) reaktif store üzerinden çalışmaktadır. Çoklu cihaz senkronizasyonu ve gerçek kalıcılık için planlanan görevler:
-
-- [ ] **1.1. Supabase / PostgreSQL Entegrasyonu**
-  - [ ] Veritabanı şeması oluşturma (`users`, `containers`, `items`, `folders`, `trash`, `shared_links`).
-  - [ ] Row Level Security (RLS) politikaları ile her kullanıcının yalnızca kendi verilerini okuyup yazmasını sağlama.
-  - [ ] İstemci tarafındaki `appStore.ts` fonksiyonlarını Supabase Client ile senkronize hale getirme (çevrimdışı desteğiyle hibrit yapı).
-- [ ] **1.2. Gerçek Kimlik Doğrulama (Auth Provider)**
-  - [ ] Supabase Auth veya NextAuth (Auth.js) entegrasyonu.
-  - [ ] Gerçek Google OAuth ve GitHub OAuth sağlayıcılarının bağlanması.
-  - [ ] E-posta doğrulama ve şifre sıfırlama e-postaları (Magic Link veya OTP).
-- [ ] **1.3. Bulut Dosya & Medya Depolama (S3 / Supabase Storage)**
-  - [ ] Kullanıcıların kendi cihazlarından gerçek MP3/WAV ses dosyalarını yükleyebilmesi.
-  - [ ] Gerçek RAW/JPG/PNG fotoğrafların yüklenmesi ve otomatik küçük resim (thumbnail) oluşturulması.
-  - [ ] Gerçek PDF belgelerinin yüklenmesi ve tarayıcıda dahili PDF görüntüleyici ile açılması.
+| Rol | Sorumlu | Temel Odak |
+| :--- | :--- | :--- |
+| **Product Owner (Müşteri)** | **Siz (Kullanıcı)** | İş önceliklerini onaylama, kabul kriterlerini değerlendirme, özellik yönlendirmesi. |
+| **Scrum Master** | **Antigravity** | Sprint planlama, görevleri parçalama, blokajları kaldırma, mimari standartları koruma. |
+| **Development Team** | **Antigravity & Subagent Ekipleri** | Kod yazımı, UI/UX tasarımı, test otomasyonu, entegrasyonlar. |
 
 ---
 
-## 🔐 Faz 2: İleri Düzey Güvenlik ve Gizlilik (Security & Privacy)
+## 📊 MoSCoW Önceliklendirme Matrisi
 
-- [ ] **2.1. Dinamik Depo PIN / Parola Yönetimi**
-  - [ ] Kullanıcının kilitli depolar için kendi özel PIN veya şifresini belirleyebilmesi.
-  - [ ] PIN'lerin bcrypt / argon2 ile hash'lenerek saklanması.
-  - [ ] Hatalı deneme sınırlaması (Rate limiting / Brute-force koruması).
-- [ ] **2.2. Uçtan Uca Şifreleme (E2EE — Client-Side Encryption)**
-  - [ ] Web Crypto API kullanılarak hassas depoların (örn. Sözleşmeler veya Kişisel Notlar) anahtarının yalnızca kullanıcının şifresinden türetilmesi.
-  - [ ] Sunucunun bile içeriği okuyamayacağı sıfır bilgi (Zero-Knowledge) mimarisi.
-- [ ] **2.3. Paylaşım Bağlantılarına Gelişmiş Güvenlik Kriterleri**
-  - [ ] Paylaşılan linke isteğe bağlı parola koyabilme ("Bu link şifrelidir").
-  - [ ] Süre sınırı koyabilme ("24 saat sonra", "7 gün sonra" otomatik geçerliliğini yitirme).
-  - [ ] Maksimum görüntülenme sayısı limiti ("10 kişi görüntüledikten sonra kapat").
+- 🔴 **Must Have (Mutlaka Olmalı):** Dinamik PIN/Şifreleme, PWA Mobil Kurulumu, Bulut Veritabanı (Supabase) ve Gerçek Medya Yükleme.
+- 🟡 **Should Have (Olsa Çok İyi Olur):** Canlı TMDB API, Süreli/Şifreli Paylaşım Linkleri, Karanlık Mod, Sürükle & Bırak.
+- 🟢 **Could Have (Zaman Kalırsa):** AI Transkript (Whisper), AI Flashcard Üretici, Spotify Wrapped tarzı Kişisel Hafıza İstatistikleri.
+- ⚪ **Won't Have (Bu Sürümde Yok):** Sosyal medya akışları, takipçi/beğeni mekanizmaları (Kişisel depo felsefesi gereği kapsam dışı).
 
 ---
 
-## 🧠 Faz 3: Yapay Zekâ (AI) ve Akıllı Entegrasyonlar
+## 📅 Sprint Takvimi & İş Dağılımı
 
-- [ ] **3.1. Film Deposu için Canlı TMDB Entegrasyonu**
-  - [ ] Film adı yazıldığında The Movie Database (TMDB) API'den afiş, yönetmen, oyuncular, tür ve puanın otomatik çekilmesi.
-- [ ] **3.2. Ses Deposu için Yapay Zekâ Transkripti (Speech-to-Text)**
-  - [ ] Yüklenen veya kaydedilen ses dosyalarının OpenAI Whisper / Gemini Audio API ile otomatik olarak Türkçe metne dönüştürülmesi.
-- [ ] **3.3. Ders Notları Deposu için AI Çalışma Kartı Üretici**
-  - [ ] Eklenen uzun ders özeti veya PDF metninden tek tıkla otomatik soru-cevap Flashcard'ları çıkarma.
-- [ ] **3.4. Kod Deposu için Kod İnceleme & Açıklama**
-  - [ ] Kod parçacığının karmaşıklığını hesaplama, optimize etme veya çalışma mantığını özetleme.
-
----
-
-## 🎨 Faz 4: Kullanıcı Deneyimi, Mobil & PWA (UX & Mobile)
-
-- [ ] **4.1. Progressive Web App (PWA) Desteği**
-  - [ ] `manifest.json` ve Service Worker ekleyerek uygulamanın telefon ve masaüstüne yerel uygulama gibi kurulabilmesi.
-  - [ ] İnternet bağlantısı koptuğunda çevrimdışı (offline) okuma ve sonrasında senkronize olma.
-- [ ] **4.2. Karanlık Mod (Dark Mode)**
-  - [ ] Sistem tercihine uyumlu veya kullanıcı tarafından seçilebilen açık/koyu tema desteği.
-- [ ] **4.3. Sürükle & Bırak (Drag & Drop)**
-  - [ ] İçerikleri sürükleyerek klasörler arasında taşıma.
-  - [ ] Ana sayfada depo kartlarının sırasını manuel olarak yeniden düzenleyebilme.
-- [ ] **4.4. Toplu İşlemler (Batch Operations)**
-  - [ ] Çoklu seçim modu (aynı anda 10 fotoğrafı silme veya 5 belgeyi farklı bir klasöre aktarma).
-
----
-
-## 📊 Faz 5: Analitik, SEO ve Dışa Aktarma Çeşitliliği
-
-- [ ] **5.1. Zengin Dışa Aktarma Seçenekleri**
-  - [ ] Notları ve şiirleri `.md` (Markdown) veya `.pdf` olarak tekil indirme.
-  - [ ] Kod parçacıklarını kendi uzantısında (`.py`, `.sql`, `.ts`) indirme.
-  - [ ] Tüm arşivi ZIP paketi olarak klasör hiyerarşisiyle indirme.
-- [ ] **5.2. Paylaşım Sayfaları için Dinamik OpenGraph (OG Meta Tags)**
-  - [ ] `/share/[token]` bağlantısı WhatsApp, Twitter veya LinkedIn'de paylaşıldığında içerik afişini ve açıklamasını gösteren zengin önizleme kartları.
-- [ ] **5.3. Kişisel Hafıza İstatistikleri (Dashboard & Insights)**
-  - [ ] "Bu ay 14 yeni içerik kaydettin", "En çok film biriktirdin", "Toplam 48 saatlik ses arşivi" gibi Duolingo/Spotify Wrapped tarzı mikro istatistikler.
+```mermaid
+gantt
+    title Kişisel Depo — Sprint Teslimat Takvimi (Ekim - Kasım 2026)
+    dateFormat  YYYY-MM-DD
+    section Tamamlanan (v2.0)
+    8 Depo + Çöp Kutusu + Paylaşım + Global Arama + Auth :done, 2026-10-15, 2026-10-19
+    section Sprint 1: Mobil & Güvenlik
+    PWA & Offline Desteği               :active, s1_1, 2026-10-20, 2d
+    Dinamik PIN & Süreli Paylaşım       :active, s1_2, 2026-10-21, 2d
+    Karanlık Mod & Zengin Dışa Aktarma  :s1_3, 2026-10-22, 2d
+    section Sprint 2: Bulut & Kalıcılık
+    Supabase Veritabanı & RLS           :s2_1, 2026-10-25, 3d
+    Gerçek OAuth & Medya Storage        :s2_2, 2026-10-27, 3d
+    OpenGraph Önizleme Kartları         :s2_3, 2026-10-29, 2d
+    section Sprint 3: Yapay Zekâ & API
+    Canlı TMDB Film Entegrasyonu        :s3_1, 2026-10-31, 2d
+    Whisper Sesten Metne Transkript     :s3_2, 2026-11-02, 2d
+    AI Flashcard Üretici                :s3_3, 2026-11-03, 2d
+    section Sprint 4: Stabilizasyon & Lansman
+    Sürükle & Bırak + Toplu Seçim       :s4_1, 2026-11-05, 2d
+    İstatistikler & E2E Testler         :s4_2, 2026-11-06, 2d
+    Final Dağıtım (Production Release)  :s4_3, 2026-11-08, 1d
+```
 
 ---
 
-## 🧪 Faz 6: Test Kapsamını Genişletme (Testing & QA)
+## 🏃 Sprint Detayları
 
-- [ ] **6.1. E2E (End-to-End) Testleri (Playwright / Cypress)**
-  - [ ] Kullanıcının `/login` sayfasından giriş yapıp, yeni bir depo açması ve içerik eklemesini baştan sona test etme.
-  - [ ] `Ctrl + K` komut paletinin klavye etkileşimlerini otomatik simüle etme.
-- [ ] **6.2. Mobil Tarayıcı Testleri**
-  - [ ] iOS Safari ve Android Chrome dokunmatik jestleri, alt gezinme çubuğu uyumluluğu.
+### 🔹 Sprint 1: Mobil Deneyim, PWA ve İleri Düzey Güvenlik
+**Tarih Aralığı:** 20 Ekim – 24 Ekim 2026 (4 İş Günü)  
+**Hedef:** Uygulamayı cebe indirilebilir (PWA) hale getirmek, şifreleme ve süre kısıtlı paylaşım özelliklerini eklemek.
+
+| ID | Görev / User Story | Puan | Öncelik | Kabul Kriteri (DoD) |
+| :--- | :--- | :---: | :---: | :--- |
+| **SP1-1** | **PWA (Progressive Web App) Kurulumu** | 5 | 🔴 Must | Telefonda "Ana Ekrana Ekle" butonu çalışmalı, çevrimdışı önbellekleme aktif olmalı. |
+| **SP1-2** | **Dinamik Depo PIN Belirleme & Kriptolama** | 5 | 🔴 Must | Kullanıcı 1234 yerine kendi 4-6 haneli PIN'ini belirleyebilmeli, yanlış denemede kilitlenmeli. |
+| **SP1-3** | **Süreli ve Parolalı Paylaşım Linkleri** | 3 | 🟡 Should | Paylaşırken "24 saat sonra kapansın" veya "Şifre girilerek açılsın" seçilebilmeli. |
+| **SP1-4** | **Karanlık Mod (Dark Mode) Desteği** | 3 | 🟡 Should | Tek tıkla OLED uyumlu gece moduna geçiş, sistem temasına otomatik uyum. |
+| **SP1-5** | **Zengin Dışa Aktarma (.md, .pdf, .zip)** | 3 | 🟡 Should | Şiirler/notlar `.md` veya `.pdf`, kodlar `.py`/`.ts` olarak tek tıkla indirilebilmeli. |
+
+---
+
+### 🔹 Sprint 2: Bulut Veritabanı, Medya Storage & Gerçek Kalıcılık
+**Tarih Aralığı:** 25 Ekim – 30 Ekim 2026 (6 İş Günü)  
+**Hedef:** Tarayıcı hafızasını bulut altyapısıyla (Supabase) desteklemek ve gerçek dosya/medya yüklemesini açmak.
+
+| ID | Görev / User Story | Puan | Öncelik | Kabul Kriteri (DoD) |
+| :--- | :--- | :---: | :---: | :--- |
+| **SP2-1** | **Supabase PostgreSQL & RLS Şeması** | 8 | 🔴 Must | 8 depo için tablolar oluşturulmalı, kullanıcı sadece kendi verisini okuyabilmeli. |
+| **SP2-2** | **Bulut Medya Depolama (Storage Bucket)** | 8 | 🔴 Must | Kullanıcı gerçek MP3 ses kaydı, yüksek çözünürlüklü görsel ve PDF yükleyebilmeli. |
+| **SP2-3** | **Gerçek OAuth Sağlayıcıları** | 5 | 🔴 Must | Google ve GitHub hesapları ile tek tıkla gerçek yetkilendirme. |
+| **SP2-4** | **Dinamik OpenGraph (OG Meta Tags)** | 3 | 🟡 Should | `/share/[token]` linki WhatsApp/Twitter'da paylaşıldığında zengin önizleme kartı çıkmalı. |
+
+---
+
+### 🔹 Sprint 3: Yapay Zekâ (AI) ve Akıllı Dış API Entegrasyonları
+**Tarih Aralığı:** 31 Ekim – 4 Kasım 2026 (5 İş Günü)  
+**Hedef:** Depoları otomatik içerik üreten akıllı asistanlarla güçlendirmek.
+
+| ID | Görev / User Story | Puan | Öncelik | Kabul Kriteri (DoD) |
+| :--- | :--- | :---: | :---: | :--- |
+| **SP3-1** | **Canlı TMDB Film & Dizi Arama API** | 5 | 🟡 Should | Film adı yazılırken TMDB'den otomatik tamamlama, gerçek afiş ve detay çekme. |
+| **SP3-2** | **Whisper AI Ses Transkript Motoru** | 8 | 🟢 Could | Ses deposuna eklenen kaydın otomatik olarak Türkçe metin dökümünün çıkarılması. |
+| **SP3-3** | **Ders Notlarından Otomatik Flashcard Üretici** | 5 | 🟢 Could | Eklenen özetten Gemini/AI ile tek tıkla 5 adet çalışma soru-cevabı üretme. |
+
+---
+
+### 🔹 Sprint 4: Sürükle & Bırak, Analitik, E2E Testler & Lansman
+**Tarih Aralığı:** 5 Kasım – 8 Kasım 2026 (4 İş Günü)  
+**Hedef:** Tam stabilizasyon, toplu yönetim jestleri ve üretim sürümünün yayını.
+
+| ID | Görev / User Story | Puan | Öncelik | Kabul Kriteri (DoD) |
+| :--- | :--- | :---: | :---: | :--- |
+| **SP4-1** | **Sürükle & Bırak (Drag & Drop) ve Toplu Seçim** | 5 | 🟡 Should | Dosyaları klasörlere sürükleyebilme, birden çok öğeyi tek seferde silebilme. |
+| **SP4-2** | **Kişisel Hafıza İstatistikleri (Wrapped)** | 3 | 🟢 Could | "Bu ay 12 film izledin, 4 ses kaydettin" özet analitik paneli. |
+| **SP4-3** | **Playwright E2E Otomatik Test Paketi** | 5 | 🔴 Must | Tarayıcı üzerinde baştan sona giriş, arama, ekleme ve paylaşım testleri. |
+| **SP4-4** | **Canlı Dağıtım (Production Release v2.1)** | 3 | 🔴 Must | Vercel üzerinde canlı ortam yayını ve son kontroller. |
+
+---
+
+## 📌 Bitti Tanımı (Definition of Done - DoD)
+Bir görevin tamamlanmış ("Done") kabul edilmesi için aşağıdaki kriterleri sağlaması zorunludur:
+1. İlgili TypeScript kodlarının `npm run build` ile sıfır hatayla derlenmesi.
+2. Otomatik birim testlerinin (`npm test`) başarıyla geçmesi.
+3. Mobil ve masaüstü tarayıcılarda görsel responsive testinin yapılmış olması.
+4. Kodların GitHub ana dalına (`origin/main`) temiz commit mesajıyla gönderilmesi.
+5. Müşteriye (Product Owner) canlı çalışır örneğin sunulması ve onay alınması.
