@@ -28,6 +28,9 @@ import {
   Code2,
   Compass,
   GraduationCap,
+  Music,
+  Image as ImageIcon,
+  FolderArchive,
 } from "lucide-react";
 import {
   getSharedLinks,
@@ -42,75 +45,6 @@ const AVATAR_PALETTES = [
   { id: "emerald", name: "Zümrüt & Yeşil", gradient: "from-emerald-500 to-teal-600" },
   { id: "amber", name: "Turuncu & Amber", gradient: "from-amber-500 to-orange-600" },
   { id: "rose", name: "Kırmızı & Pembe", gradient: "from-rose-500 to-pink-600" },
-];
-
-const INITIAL_SHARES: SharedLink[] = [
-  {
-    id: "s1",
-    token: "sinema-kulubu-deposu",
-    itemTitle: "Sinema Kulübü & Başyapıtlar",
-    containerName: "Sinema Kulübü & Başyapıtlar",
-    type: "container",
-    scope: "container",
-    createdAt: "Ekim 2026",
-    views: 42,
-    isActive: true,
-  },
-  {
-    id: "s2",
-    token: "gece-siirleri-deposu",
-    itemTitle: "Gece Düşünceleri & Şiirlerim",
-    containerName: "Gece Düşünceleri & Şiirlerim",
-    type: "container",
-    scope: "container",
-    createdAt: "Ekim 2026",
-    views: 19,
-    isActive: true,
-  },
-  {
-    id: "s3",
-    token: "inception-arsiv",
-    itemTitle: "Inception & Arşiv Notlarım",
-    containerName: "Sinema Kulübü & Başyapıtlar",
-    type: "movie",
-    scope: "item",
-    createdAt: "3 gün önce",
-    views: 28,
-    isActive: true,
-  },
-  {
-    id: "s4",
-    token: "mavi-aksamustu",
-    itemTitle: "Mavi Bir Akşamüstü (Şiir)",
-    containerName: "Gece Düşünceleri & Şiirlerim",
-    type: "text",
-    scope: "item",
-    createdAt: "Dün",
-    views: 14,
-    isActive: true,
-  },
-  {
-    id: "s5",
-    token: "kod-parcaciklari-deposu",
-    itemTitle: "Frontend & Fullstack Snippet'lar",
-    containerName: "Frontend & Fullstack Snippet'lar",
-    type: "container",
-    scope: "container",
-    createdAt: "Ekim 2026",
-    views: 31,
-    isActive: true,
-  },
-  {
-    id: "s6",
-    token: "snippet-jwt-auth",
-    itemTitle: "FastAPI JWT Bearer Middleware",
-    containerName: "Frontend & Fullstack Snippet'lar",
-    type: "code",
-    scope: "item",
-    createdAt: "Dün",
-    views: 9,
-    isActive: true,
-  },
 ];
 
 export default function ProfilePage() {
@@ -313,6 +247,12 @@ export default function ProfilePage() {
                           ? "bg-amber-500"
                           : link.type === "study"
                           ? "bg-sky-600"
+                          : link.type === "audio"
+                          ? "bg-amber-600"
+                          : link.type === "image"
+                          ? "bg-rose-600"
+                          : link.type === "file"
+                          ? "bg-teal-700"
                           : "bg-purple-600"
                       }`}
                     >
@@ -326,6 +266,12 @@ export default function ProfilePage() {
                         <Compass className="w-5 h-5" />
                       ) : link.type === "study" ? (
                         <GraduationCap className="w-5 h-5" />
+                      ) : link.type === "audio" ? (
+                        <Music className="w-5 h-5" />
+                      ) : link.type === "image" ? (
+                        <ImageIcon className="w-5 h-5" />
+                      ) : link.type === "file" ? (
+                        <FolderArchive className="w-5 h-5" />
                       ) : (
                         <Film className="w-5 h-5" />
                       )}

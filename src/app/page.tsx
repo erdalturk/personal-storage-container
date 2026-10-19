@@ -212,6 +212,39 @@ const INITIAL_CONTAINERS: ContainerItem[] = [
     coverGradient: "from-slate-700 via-zinc-800 to-neutral-900",
     icon: FileText,
   },
+  {
+    id: "c6",
+    title: "Sesli Notlar & Podcast Fikirleri",
+    type: "standard",
+    formatTitle: "Ses",
+    itemCount: 4,
+    lastUpdated: "Bugün",
+    isLocked: false,
+    coverGradient: "from-amber-600 via-orange-600 to-amber-800",
+    icon: Music,
+  },
+  {
+    id: "c7",
+    title: "Tasarım İlhamları & Fotoğraf Arşivi",
+    type: "standard",
+    formatTitle: "Görüntü",
+    itemCount: 4,
+    lastUpdated: "Dün",
+    isLocked: false,
+    coverGradient: "from-rose-600 via-pink-600 to-rose-800",
+    icon: ImageIcon,
+  },
+  {
+    id: "c8",
+    title: "Sözleşmeler, Faturalar & Belgelerim",
+    type: "standard",
+    formatTitle: "Dosya & Belge",
+    itemCount: 4,
+    lastUpdated: "Bugün",
+    isLocked: false,
+    coverGradient: "from-emerald-700 via-teal-700 to-slate-800",
+    icon: FolderArchive,
+  },
 ];
 
 export default function HomePage() {
@@ -224,7 +257,24 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<"all" | "smart" | "standard">("all");
 
   useEffect(() => {
-    setContainers(getStoredCollection("containers", INITIAL_CONTAINERS));
+    const loadAndMerge = () => {
+      const stored = getStoredCollection("containers", INITIAL_CONTAINERS);
+      const existingIds = new Set(stored.map((c) => c.id));
+      const missingNewDefaults = INITIAL_CONTAINERS.filter(
+        (init) =>
+          (init.id === "c6" || init.id === "c7" || init.id === "c8") &&
+          !existingIds.has(init.id)
+      );
+      if (missingNewDefaults.length > 0) {
+        const merged = [...stored, ...missingNewDefaults];
+        saveStoredCollection("containers", merged);
+        setContainers(merged);
+      } else {
+        setContainers(stored);
+      }
+    };
+
+    loadAndMerge();
 
     const handleUpdate = () => {
       setContainers(getStoredCollection("containers", INITIAL_CONTAINERS));
@@ -257,22 +307,32 @@ export default function HomePage() {
   const [enteredPin, setEnteredPin] = useState("");
   const [pinError, setPinError] = useState(false);
 
+  const navigateToContainer = (target: ContainerItem) => {
+    if (target.formatTitle === "Metin" || target.id === "c5") {
+      router.push("/containers/text");
+    } else if (target.formatTitle === "Film & Dizi" || target.id === "c1") {
+      router.push("/containers/movie");
+    } else if (target.formatTitle === "Kod Parçacıkları" || target.id === "c2") {
+      router.push("/containers/code");
+    } else if (target.formatTitle === "Gezi & Seyahat" || target.id === "c3") {
+      router.push("/containers/travel");
+    } else if (target.formatTitle === "Ders & Notlar" || target.id === "c4") {
+      router.push("/containers/study");
+    } else if (target.formatTitle === "Ses" || target.id === "c6") {
+      router.push("/containers/audio");
+    } else if (target.formatTitle === "Görüntü" || target.id === "c7") {
+      router.push("/containers/media");
+    } else if (target.formatTitle === "Dosya & Belge" || target.id === "c8") {
+      router.push("/containers/files");
+    }
+  };
+
   const handleVerifyPin = () => {
     // Demo varsayılan PIN: 1234
     if (enteredPin === "1234" && pinModalTarget) {
       const target = pinModalTarget;
       setPinModalTarget(null);
-      if (target.formatTitle === "Metin" || target.id === "c5") {
-        router.push("/containers/text");
-      } else if (target.formatTitle === "Film & Dizi" || target.id === "c1") {
-        router.push("/containers/movie");
-      } else if (target.formatTitle === "Kod Parçacıkları" || target.id === "c2") {
-        router.push("/containers/code");
-      } else if (target.formatTitle === "Gezi & Seyahat" || target.id === "c3") {
-        router.push("/containers/travel");
-      } else if (target.formatTitle === "Ders & Notlar" || target.id === "c4") {
-        router.push("/containers/study");
-      }
+      navigateToContainer(target);
     } else {
       setPinError(true);
     }
@@ -577,19 +637,7 @@ export default function HomePage() {
                         setPinError(false);
                         return;
                       }
-                      if (item.formatTitle === "Metin" || item.id === "c5") {
-                        router.push("/containers/text");
-                      } else if (item.formatTitle === "Film & Dizi" || item.id === "c1") {
-                        router.push("/containers/movie");
-                      } else if (item.formatTitle === "Kod Parçacıkları" || item.id === "c2") {
-                        router.push("/containers/code");
-                      } else if (item.formatTitle === "Gezi & Seyahat" || item.id === "c3") {
-                        router.push("/containers/travel");
-                      } else if (item.formatTitle === "Ders & Notlar" || item.id === "c4") {
-                        router.push("/containers/study");
-                      } else {
-                        alert(`"${item.title}" açılıyor...`);
-                      }
+                      navigateToContainer(item);
                     }}
                   >
                     {/* Depo Kapak Görseli / Gradyan Başlığı */}
@@ -664,6 +712,12 @@ export default function HomePage() {
                                   ? "gezi-ve-seyahat-deposu"
                                   : item.formatTitle === "Ders & Notlar" || item.id === "c4"
                                   ? "yapay-zeka-ve-algoritmalar-deposu"
+                                  : item.formatTitle === "Ses" || item.id === "c6"
+                                  ? "sesli-notlar-deposu"
+                                  : item.formatTitle === "Görüntü" || item.id === "c7"
+                                  ? "gorsel-koleksiyon-deposu"
+                                  : item.formatTitle === "Dosya & Belge" || item.id === "c8"
+                                  ? "belge-ve-dosya-deposu"
                                   : "sinema-kulubu-deposu";
                               window.open(`/share/${token}`, "_blank");
                             }}
@@ -792,8 +846,12 @@ export default function HomePage() {
                     setIsCreateModalOpen(false);
                     if (selectedFormat === "text") {
                       router.push("/containers/text");
-                    } else {
-                      alert(`Seçilen format: ${selectedFormat}. Bu formatın tasarım ekranı bir sonraki adımda inşa edilecek.`);
+                    } else if (selectedFormat === "audio") {
+                      router.push("/containers/audio");
+                    } else if (selectedFormat === "image") {
+                      router.push("/containers/media");
+                    } else if (selectedFormat === "file") {
+                      router.push("/containers/files");
                     }
                   }}
                   className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md ${

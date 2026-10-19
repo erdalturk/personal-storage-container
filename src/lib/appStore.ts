@@ -8,7 +8,7 @@ export interface TrashItem {
   id: string;
   title: string;
   originContainer: string;
-  type: "container" | "text" | "movie" | "code" | "travel" | "study" | "file";
+  type: "container" | "text" | "movie" | "code" | "travel" | "study" | "audio" | "image" | "file";
   deletedAt: string;
   daysRemaining: number;
   contentPreview?: string;
@@ -21,7 +21,7 @@ export interface SharedLink {
   token: string;
   itemTitle: string;
   containerName: string;
-  type: "text" | "movie" | "code" | "travel" | "study" | "container";
+  type: "text" | "movie" | "code" | "travel" | "study" | "audio" | "image" | "file" | "container";
   scope: "container" | "item";
   createdAt: string;
   views: number;
@@ -38,6 +38,9 @@ const STORAGE_KEYS = {
   SNIPPETS: "psc_snippets",
   TRAVELS: "psc_travels",
   STUDY: "psc_study_notes",
+  AUDIOS: "psc_audio_items",
+  MEDIA: "psc_media_items",
+  FILES: "psc_file_items",
 };
 
 // 1. Çöp Kutusu Başlangıç Verileri
@@ -176,6 +179,72 @@ const INITIAL_SHARED: SharedLink[] = [
     views: 19,
     isActive: true,
   },
+  {
+    id: "s11",
+    token: "sesli-notlar-deposu",
+    itemTitle: "Sesli Notlar & Podcast Fikirleri",
+    containerName: "Sesli Notlar & Podcast Fikirleri",
+    type: "container",
+    scope: "container",
+    createdAt: "Ekim 2026",
+    views: 24,
+    isActive: true,
+  },
+  {
+    id: "s12",
+    token: "podcast-bolum-taslagi",
+    itemTitle: "Bölüm 12: Yapay Zekâ Çağında Kişisel Hafıza",
+    containerName: "Sesli Notlar & Podcast Fikirleri",
+    type: "audio",
+    scope: "item",
+    createdAt: "1 gün önce",
+    views: 15,
+    isActive: true,
+  },
+  {
+    id: "s13",
+    token: "gorsel-koleksiyon-deposu",
+    itemTitle: "Tasarım İlhamları & Fotoğraf Arşivi",
+    containerName: "Tasarım İlhamları & Fotoğraf Arşivi",
+    type: "container",
+    scope: "container",
+    createdAt: "Ekim 2026",
+    views: 41,
+    isActive: true,
+  },
+  {
+    id: "s14",
+    token: "minimalist-mimari-cekim",
+    itemTitle: "Nordik Minimalist Mimari & Işık Etüdü",
+    containerName: "Tasarım İlhamları & Fotoğraf Arşivi",
+    type: "image",
+    scope: "item",
+    createdAt: "4 gün önce",
+    views: 29,
+    isActive: true,
+  },
+  {
+    id: "s15",
+    token: "belge-ve-dosya-deposu",
+    itemTitle: "Sözleşmeler, Faturalar & Belgelerim",
+    containerName: "Sözleşmeler, Faturalar & Belgelerim",
+    type: "container",
+    scope: "container",
+    createdAt: "Ekim 2026",
+    views: 16,
+    isActive: true,
+  },
+  {
+    id: "s16",
+    token: "proje-sozlesme-taslagi",
+    itemTitle: "2026 SaaS Yazılım Geliştirme Sözleşmesi.pdf",
+    containerName: "Sözleşmeler, Faturalar & Belgelerim",
+    type: "file",
+    scope: "item",
+    createdAt: "5 gün önce",
+    views: 12,
+    isActive: true,
+  },
 ];
 
 // Olay bildirimi tetikleyici (Aynı sekmedeki veya sekmeler arası bileşenleri uyarır)
@@ -262,6 +331,18 @@ export function restoreFromTrash(trashId: string): TrashItem | null {
     } else if (target.type === "travel") {
       const travels = safeGet<any[]>(STORAGE_KEYS.TRAVELS, []);
       safeSet(STORAGE_KEYS.TRAVELS, [target.originalData, ...travels]);
+    } else if (target.type === "study") {
+      const studies = safeGet<any[]>(STORAGE_KEYS.STUDY, []);
+      safeSet(STORAGE_KEYS.STUDY, [target.originalData, ...studies]);
+    } else if (target.type === "audio") {
+      const audios = safeGet<any[]>(STORAGE_KEYS.AUDIOS, []);
+      safeSet(STORAGE_KEYS.AUDIOS, [target.originalData, ...audios]);
+    } else if (target.type === "image") {
+      const media = safeGet<any[]>(STORAGE_KEYS.MEDIA, []);
+      safeSet(STORAGE_KEYS.MEDIA, [target.originalData, ...media]);
+    } else if (target.type === "file") {
+      const files = safeGet<any[]>(STORAGE_KEYS.FILES, []);
+      safeSet(STORAGE_KEYS.FILES, [target.originalData, ...files]);
     }
   }
 
@@ -367,40 +448,49 @@ export function deleteSharedLink(id: string): void {
 }
 
 /* ========================================================================== */
-/* KOLEKSİYONLAR (CONTAINERS, MOVIES, TEXTS, SNIPPETS) SENKRONİZASYONU        */
+/* KOLEKSİYONLAR SENKRONİZASYONU                                              */
 /* ========================================================================== */
 
-export function getStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets" | "travels" | "study", fallback: T[]): T[] {
-  const storageKey =
-    key === "containers"
-      ? STORAGE_KEYS.CONTAINERS
-      : key === "movies"
-      ? STORAGE_KEYS.MOVIES
-      : key === "texts"
-      ? STORAGE_KEYS.TEXTS
-      : key === "snippets"
-      ? STORAGE_KEYS.SNIPPETS
-      : key === "travels"
-      ? STORAGE_KEYS.TRAVELS
-      : STORAGE_KEYS.STUDY;
+export type CollectionKey =
+  | "containers"
+  | "movies"
+  | "texts"
+  | "snippets"
+  | "travels"
+  | "study"
+  | "audios"
+  | "media"
+  | "files";
 
-  return safeGet<T[]>(storageKey, fallback);
+function resolveStorageKey(key: CollectionKey): string {
+  switch (key) {
+    case "containers":
+      return STORAGE_KEYS.CONTAINERS;
+    case "movies":
+      return STORAGE_KEYS.MOVIES;
+    case "texts":
+      return STORAGE_KEYS.TEXTS;
+    case "snippets":
+      return STORAGE_KEYS.SNIPPETS;
+    case "travels":
+      return STORAGE_KEYS.TRAVELS;
+    case "study":
+      return STORAGE_KEYS.STUDY;
+    case "audios":
+      return STORAGE_KEYS.AUDIOS;
+    case "media":
+      return STORAGE_KEYS.MEDIA;
+    case "files":
+      return STORAGE_KEYS.FILES;
+  }
 }
 
-export function saveStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets" | "travels" | "study", data: T[]): void {
-  const storageKey =
-    key === "containers"
-      ? STORAGE_KEYS.CONTAINERS
-      : key === "movies"
-      ? STORAGE_KEYS.MOVIES
-      : key === "texts"
-      ? STORAGE_KEYS.TEXTS
-      : key === "snippets"
-      ? STORAGE_KEYS.SNIPPETS
-      : key === "travels"
-      ? STORAGE_KEYS.TRAVELS
-      : STORAGE_KEYS.STUDY;
+export function getStoredCollection<T>(key: CollectionKey, fallback: T[]): T[] {
+  return safeGet<T[]>(resolveStorageKey(key), fallback);
+}
 
-  safeSet(storageKey, data);
+export function saveStoredCollection<T>(key: CollectionKey, data: T[]): void {
+  safeSet(resolveStorageKey(key), data);
   notifyStoreUpdate();
 }
+

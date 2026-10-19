@@ -20,6 +20,8 @@ import {
   Code2,
   Compass,
   GraduationCap,
+  Music,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   getTrashItems,
@@ -32,7 +34,9 @@ import {
 export default function TrashPage() {
   const [items, setItems] = useState<TrashItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"all" | "container" | "text" | "movie" | "code" | "travel" | "study">("all");
+  const [activeFilter, setActiveFilter] = useState<
+    "all" | "container" | "text" | "movie" | "code" | "travel" | "study" | "audio" | "image" | "file"
+  >("all");
   const [itemToDeletePermanently, setItemToDeletePermanently] = useState<TrashItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -79,13 +83,8 @@ export default function TrashPage() {
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.originContainer.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
-    if (activeFilter === "container") return item.type === "container";
-    if (activeFilter === "text") return item.type === "text";
-    if (activeFilter === "movie") return item.type === "movie";
-    if (activeFilter === "code") return item.type === "code";
-    if (activeFilter === "travel") return item.type === "travel";
-    if (activeFilter === "study") return item.type === "study";
-    return true;
+    if (activeFilter === "all") return true;
+    return item.type === activeFilter;
   });
 
   return (
@@ -199,7 +198,31 @@ export default function TrashPage() {
                 activeFilter === "study" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Ders Notları ({items.filter((i) => i.type === "study").length})
+              Ders ({items.filter((i) => i.type === "study").length})
+            </button>
+            <button
+              onClick={() => setActiveFilter("audio")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                activeFilter === "audio" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Ses ({items.filter((i) => i.type === "audio").length})
+            </button>
+            <button
+              onClick={() => setActiveFilter("image")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                activeFilter === "image" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Görüntü ({items.filter((i) => i.type === "image").length})
+            </button>
+            <button
+              onClick={() => setActiveFilter("file")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                activeFilter === "file" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Dosya ({items.filter((i) => i.type === "file").length})
             </button>
           </div>
 
@@ -249,6 +272,10 @@ export default function TrashPage() {
                         ? "bg-amber-500"
                         : item.type === "study"
                         ? "bg-sky-600"
+                        : item.type === "audio"
+                        ? "bg-amber-600"
+                        : item.type === "image"
+                        ? "bg-rose-600"
                         : "bg-slate-600"
                     }`}
                   >
@@ -264,6 +291,10 @@ export default function TrashPage() {
                       <Compass className="w-5 h-5" />
                     ) : item.type === "study" ? (
                       <GraduationCap className="w-5 h-5" />
+                    ) : item.type === "audio" ? (
+                      <Music className="w-5 h-5" />
+                    ) : item.type === "image" ? (
+                      <ImageIcon className="w-5 h-5" />
                     ) : (
                       <FolderArchive className="w-5 h-5" />
                     )}
@@ -286,6 +317,12 @@ export default function TrashPage() {
                           ? "Gezi"
                           : item.type === "study"
                           ? "Ders Notu"
+                          : item.type === "audio"
+                          ? "Ses"
+                          : item.type === "image"
+                          ? "Görsel"
+                          : item.type === "file"
+                          ? "Dosya"
                           : "Metin"}
                       </span>
                     </div>

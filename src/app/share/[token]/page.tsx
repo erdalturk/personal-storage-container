@@ -26,6 +26,12 @@ import {
   BookOpen,
   FileCheck,
   Download,
+  Music,
+  Image as ImageIcon,
+  FolderArchive,
+  Play,
+  Headphones,
+  Camera,
 } from "lucide-react";
 import { isTokenDeleted } from "@/lib/appStore";
 
@@ -34,7 +40,7 @@ interface SharedRecord {
   author: string;
   authorAvatar: string;
   scope: "container" | "item"; // "container" = Deponun Tamamı, "item" = Tek Bir İçerik
-  type: "text" | "movie" | "code" | "travel" | "study";
+  type: "text" | "movie" | "code" | "travel" | "study" | "audio" | "image" | "file";
   createdAt: string;
   isActive: boolean;
   isDeleted?: boolean; // Eğer içerik silindiyse otomatik iptal kuralı
@@ -70,41 +76,17 @@ interface SharedRecord {
   pdfSize?: string;
   flashcards?: Array<{ question: string; answer: string }>;
   formulaSummary?: string;
+  // Ses, Görüntü ve Dosya alanları
+  durationLabel?: string;
+  format?: string;
+  size?: string;
+  transcript?: string;
+  resolution?: string;
+  cameraInfo?: string;
+  version?: string;
   // Tüm depo alanları
   containerDesc?: string;
-  containerItems?: Array<{
-    id: string;
-    title: string;
-    year?: number;
-    rating?: number;
-    posterUrl?: string;
-    director?: string;
-    overview?: string;
-    userNote?: string;
-    genres?: string[];
-    content?: string;
-    folder?: string;
-    code?: string;
-    language?: string;
-    tags?: string[];
-    description?: string;
-    destination?: string;
-    country?: string;
-    durationDays?: number;
-    highlightPlaces?: string[];
-    courseCode?: string;
-    term?: string;
-    instructor?: string;
-    targetExam?: string;
-    examDate?: string;
-    daysLeft?: number;
-    topics?: string[];
-    pdfName?: string;
-    pdfPages?: number;
-    pdfSize?: string;
-    flashcards?: Array<{ question: string; answer: string }>;
-    formulaSummary?: string;
-  }>;
+  containerItems?: Array<any>;
 }
 
 const SHARED_DATA: Record<string, SharedRecord> = {
@@ -528,6 +510,183 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     isActive: false,
     isDeleted: true, // Silindiği için otomatik iptal
   },
+
+  // 11. SES DEPOSU TAMAMI PAYLAŞIMI
+  "sesli-notlar-deposu": {
+    title: "Sesli Notlar & Podcast Fikirleri",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "container",
+    type: "audio",
+    createdAt: "Ekim 2026",
+    isActive: true,
+    containerDesc: "Podcast bölüm taslakları, toplantı ses kayıtları, sesli kitap özetleri ve müzik demoları arşivim.",
+    containerItems: [
+      {
+        id: "au-1",
+        title: "Bölüm 12: Yapay Zekâ Çağında Kişisel Hafıza",
+        folder: "Podcast Taslakları",
+        durationLabel: "04:32",
+        format: "WAV",
+        size: "42.8 MB",
+        transcript: "Giriş: Bugün dijital çağda bilgileri neden sadece kaydetmekle kalmayıp anlamlandırmamız gerektiğini konuşuyoruz...",
+      },
+      {
+        id: "au-2",
+        title: "Q4 Ürün Yol Haritası Beyin Fırtınası",
+        folder: "Toplantı Kayıtları",
+        durationLabel: "08:38",
+        format: "M4A",
+        size: "16.4 MB",
+        transcript: "Ekip ile yapılan haftalık değerlendirme: Paylaşım kartlarının vitrin görünümü ve 1-seviye klasör mimarisi.",
+      },
+      {
+        id: "au-3",
+        title: "Gece Yarısı Kitap Özeti Sesli Notu",
+        folder: "Sesli Fikirler",
+        durationLabel: "02:25",
+        format: "MP3",
+        size: "5.8 MB",
+        transcript: "Atomik Alışkanlıklar 4. Bölüm üzerine sesli düşünce kaydı: Sistemler hedeflerden daha önemlidir.",
+      },
+    ],
+  },
+
+  // 12. TEKİL SES KAYDI PAYLAŞIMI
+  "podcast-bolum-taslagi": {
+    title: "Bölüm 12: Yapay Zekâ Çağında Kişisel Hafıza",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "item",
+    type: "audio",
+    createdAt: "1 gün önce",
+    isActive: true,
+    durationLabel: "04:32",
+    format: "WAV • 1411 kbps",
+    size: "42.8 MB",
+    transcript: "Giriş: Bugün dijital çağda bilgileri neden sadece kaydetmekle kalmayıp anlamlandırmamız gerektiğini konuşuyoruz. İkinci beyin kavramı, klasik klasörleme sistemlerinin ötesinde bağlamsal depolamayı gerektirir.",
+    tags: ["podcast", "yapay-zeka", "hafıza"],
+  },
+
+  // 13. GÖRÜNTÜ DEPOSU TAMAMI PAYLAŞIMI
+  "gorsel-koleksiyon-deposu": {
+    title: "Tasarım İlhamları & Fotoğraf Arşivi",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "container",
+    type: "image",
+    createdAt: "Ekim 2026",
+    isActive: true,
+    containerDesc: "Mimari ışık etütleri, UI/UX renk paletleri ve yüksek çözünürlüklü kişisel fotoğraf koleksiyonum.",
+    containerItems: [
+      {
+        id: "img-1",
+        title: "Nordik Minimalist Mimari & Işık Etüdü",
+        folder: "Mimari & İç Mekan",
+        posterUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85",
+        resolution: "3840 × 2160",
+        format: "RAW",
+        cameraInfo: "Sony A7IV • 35mm f/1.4",
+        overview: "Gün batımında doğal ahşap ve brüt beton yüzeylerin sıcak ışıkla buluştuğu İskandinav cephe referansı.",
+      },
+      {
+        id: "img-2",
+        title: "Sıcak Krem & Taş Tonları UI Renk Paleti",
+        folder: "UI / UX İlhamları",
+        posterUrl: "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1200&q=85",
+        resolution: "2560 × 1440",
+        format: "PNG",
+        cameraInfo: "Figma Export • DCI-P3",
+        overview: "Kişisel Depo projemiz için ilham alınan editoryal masaüstü kurgusu ve tipografik denge.",
+      },
+      {
+        id: "img-3",
+        title: "Kuzey Pasifik Sisli Vadiler",
+        folder: "Doğa & Minimalizm",
+        posterUrl: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=85",
+        resolution: "4096 × 2730",
+        format: "JPG",
+        cameraInfo: "Fujifilm X-T5 • 23mm f/2",
+        overview: "Sabahın erken saatlerinde göl yüzeyine yansıyan çam ormanları ve sis katmanları.",
+      },
+    ],
+  },
+
+  // 14. TEKİL GÖRSEL PAYLAŞIMI
+  "minimalist-mimari-cekim": {
+    title: "Nordik Minimalist Mimari & Işık Etüdü",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "item",
+    type: "image",
+    createdAt: "4 gün önce",
+    isActive: true,
+    posterUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85",
+    resolution: "3840 × 2160",
+    format: "RAW",
+    size: "18.4 MB",
+    cameraInfo: "Sony A7IV • 35mm f/1.4 • ISO 100",
+    overview: "Gün batımında doğal ahşap ve brüt beton yüzeylerin sıcak ışıkla buluştuğu İskandinav cephe referansı.",
+    tags: ["mimari", "minimalizm", "ışık"],
+  },
+
+  // 15. DOSYA & BELGE DEPOSU TAMAMI PAYLAŞIMI
+  "belge-ve-dosya-deposu": {
+    title: "Sözleşmeler, Faturalar & Belgelerim",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "container",
+    type: "file",
+    createdAt: "Ekim 2026",
+    isActive: true,
+    containerDesc: "Kurumsal yazılım sözleşmeleri, bütçe projeksiyon tabloları, yatırımcı sunumları ve tasarım sistemi arşiv paketleri.",
+    containerItems: [
+      {
+        id: "fl-1",
+        title: "2026 SaaS Yazılım Geliştirme Sözleşmesi.pdf",
+        folder: "Sözleşmeler & Hukuk",
+        format: "PDF",
+        size: "2.4 MB",
+        version: "v2.1 • İmzalı",
+        overview: "Kurumsal müşteri için hazırlanan fikri mülkiyet, gizlilik (NDA) ve SLA maddelerini içeren ana hizmet sözleşmesi.",
+      },
+      {
+        id: "fl-2",
+        title: "Q3-Q4 Gelir Gider ve Bütçe Projeksiyonu.xlsx",
+        folder: "Finans & Faturalar",
+        format: "XLSX",
+        size: "4.8 MB",
+        version: "v4.0 • Final",
+        overview: "2026 yılı 3. ve 4. çeyrek sunucu maliyetleri, abonelik gelirleri ve birim ekonomisi hesaplama tablosu.",
+      },
+      {
+        id: "fl-3",
+        title: "Kişisel Depo Yatırımcı Sunumu (Pitch Deck).pptx",
+        folder: "Sunum & Raporlar",
+        format: "PPTX",
+        size: "18.6 MB",
+        version: "v1.8",
+        overview: "Tohum yatırım turu için hazırlanan 16 slaytlık ürün vizyonu ve canlı demo akışı sunumu.",
+      },
+    ],
+  },
+
+  // 16. TEKİL DOSYA & BELGE PAYLAŞIMI
+  "proje-sozlesme-taslagi": {
+    title: "2026 SaaS Yazılım Geliştirme Sözleşmesi.pdf",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "item",
+    type: "file",
+    createdAt: "5 gün önce",
+    isActive: true,
+    format: "PDF",
+    size: "2.4 MB",
+    version: "v2.1 • İmzalı",
+    overview: "Kurumsal müşteri için hazırlanan fikri mülkiyet, gizlilik (NDA) ve SLA maddelerini içeren ana hizmet sözleşmesi.",
+    content: "MADDE 1 - TARAFLAR VE KONU\nİşbu Yazılım Geliştirme ve Lisans Sözleşmesi, Kişisel Depo (Hizmet Sağlayıcı) ile Kurumsal Müşteri arasında bulut tabanlı veri saklama modüllerinin teslimi amacıyla imzalanmıştır.\n\nMADDE 4 - VERİ GÜVENLİĞİ VE GİZLİLİK\nKullanıcı verileri uçtan uca şifrelenmiş depolarda saklanır. Silinen veriler 30 gün boyunca Çöp Kutusu'nda tutulur ve paylaşılan bağlantılar anında geçersiz kılınır.",
+    tags: ["sözleşme", "hukuk", "nda"],
+  },
 };
 
 function ShareContent() {
@@ -679,6 +838,12 @@ function ShareContent() {
                     ? "Gezi & Seyahat Anıları Deposu"
                     : item.type === "study"
                     ? "Ders & Çalışma Notları Deposu"
+                    : item.type === "audio"
+                    ? "Ses Deposu"
+                    : item.type === "image"
+                    ? "Görüntü Deposu"
+                    : item.type === "file"
+                    ? "Dosya & Belge Deposu"
                     : "Metin Deposu"}
                 </span>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
@@ -989,6 +1154,115 @@ function ShareContent() {
                 ))}
               </div>
             )}
+
+            {/* SES DEPOSU TAMAMI VİTRİNİ */}
+            {item.type === "audio" && item.containerItems && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {item.containerItems.map((au: any) => (
+                  <div
+                    key={au.id}
+                    className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          {au.format}
+                        </span>
+                        <span className="text-xs text-slate-400 font-mono">
+                          {au.durationLabel} • {au.size}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-base text-slate-900 mb-2">
+                        {au.title}
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {au.transcript}
+                      </p>
+                    </div>
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-amber-700 font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <Headphones className="w-4 h-4" />
+                        {au.folder}
+                      </span>
+                      <span className="text-slate-400">Salt Okunur</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* GÖRÜNTÜ DEPOSU TAMAMI VİTRİNİ */}
+            {item.type === "image" && item.containerItems && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {item.containerItems.map((img: any) => (
+                  <div
+                    key={img.id}
+                    className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="h-56 bg-slate-100 relative overflow-hidden">
+                        <img
+                          src={img.posterUrl}
+                          alt={img.title}
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-black/75 text-white">
+                          {img.format} • {img.resolution}
+                        </span>
+                      </div>
+                      <div className="p-5">
+                        <span className="text-[11px] font-bold text-rose-600">
+                          {img.folder}
+                        </span>
+                        <h3 className="font-bold text-base text-slate-900 mt-1">
+                          {img.title}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                          {img.overview}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>{img.cameraInfo}</span>
+                      <span>Salt Okunur</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* DOSYA & BELGE DEPOSU TAMAMI VİTRİNİ */}
+            {item.type === "file" && item.containerItems && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {item.containerItems.map((fl: any) => (
+                  <div
+                    key={fl.id}
+                    className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          {fl.format}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-500">
+                          {fl.size} • {fl.version}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-base text-slate-900 mb-2">
+                        {fl.title}
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {fl.overview}
+                      </p>
+                    </div>
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-emerald-700 font-semibold">
+                      <span>{fl.folder}</span>
+                      <span className="text-slate-400">Salt Okunur</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           /* ======================================================== */
@@ -1261,6 +1535,98 @@ function ShareContent() {
                     <span className="px-3 py-1.5 rounded-xl bg-sky-100 text-sky-800 text-xs font-bold shrink-0">
                       Salt Okunur Ek
                     </span>
+                  </div>
+                )}
+              </div>
+            ) : item.type === "audio" ? (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 flex items-center gap-1.5">
+                    <Music className="w-3.5 h-3.5" />
+                    Ses Kaydı • {item.format}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {item.durationLabel} • {item.size}
+                  </span>
+                </div>
+                <h1 className="text-2xl font-extrabold text-slate-900">
+                  {item.title}
+                </h1>
+                <div className="p-5 rounded-2xl bg-amber-50/60 border border-amber-200/70 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-600 text-white flex items-center justify-center shrink-0">
+                    <Play className="w-5 h-5 ml-0.5" />
+                  </div>
+                  <div className="flex-1 flex items-center gap-1 h-10">
+                    {[40, 75, 60, 90, 50, 85, 95, 70, 55, 80, 65, 45, 90, 70, 60, 85, 50, 75].map(
+                      (h, i) => (
+                        <div
+                          key={i}
+                          style={{ height: `${h}%` }}
+                          className="flex-1 bg-amber-500/80 rounded-full"
+                        />
+                      )
+                    )}
+                  </div>
+                  <span className="text-xs font-mono font-bold text-amber-900">
+                    {item.durationLabel}
+                  </span>
+                </div>
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                    Transkript & Sesli Not Özeti
+                  </span>
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    {item.transcript}
+                  </p>
+                </div>
+              </div>
+            ) : item.type === "image" ? (
+              <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xl space-y-6 pb-6">
+                <div className="bg-slate-950 max-h-[60vh] flex items-center justify-center overflow-hidden">
+                  <img
+                    src={item.posterUrl}
+                    alt={item.title}
+                    className="w-full max-h-[60vh] object-contain"
+                  />
+                </div>
+                <div className="px-6 sm:px-8 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-lg text-xs font-bold bg-rose-100 text-rose-800">
+                      {item.format} • {item.resolution}
+                    </span>
+                    <span className="text-xs text-slate-400">{item.size}</span>
+                  </div>
+                  <h1 className="text-2xl font-extrabold text-slate-900">
+                    {item.title}
+                  </h1>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    {item.overview}
+                  </p>
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-rose-600" />
+                    <span>Kamera / EXIF: <b>{item.cameraInfo}</b></span>
+                  </div>
+                </div>
+              </div>
+            ) : item.type === "file" ? (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <span className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800">
+                    {item.format} • {item.version}
+                  </span>
+                  <span className="text-xs font-bold text-slate-500">
+                    {item.size}
+                  </span>
+                </div>
+                <h1 className="text-2xl font-extrabold text-slate-900">
+                  {item.title}
+                </h1>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {item.overview}
+                </p>
+                {item.content && (
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                    {item.content}
                   </div>
                 )}
               </div>
