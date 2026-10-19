@@ -458,17 +458,10 @@ export default function TravelContainerPage() {
     }
   };
 
-  // Paylaşım Bağlantısı Kopyala
-  const handleShareTravel = (tokenSlug: string, title: string, e?: React.MouseEvent) => {
+  // Paylaşım Bağlantısını Salt Okunur Kart / Vitrin Olarak Yeni Sekmede Aç
+  const handleShareTravel = (tokenSlug: string = "ege-akdeniz-gezi-rotasi", title: string = "Gezi Rotası", e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const shareUrl = `${window.location.origin}/share/sinema-kulubu-deposu`; // Salt okunur vitrin
-    navigator.clipboard.writeText(shareUrl);
-    setCopiedShareUrl(tokenSlug);
-    setToastMessage(`"${title}" salt okunur paylaşım linki kopyalandı!`);
-    setTimeout(() => {
-      setCopiedShareUrl(null);
-      setToastMessage(null);
-    }, 3000);
+    window.open(`/share/${tokenSlug}`, "_blank");
   };
 
   return (
@@ -505,7 +498,7 @@ export default function TravelContainerPage() {
         {/* Sağ Butonlar */}
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => handleShareTravel("gezi-deposu", "Gezi & Seyahat Deposu")}
+            onClick={() => handleShareTravel("gezi-ve-seyahat-deposu", "Gezi & Seyahat Deposu")}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
             title="Tüm Gezi Deposunu Salt Okunur Paylaş"
           >
@@ -793,9 +786,9 @@ export default function TravelContainerPage() {
                           <SlidersHorizontal className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={(e) => handleShareTravel(travel.id, travel.title, e)}
+                          onClick={(e) => handleShareTravel("ege-akdeniz-gezi-rotasi", travel.title, e)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
-                          title="Geziyi Paylaş"
+                          title="Bu Geziyi Salt Okunur Kart Olarak Paylaş"
                         >
                           <Share2 className="w-3.5 h-3.5" />
                         </button>
@@ -962,8 +955,9 @@ export default function TravelContainerPage() {
                     Düzenle
                   </button>
                   <button
-                    onClick={() => handleShareTravel(selectedTravel.id, selectedTravel.title)}
+                    onClick={() => handleShareTravel("ege-akdeniz-gezi-rotasi", selectedTravel.title)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors shadow-sm"
+                    title="Bu Geziyi Salt Okunur Kart Olarak Paylaş"
                   >
                     <Share2 className="w-3.5 h-3.5" />
                     Paylaş

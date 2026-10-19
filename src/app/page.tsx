@@ -654,6 +654,8 @@ export default function HomePage() {
                                   ? "gece-siirleri-deposu"
                                   : item.formatTitle === "Kod Parçacıkları" || item.id === "c2"
                                   ? "kod-parcaciklari-deposu"
+                                  : item.formatTitle === "Gezi & Seyahat" || item.id === "c3"
+                                  ? "gezi-ve-seyahat-deposu"
                                   : "sinema-kulubu-deposu";
                               window.open(`/share/${token}`, "_blank");
                             }}

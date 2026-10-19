@@ -131,6 +131,28 @@ const INITIAL_SHARED: SharedLink[] = [
     views: 9,
     isActive: true,
   },
+  {
+    id: "s7",
+    token: "gezi-ve-seyahat-deposu",
+    itemTitle: "Gezi & Seyahat Anıları",
+    containerName: "Gezi & Seyahat Anıları",
+    type: "container",
+    scope: "container",
+    createdAt: "Ekim 2026",
+    views: 24,
+    isActive: true,
+  },
+  {
+    id: "s8",
+    token: "ege-akdeniz-gezi-rotasi",
+    itemTitle: "Yaz 2026 Ege & Akdeniz Gezisi",
+    containerName: "Gezi & Seyahat Anıları",
+    type: "travel",
+    scope: "item",
+    createdAt: "3 gün önce",
+    views: 18,
+    isActive: true,
+  },
 ];
 
 // Olay bildirimi tetikleyici (Aynı sekmedeki veya sekmeler arası bileşenleri uyarır)

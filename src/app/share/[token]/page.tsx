@@ -71,6 +71,10 @@ interface SharedRecord {
     language?: string;
     tags?: string[];
     description?: string;
+    destination?: string;
+    country?: string;
+    durationDays?: number;
+    highlightPlaces?: string[];
   }>;
 }
 
@@ -246,7 +250,69 @@ const SHARED_DATA: Record<string, SharedRecord> = {
     ],
   },
 
-  // 6. TEKİL İÇERİK PAYLAŞIMI: Tek bir kod parçacığı
+  // 6. DEPONUN TAMAMI PAYLAŞIMI: Gezi & Seyahat Anıları Deposu (Ana sayfadan veya depodan basıldığında)
+  "gezi-ve-seyahat-deposu": {
+    title: "Gezi & Seyahat Anıları",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "container",
+    type: "travel",
+    createdAt: "Ekim 2026",
+    isActive: true,
+    containerDesc: "Keşfettiğim şehirler, seyahat rotalarım, yol anılarım ve gezgin ipuçlarımın tamamı.",
+    containerItems: [
+      {
+        id: "trv-1",
+        title: "Yaz 2026 Ege & Akdeniz Gezisi",
+        destination: "Kaş, Kalkan & Fethiye",
+        country: "Türkiye 🇹🇷",
+        durationDays: 8,
+        rating: 9.8,
+        posterUrl: "https://images.unsplash.com/photo-1544644181-1484b3fdfc62?auto=format&fit=crop&w=1200&q=80",
+        overview: "Turkuaz suların ve antik Likya Yolu patikalarının buluştuğu eşsiz bir yaz rotası. Patara ve Kekova batık şehri büyüleyiciydi.",
+        userNote: "Kaş merkezde gün batımı dondurması, Kekova tekne turunda batık şehri kano ile gezmek.",
+        highlightPlaces: ["Kaputaş Plajı", "Kekova Batık Şehir", "Patara Kum Tepeleri", "Saklıkent"],
+      },
+      {
+        id: "trv-2",
+        title: "Floransa & Toskana Vadisi Rotası",
+        destination: "Floransa, Siena & Val d'Orcia",
+        country: "İtalya 🇮🇹",
+        durationDays: 7,
+        rating: 9.7,
+        posterUrl: "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?auto=format&fit=crop&w=1200&q=80",
+        overview: "Rönesans sanatının kalbinde yürümek ve servi ağaçlarıyla çevrili tepelerde kaybolmak.",
+        userNote: "Uffizi biletlerini önceden alın; Pienza peynir tadımı.",
+        highlightPlaces: ["Duomo Katedrali", "Uffizi Galerisi", "Ponte Vecchio", "Pienza"],
+      },
+      {
+        id: "trv-3",
+        title: "Kapadokya — Masalsı Bir Sonbahar",
+        destination: "Göreme, Uçhisar & Avanos",
+        country: "Türkiye 🇹🇷",
+        durationDays: 4,
+        rating: 9.4,
+        posterUrl: "https://images.unsplash.com/photo-1641128324571-a93c347dd943?auto=format&fit=crop&w=1200&q=80",
+        overview: "Vadinin üzerinden yükselen yüzlerce renkli balonun yarattığı büyüleyici manzara ve taş oyma otel deneyimi.",
+        userNote: "Balon uçuşunu ilk güne alın; testi kebabı deneyin.",
+        highlightPlaces: ["Aşk Vadisi", "Uçhisar Kalesi", "Derinkuyu", "Avanos"],
+      },
+      {
+        id: "trv-4",
+        title: "Kyoto & Tokyo — Kiraz Çiçekleri Dönemi",
+        destination: "Kyoto & Tokyo",
+        country: "Japonya 🇯🇵",
+        durationDays: 11,
+        rating: 9.9,
+        posterUrl: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1200&q=80",
+        overview: "Gelenek ve fütürizmin kusursuz uyumu. Zen tapınaklarından Tokyo neonlarına uzanan rüya gibi rota.",
+        userNote: "Fushimi Inari'ye sabah 07:00'den önce gidin.",
+        highlightPlaces: ["Fushimi Inari", "Arashiyama", "Shibuya", "Kinkaku-ji"],
+      },
+    ],
+  },
+
+  // 7. TEKİL İÇERİK PAYLAŞIMI: Tek bir kod parçacığı
   "snippet-jwt-auth": {
     title: "FastAPI JWT Bearer Middleware",
     author: "Erdal Türk",
@@ -321,6 +387,7 @@ function ShareContent() {
   const [copied, setCopied] = useState(false);
   const [selectedMoviePreview, setSelectedMoviePreview] = useState<any>(null);
   const [selectedCodePreview, setSelectedCodePreview] = useState<any>(null);
+  const [selectedTravelPreview, setSelectedTravelPreview] = useState<any>(null);
 
   const handleCopyText = (text?: string) => {
     if (text) {
@@ -456,6 +523,8 @@ function ShareContent() {
                     ? "Film & Dizi Deposu"
                     : item.type === "code"
                     ? "Kod Parçacıkları Deposu"
+                    : item.type === "travel"
+                    ? "Gezi & Seyahat Anıları Deposu"
                     : "Metin Deposu"}
                 </span>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
@@ -595,6 +664,80 @@ function ShareContent() {
                 ))}
               </div>
             )}
+
+            {/* GEZİ & SEYAHAT DEPOSU TAMAMI VİTRİNİ */}
+            {item.type === "travel" && item.containerItems && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
+                {item.containerItems.map((trv: any) => (
+                  <div
+                    key={trv.id}
+                    onClick={() => setSelectedTravelPreview(trv)}
+                    className="group bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="h-52 w-full relative overflow-hidden bg-slate-100">
+                        <img
+                          src={trv.posterUrl}
+                          alt={trv.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent p-4 flex flex-col justify-between">
+                          <div className="flex items-center justify-between">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/95 text-slate-900 shadow-xs">
+                              📍 {trv.destination}
+                            </span>
+                            {trv.rating && (
+                              <span className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/60 backdrop-blur-md text-xs font-bold text-amber-400">
+                                <Star className="w-3.5 h-3.5 fill-amber-400" /> {trv.rating}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-amber-300 font-bold uppercase tracking-wider">
+                              {trv.country} • {trv.durationDays} Gün
+                            </span>
+                            <h3 className="text-base sm:text-lg font-extrabold text-white leading-snug line-clamp-1">
+                              {trv.title}
+                            </h3>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-5 space-y-3">
+                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                          {trv.overview}
+                        </p>
+
+                        {trv.highlightPlaces && trv.highlightPlaces.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {trv.highlightPlaces.slice(0, 4).map((pl: string, idx: number) => (
+                              <span
+                                key={idx}
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/60"
+                              >
+                                • {pl}
+                              </span>
+                            ))}
+                            {trv.highlightPlaces.length > 4 && (
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                +{trv.highlightPlaces.length - 4} durak
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
+                      <span className="text-amber-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                        Rotayı ve Anıları İncele →
+                      </span>
+                      <span className="text-[11px] text-slate-400">Salt Okunur</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           /* ======================================================== */
@@ -682,48 +825,7 @@ function ShareContent() {
                   <span>{item.createdAt}</span>
                 </div>
               </div>
-            ) : (
-              <div className="bg-slate-900 text-white rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col sm:flex-row">
-                <div className="sm:w-2/5 aspect-[2/3] relative shrink-0">
-                  <img
-                    src={item.posterUrl}
-                    alt={item.title}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-4">
-                  <div>
-                    <div className="text-xs text-purple-400 font-bold mb-1">
-                      {item.year} • {item.director}
-                    </div>
-                    <h1 className="text-2xl font-extrabold text-white">
-                      {item.title}
-                    </h1>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="flex items-center gap-1 text-xs font-bold text-amber-400 bg-black/40 px-2 py-0.5 rounded-md">
-                        <Star className="w-3 h-3 fill-amber-400" /> {item.rating}
-                      </span>
-                      <span className="text-xs text-slate-400">{item.genres?.join(", ")}</span>
-                    </div>
-                    <p className="text-xs text-slate-300 mt-4 leading-relaxed">
-                      {item.overview}
-                    </p>
-                  </div>
-
-                  {item.userNote && (
-                    <div className="p-3.5 rounded-2xl bg-purple-950/40 border border-purple-500/30">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 block mb-1">
-                        {item.author}'ın Arşiv Notu
-                      </span>
-                      <p className="text-xs text-slate-200 italic">"{item.userNote}"</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* C. SEYAHAT / GEZİ ROTASI PAYLAŞIMI */}
-            {item.type === "travel" && (
+            ) : item.type === "travel" ? (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-md max-w-3xl mx-auto space-y-6">
                 <div className="relative h-64 sm:h-80 w-full rounded-2xl overflow-hidden bg-slate-100 shadow-sm">
                   <img
@@ -792,6 +894,44 @@ function ShareContent() {
                     <p className="italic">"{item.userNote}"</p>
                   </div>
                 )}
+              </div>
+            ) : (
+              <div className="bg-slate-900 text-white rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col sm:flex-row">
+                <div className="sm:w-2/5 aspect-[2/3] relative shrink-0">
+                  <img
+                    src={item.posterUrl}
+                    alt={item.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-4">
+                  <div>
+                    <div className="text-xs text-purple-400 font-bold mb-1">
+                      {item.year} • {item.director}
+                    </div>
+                    <h1 className="text-2xl font-extrabold text-white">
+                      {item.title}
+                    </h1>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="flex items-center gap-1 text-xs font-bold text-amber-400 bg-black/40 px-2 py-0.5 rounded-md">
+                        <Star className="w-3 h-3 fill-amber-400" /> {item.rating}
+                      </span>
+                      <span className="text-xs text-slate-400">{item.genres?.join(", ")}</span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-4 leading-relaxed">
+                      {item.overview}
+                    </p>
+                  </div>
+
+                  {item.userNote && (
+                    <div className="p-3.5 rounded-2xl bg-purple-950/40 border border-purple-500/30">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 block mb-1">
+                        {item.author}'ın Arşiv Notu
+                      </span>
+                      <p className="text-xs text-slate-200 italic">"{item.userNote}"</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -886,6 +1026,88 @@ function ShareContent() {
 
             <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 font-mono text-xs text-emerald-300 overflow-auto flex-1 leading-relaxed">
               <pre className="whitespace-pre font-mono">{selectedCodePreview.code}</pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TÜM DEPO İÇİNDEN SEYAHAT DETAYI MODALI */}
+      {selectedTravelPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setSelectedTravelPreview(null)}
+            className="fixed inset-0 bg-black/75 backdrop-blur-xs"
+          />
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-2xl z-10 max-h-[90vh] flex flex-col">
+            <div className="relative h-60 sm:h-72 w-full bg-slate-900 shrink-0">
+              <img
+                src={selectedTravelPreview.posterUrl}
+                alt={selectedTravelPreview.title}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+              <button
+                onClick={() => setSelectedTravelPreview(null)}
+                className="absolute top-4 right-4 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+                <div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-white text-slate-900 shadow-xs mb-1 inline-block">
+                    📍 {selectedTravelPreview.destination} • {selectedTravelPreview.country}
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-white">
+                    {selectedTravelPreview.title}
+                  </h3>
+                  <p className="text-xs text-white/80 mt-0.5">
+                    {selectedTravelPreview.durationDays} Günlük Rota
+                  </p>
+                </div>
+                {selectedTravelPreview.rating && (
+                  <span className="px-3 py-1.5 rounded-xl bg-amber-500 text-white font-extrabold text-sm shadow-md flex items-center gap-1 shrink-0">
+                    ★ {selectedTravelPreview.rating}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4">
+              {selectedTravelPreview.highlightPlaces && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    Duraklar & Ziyaret Edilen Noktalar
+                  </h4>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {selectedTravelPreview.highlightPlaces.map((pl: string, idx: number) => (
+                      <span
+                        key={idx}
+                        className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium"
+                      >
+                        • {pl}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Seyahat Notları & Deneyim
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+                  {selectedTravelPreview.overview}
+                </p>
+              </div>
+
+              {selectedTravelPreview.userNote && (
+                <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/70 text-xs text-amber-950 space-y-1">
+                  <span className="font-bold text-amber-800 block">
+                    ✨ Gezgin Tavsiyesi & İpuçları
+                  </span>
+                  <p className="italic">"{selectedTravelPreview.userNote}"</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
