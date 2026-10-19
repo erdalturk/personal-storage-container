@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -33,7 +33,7 @@ import {
   Headphones,
   Camera,
 } from "lucide-react";
-import { isTokenDeleted } from "@/lib/appStore";
+import { isTokenDeleted, getSharedLinks } from "@/lib/appStore";
 
 interface SharedRecord {
   title: string;
@@ -699,6 +699,28 @@ function ShareContent() {
   const [selectedCodePreview, setSelectedCodePreview] = useState<any>(null);
   const [selectedTravelPreview, setSelectedTravelPreview] = useState<any>(null);
   const [selectedStudyPreview, setSelectedStudyPreview] = useState<any>(null);
+  const [deletedState, setDeletedState] = useState(false);
+  const [activeState, setActiveState] = useState(true);
+
+  useEffect(() => {
+    const syncStatus = () => {
+      setDeletedState(isTokenDeleted(token));
+      const links = getSharedLinks();
+      const matched = links.find((l) => l.token === token);
+      if (matched) {
+        setActiveState(matched.isActive);
+      } else if (item) {
+        setActiveState(item.isActive);
+      }
+    };
+    syncStatus();
+    window.addEventListener("psc-store-updated", syncStatus);
+    window.addEventListener("storage", syncStatus);
+    return () => {
+      window.removeEventListener("psc-store-updated", syncStatus);
+      window.removeEventListener("storage", syncStatus);
+    };
+  }, [token, item]);
 
   const handleCopyText = (text?: string) => {
     if (text) {
@@ -709,7 +731,7 @@ function ShareContent() {
   };
 
   // 1. Durum: İçerik Silindiği İçin Otomatik İptal Edilmiş Bağlantı (Merkezi Store ile Tam Senkronize!)
-  if (isTokenDeleted(token) || (item && item.isDeleted)) {
+  if (deletedState || (item && item.isDeleted)) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center border border-slate-200 shadow-xl space-y-4">
@@ -759,7 +781,7 @@ function ShareContent() {
   }
 
   // 3. Durum: Sahibi Tarafından Manuel İptal Edilmiş (Revoked) Bağlantı
-  if (!item.isActive) {
+  if (!activeState) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center border border-slate-200 shadow-xl space-y-4">

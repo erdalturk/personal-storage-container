@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import {
   addToTrash,
+  activateShareToken,
   getStoredCollection,
   saveStoredCollection,
 } from "@/lib/appStore";
@@ -719,6 +720,7 @@ export default function HomePage() {
                                   : item.formatTitle === "Dosya & Belge" || item.id === "c8"
                                   ? "belge-ve-dosya-deposu"
                                   : "sinema-kulubu-deposu";
+                              activateShareToken(token);
                               window.open(`/share/${token}`, "_blank");
                             }}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors"

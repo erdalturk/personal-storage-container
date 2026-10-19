@@ -30,8 +30,8 @@ export interface SharedLink {
 
 const STORAGE_KEYS = {
   TRASH: "psc_trash_items",
-  SHARED: "psc_shared_links",
-  DELETED_TOKENS: "psc_deleted_tokens",
+  SHARED: "psc_shared_links_v2",
+  DELETED_TOKENS: "psc_deleted_tokens_v2",
   CONTAINERS: "psc_containers",
   MOVIES: "psc_movies",
   TEXTS: "psc_texts",
@@ -138,7 +138,7 @@ const INITIAL_SHARED: SharedLink[] = [
   {
     id: "s7",
     token: "gezi-ve-seyahat-deposu",
-    itemTitle: "Gezi & Seyahat Anıları",
+    itemTitle: "Yaz 2026 Ege & Akdeniz Gezisi",
     containerName: "Gezi & Seyahat Anıları",
     type: "container",
     scope: "container",
@@ -149,7 +149,7 @@ const INITIAL_SHARED: SharedLink[] = [
   {
     id: "s8",
     token: "ege-akdeniz-gezi-rotasi",
-    itemTitle: "Yaz 2026 Ege & Akdeniz Gezisi",
+    itemTitle: "Kaş, Kalkan & Fethiye Sahil Rotası",
     containerName: "Gezi & Seyahat Anıları",
     type: "travel",
     scope: "item",
@@ -171,7 +171,7 @@ const INITIAL_SHARED: SharedLink[] = [
   {
     id: "s10",
     token: "yapay-zeka-ders-notlari",
-    itemTitle: "A* Arama & Gradient Descent Özet Notları",
+    itemTitle: "A* Arama & Heuristic Fonksiyonları",
     containerName: "Yapay Zekâ & Algoritmalar Dersi",
     type: "study",
     scope: "item",
@@ -299,8 +299,10 @@ export function addToTrash(item: Omit<TrashItem, "id" | "deletedAt" | "daysRemai
   const updated = [newItem, ...current];
   safeSet(STORAGE_KEYS.TRASH, updated);
 
-  // KRİTİK KURAL: Silinen içeriğe veya depoya ait paylaşımları anında iptal et ve kaldır!
-  revokeSharesForDeletedItem(newItem.title, newItem.originContainer);
+  // KRİTİK KURAL:
+  // - Eğer bir DEPO (type === "container") silindiyse, o depoya ve içindeki öğelere ait paylaşımları iptal et.
+  // - Eğer sadece tekil bir İÇERİK silindiyse, YALNIZCA o içeriğin paylaşımını iptal et (deponun kendisini iptal etme!).
+  revokeSharesForDeletedItem(newItem.title, newItem.type === "container");
 
   notifyStoreUpdate();
   return newItem;
@@ -346,6 +348,9 @@ export function restoreFromTrash(trashId: string): TrashItem | null {
     }
   }
 
+  // Çöp kutusundan geri yüklenen öğe veya deponun paylaşım bağlantısını da yeniden aktif et
+  restoreSharesForItem(target.title, target.type === "container");
+
   notifyStoreUpdate();
   return target;
 }
@@ -379,13 +384,81 @@ export function isTokenDeleted(token: string): boolean {
   return deleted.includes(token);
 }
 
-// Bir içerik silindiğinde ilgili paylaşımları iptal et ve listeden kaldır
-export function revokeSharesForDeletedItem(itemTitle: string, containerName?: string): void {
+// Kullanıcı mevcut (silinmemiş) bir depo veya içerikte "Paylaş" butonuna bastığında bağlantıyı aktif eder
+export function activateShareToken(token: string): void {
+  const currentDeleted = getDeletedTokens();
+  if (currentDeleted.includes(token)) {
+    safeSet(
+      STORAGE_KEYS.DELETED_TOKENS,
+      currentDeleted.filter((t) => t !== token)
+    );
+  }
+
+  const currentShares = getSharedLinks();
+  const exists = currentShares.some((s) => s.token === token);
+  if (!exists) {
+    const template = INITIAL_SHARED.find((s) => s.token === token);
+    if (template) {
+      safeSet(STORAGE_KEYS.SHARED, [{ ...template, isActive: true }, ...currentShares]);
+    }
+  } else {
+    safeSet(
+      STORAGE_KEYS.SHARED,
+      currentShares.map((s) => (s.token === token ? { ...s, isActive: true } : s))
+    );
+  }
+  notifyStoreUpdate();
+}
+
+// Çöp kutusundan geri yüklenen depo veya içeriğin paylaşımını geri açar
+export function restoreSharesForItem(itemTitle: string, isContainerRestore: boolean = false): void {
+  const titleLower = itemTitle.toLowerCase().trim();
+  const currentShares = getSharedLinks();
+  const currentDeleted = getDeletedTokens();
+
+  const matchingTemplates = INITIAL_SHARED.filter((share) => {
+    const shareTitleLower = share.itemTitle.toLowerCase().trim();
+    const shareContainerLower = share.containerName.toLowerCase().trim();
+    if (isContainerRestore) {
+      return (
+        shareTitleLower === titleLower ||
+        shareContainerLower === titleLower ||
+        shareTitleLower.includes(titleLower) ||
+        titleLower.includes(shareTitleLower)
+      );
+    }
+    return (
+      share.scope === "item" &&
+      (shareTitleLower === titleLower ||
+        shareTitleLower.includes(titleLower) ||
+        titleLower.includes(shareTitleLower))
+    );
+  });
+
+  if (matchingTemplates.length > 0) {
+    const restoredTokens = new Set(matchingTemplates.map((m) => m.token));
+    safeSet(
+      STORAGE_KEYS.DELETED_TOKENS,
+      currentDeleted.filter((t) => !restoredTokens.has(t))
+    );
+
+    const existingTokens = new Set(currentShares.map((s) => s.token));
+    const toAdd = matchingTemplates.filter((m) => !existingTokens.has(m.token));
+    if (toAdd.length > 0) {
+      safeSet(STORAGE_KEYS.SHARED, [...toAdd, ...currentShares]);
+    }
+  }
+}
+
+// Bir içerik veya depo silindiğinde ilgili paylaşımları iptal et ve listeden kaldır
+export function revokeSharesForDeletedItem(
+  itemTitle: string,
+  isContainerDeletion: boolean = false
+): void {
   const currentShares = getSharedLinks();
   const currentDeletedTokens = getDeletedTokens();
 
   const titleLower = itemTitle.toLowerCase().trim();
-  const containerLower = containerName ? containerName.toLowerCase().trim() : "";
 
   const remainingShares: SharedLink[] = [];
   const newlyDeletedTokens: string[] = [];
@@ -394,28 +467,41 @@ export function revokeSharesForDeletedItem(itemTitle: string, containerName?: st
     const shareTitleLower = share.itemTitle.toLowerCase().trim();
     const shareContainerLower = share.containerName.toLowerCase().trim();
 
-    // Eşleşme kontrolü: Başlık benziyor mu veya silinen bir deponun tamamı mı?
-    const isDirectMatch =
-      shareTitleLower === titleLower ||
-      shareTitleLower.includes(titleLower) ||
-      titleLower.includes(shareTitleLower);
+    if (isContainerDeletion) {
+      // Depo silindiyse: hem deponun kendi paylaşımını hem de o depodaki içerik paylaşımlarını iptal et
+      const isMatch =
+        shareTitleLower === titleLower ||
+        shareContainerLower === titleLower ||
+        shareTitleLower.includes(titleLower) ||
+        titleLower.includes(shareTitleLower);
 
-    const isContainerMatch =
-      containerLower &&
-      (shareContainerLower === containerLower ||
-        shareTitleLower === containerLower ||
-        containerLower.includes(shareTitleLower));
-
-    if (isDirectMatch || isContainerMatch) {
-      newlyDeletedTokens.push(share.token);
+      if (isMatch) {
+        newlyDeletedTokens.push(share.token);
+      } else {
+        remainingShares.push(share);
+      }
     } else {
-      remainingShares.push(share);
+      // Sadece tek bir içerik silindiyse: YALNIZCA o tekil içeriğin (scope === "item") paylaşımını iptal et!
+      // Deponun tamamına ait paylaşımı (scope === "container") ASLA iptal etme!
+      const isDirectItemMatch =
+        share.scope === "item" &&
+        (shareTitleLower === titleLower ||
+          shareTitleLower.includes(titleLower) ||
+          titleLower.includes(shareTitleLower));
+
+      if (isDirectItemMatch) {
+        newlyDeletedTokens.push(share.token);
+      } else {
+        remainingShares.push(share);
+      }
     }
   });
 
   if (newlyDeletedTokens.length > 0) {
     safeSet(STORAGE_KEYS.SHARED, remainingShares);
-    const updatedDeletedTokens = Array.from(new Set([...currentDeletedTokens, ...newlyDeletedTokens]));
+    const updatedDeletedTokens = Array.from(
+      new Set([...currentDeletedTokens, ...newlyDeletedTokens])
+    );
     safeSet(STORAGE_KEYS.DELETED_TOKENS, updatedDeletedTokens);
   }
 }
