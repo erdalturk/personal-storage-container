@@ -25,6 +25,7 @@ import {
   X,
   User,
   Lock,
+  Code2,
 } from "lucide-react";
 
 interface SharedLink {
@@ -32,7 +33,7 @@ interface SharedLink {
   token: string;
   itemTitle: string;
   containerName: string;
-  type: "text" | "movie" | "container";
+  type: "text" | "movie" | "code" | "container";
   scope: "container" | "item";
   createdAt: string;
   views: number;
@@ -90,6 +91,28 @@ const INITIAL_SHARES: SharedLink[] = [
     scope: "item",
     createdAt: "Dün",
     views: 14,
+    isActive: true,
+  },
+  {
+    id: "s5",
+    token: "kod-parcaciklari-deposu",
+    itemTitle: "Frontend & Fullstack Snippet'lar",
+    containerName: "Frontend & Fullstack Snippet'lar",
+    type: "container",
+    scope: "container",
+    createdAt: "Ekim 2026",
+    views: 31,
+    isActive: true,
+  },
+  {
+    id: "s6",
+    token: "snippet-jwt-auth",
+    itemTitle: "FastAPI JWT Bearer Middleware",
+    containerName: "Frontend & Fullstack Snippet'lar",
+    type: "code",
+    scope: "item",
+    createdAt: "Dün",
+    views: 9,
     isActive: true,
   },
 ];
@@ -283,6 +306,8 @@ export default function ProfilePage() {
                           ? "bg-indigo-600"
                           : link.type === "text"
                           ? "bg-blue-500"
+                          : link.type === "code"
+                          ? "bg-emerald-600"
                           : "bg-purple-600"
                       }`}
                     >
@@ -290,6 +315,8 @@ export default function ProfilePage() {
                         <Layers className="w-5 h-5" />
                       ) : link.type === "text" ? (
                         <FileText className="w-5 h-5" />
+                      ) : link.type === "code" ? (
+                        <Code2 className="w-5 h-5" />
                       ) : (
                         <Film className="w-5 h-5" />
                       )}

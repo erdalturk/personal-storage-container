@@ -355,6 +355,8 @@ export default function HomePage() {
                   onClick={() => {
                     if (card.id === "movie") {
                       router.push("/containers/movie");
+                    } else if (card.id === "code") {
+                      router.push("/containers/code");
                     } else {
                       alert(`"${card.title}" oluşturma sihirbazı başlatılıyor.`);
                     }
@@ -512,6 +514,8 @@ export default function HomePage() {
                         router.push("/containers/text");
                       } else if (item.formatTitle === "Film & Dizi" || item.id === "c1") {
                         router.push("/containers/movie");
+                      } else if (item.formatTitle === "Kod Parçacıkları" || item.id === "c2") {
+                        router.push("/containers/code");
                       } else {
                         alert(`"${item.title}" açılıyor...`);
                       }
@@ -583,6 +587,8 @@ export default function HomePage() {
                               const token =
                                 item.formatTitle === "Metin" || item.id === "c5"
                                   ? "gece-siirleri-deposu"
+                                  : item.formatTitle === "Kod Parçacıkları" || item.id === "c2"
+                                  ? "kod-parcaciklari-deposu"
                                   : "sinema-kulubu-deposu";
                               window.open(`/share/${token}`, "_blank");
                             }}

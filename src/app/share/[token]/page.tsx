@@ -29,7 +29,7 @@ interface SharedRecord {
   author: string;
   authorAvatar: string;
   scope: "container" | "item"; // "container" = Deponun Tamamı, "item" = Tek Bir İçerik
-  type: "text" | "movie";
+  type: "text" | "movie" | "code";
   createdAt: string;
   isActive: boolean;
   isDeleted?: boolean; // Eğer içerik silindiyse otomatik iptal kuralı
@@ -44,6 +44,10 @@ interface SharedRecord {
   genres?: string[];
   overview?: string;
   userNote?: string;
+  // Kod alanları
+  code?: string;
+  language?: string;
+  tags?: string[];
   // Tüm depo alanları
   containerDesc?: string;
   containerItems?: Array<{
@@ -58,6 +62,10 @@ interface SharedRecord {
     genres?: string[];
     content?: string;
     folder?: string;
+    code?: string;
+    language?: string;
+    tags?: string[];
+    description?: string;
   }>;
 }
 
@@ -195,7 +203,80 @@ const SHARED_DATA: Record<string, SharedRecord> = {
     lineCount: 4,
   },
 
-  // 5. SİLİNMİŞ İÇERİK (Otomatik İptal Örneği)
+  // 5. DEPONUN TAMAMI PAYLAŞIMI: Kod Parçacıkları Deposu (Ana sayfadan basıldığında)
+  "kod-parcaciklari-deposu": {
+    title: "Frontend & Fullstack Snippet'lar",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "container",
+    type: "code",
+    createdAt: "Ekim 2026",
+    isActive: true,
+    containerDesc: "Sık kullandığım API middleware'leri, SQL sorguları, React hook'ları ve Docker şablonlarının salt okunur arşivi.",
+    containerItems: [
+      {
+        id: "sn-1",
+        title: "Supabase RLS Policy with Auth Check",
+        language: "sql",
+        tags: ["#database", "#supabase", "#rls"],
+        description: "Kullanıcının sadece kendi depo ve dökümanlarını okuyup güncelleyebilmesini sağlayan RLS kuralı.",
+        code: `-- Kullanıcıların yalnızca kendi depolarını görmesini ve düzenlemesini sağlayan RLS kuralı\nALTER TABLE containers ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY "Users can only access their own containers"\nON containers FOR ALL TO authenticated\nUSING (auth.uid() = user_id)\nWITH CHECK (auth.uid() = user_id);`,
+      },
+      {
+        id: "sn-2",
+        title: "FastAPI JWT Bearer Middleware",
+        language: "python",
+        tags: ["#api", "#auth", "#fastapi"],
+        description: "Bearer token kontrolü yapan ve geçersiz oturumlarda 401 Unauthorized fırlatan temiz dependency fonksiyonu.",
+        code: `from fastapi import Depends, HTTPException, status\nfrom fastapi.security import HTTPBearer, HTTPAuthorizationCredentials\nimport jwt\n\nsecurity = HTTPBearer()\n\nasync def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):\n    token = credentials.credentials\n    try:\n        payload = jwt.decode(token, "SECRET", algorithms=["HS256"])\n        return payload\n    except jwt.PyJWTError:\n        raise HTTPException(status_code=401, detail="Geçersiz oturum")`,
+      },
+      {
+        id: "sn-3",
+        title: "Docker Multi-Stage Next.js Build",
+        language: "dockerfile",
+        tags: ["#docker", "#nextjs", "#devops"],
+        description: "Next.js standalone çıktısını minimale indirgeyen hafif (~120MB) üretim konteyneri.",
+        code: `FROM node:20-alpine AS base\nWORKDIR /app\nCOPY package.json package-lock.json ./\nRUN npm ci\nCOPY . .\nRUN npm run build\nEXPOSE 3000\nCMD ["node", "server.js"]`,
+      },
+    ],
+  },
+
+  // 6. TEKİL İÇERİK PAYLAŞIMI: Tek bir kod parçacığı
+  "snippet-jwt-auth": {
+    title: "FastAPI JWT Bearer Middleware",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "item",
+    type: "code",
+    createdAt: "Dün",
+    isActive: true,
+    language: "python",
+    tags: ["#api", "#auth", "#fastapi", "#jwt"],
+    userNote: "Bearer token kontrolü yapan ve geçersiz oturumlarda 401 Unauthorized fırlatan temiz dependency fonksiyonu.",
+    code: `from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
+
+security = HTTPBearer()
+SECRET_KEY = "your-personal-secret-key"
+ALGORITHM = "HS256"
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Geçersiz token")
+        return {"user_id": user_id, "email": payload.get("email")}
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Oturum doğrulaması başarısız oldu",
+        )`,
+  },
+
+  // 7. SİLİNMİŞ İÇERİK (Otomatik İptal Örneği)
   "silinmis-icerik-ornegi": {
     title: "Eski Taslak Şiir",
     author: "Erdal Türk",
@@ -215,6 +296,7 @@ function ShareContent() {
 
   const [copied, setCopied] = useState(false);
   const [selectedMoviePreview, setSelectedMoviePreview] = useState<any>(null);
+  const [selectedCodePreview, setSelectedCodePreview] = useState<any>(null);
 
   const handleCopyText = (text?: string) => {
     if (text) {
@@ -346,7 +428,11 @@ function ShareContent() {
             <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
-                  {item.type === "movie" ? "Film & Dizi Deposu" : "Metin Deposu"}
+                  {item.type === "movie"
+                    ? "Film & Dizi Deposu"
+                    : item.type === "code"
+                    ? "Kod Parçacıkları Deposu"
+                    : "Metin Deposu"}
                 </span>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
                   {item.title}
@@ -434,13 +520,116 @@ function ShareContent() {
                 ))}
               </div>
             )}
+
+            {/* KOD DEPOSU TAMAMI VİTRİNİ */}
+            {item.type === "code" && item.containerItems && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {item.containerItems.map((codeItem) => (
+                  <div
+                    key={codeItem.id}
+                    onClick={() => setSelectedCodePreview(codeItem)}
+                    className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-lg hover:border-emerald-500/50 hover:shadow-emerald-950/20 transition-all flex flex-col justify-between group cursor-pointer text-white"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-emerald-400 border border-emerald-500/20">
+                          {codeItem.language || "Kod"}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyText(codeItem.code);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                          title="Kodu Kopyala"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <h3 className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors line-clamp-1">
+                        {codeItem.title}
+                      </h3>
+                      {codeItem.description && (
+                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                          {codeItem.description}
+                        </p>
+                      )}
+
+                      <div className="mt-3 p-3 rounded-xl bg-slate-950 font-mono text-[11px] text-emerald-300 overflow-hidden max-h-28 border border-slate-800/60">
+                        <pre className="whitespace-pre font-mono">
+                          {codeItem.code}
+                        </pre>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+                      <span className="text-emerald-400 font-bold group-hover:underline">Detay ve Kodu Gör →</span>
+                      <span>Salt Okunur</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           /* ======================================================== */
           /* SENARYO 2: TEK BİR İÇERİK PAYLAŞIMI (scope === "item")    */
           /* ======================================================== */
           <div className="max-w-2xl mx-auto py-8">
-            {item.type === "text" ? (
+            {item.type === "code" ? (
+              <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-2xl overflow-hidden space-y-4 p-6 sm:p-8">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                      {item.language || "Kod Parçacığı"}
+                    </span>
+                    <span className="text-xs text-slate-400">{item.createdAt}</span>
+                  </div>
+                  <button
+                    onClick={() => handleCopyText(item.code)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors"
+                  >
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                    <span>{copied ? "Kopyalandı" : "Kodu Kopyala"}</span>
+                  </button>
+                </div>
+
+                <h1 className="text-2xl font-extrabold text-white">
+                  {item.title}
+                </h1>
+
+                {item.userNote && (
+                  <div className="p-3.5 rounded-2xl bg-emerald-950/20 border border-emerald-500/20 text-xs text-slate-300">
+                    <span className="font-bold text-emerald-400 block mb-1">
+                      {item.author}'ın Kullanım Notu:
+                    </span>
+                    <p className="italic">"{item.userNote}"</p>
+                  </div>
+                )}
+
+                <div className="bg-slate-950 rounded-2xl border border-slate-800/80 p-4 font-mono text-xs overflow-x-auto text-emerald-300">
+                  <pre className="whitespace-pre font-mono leading-relaxed">{item.code}</pre>
+                </div>
+
+                {item.tags && item.tags.length > 0 && (
+                  <div className="flex items-center gap-1.5 pt-2 border-t border-slate-800/80 flex-wrap">
+                    {item.tags.map((t) => (
+                      <span
+                        key={t}
+                        className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/50"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : item.type === "text" ? (
               <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-xl space-y-6">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <span className="text-xs font-bold uppercase text-indigo-600">
@@ -554,6 +743,53 @@ function ShareContent() {
                 "{selectedMoviePreview.userNote}"
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TÜM DEPO İÇİNDEN KOD DETAYI MODALI */}
+      {selectedCodePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setSelectedCodePreview(null)}
+            className="fixed inset-0 bg-black/80 backdrop-blur-xs"
+          />
+          <div className="relative w-full max-w-3xl bg-slate-900 text-white rounded-3xl p-6 border border-slate-800 shadow-2xl z-10 space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                  {selectedCodePreview.language || "Kod"}
+                </span>
+                <h3 className="font-extrabold text-lg text-white mt-1">
+                  {selectedCodePreview.title}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleCopyText(selectedCodePreview.code)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? "Kopyalandı" : "Kodu Kopyala"}</span>
+                </button>
+                <button
+                  onClick={() => setSelectedCodePreview(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {selectedCodePreview.description && (
+              <p className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                {selectedCodePreview.description}
+              </p>
+            )}
+
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 font-mono text-xs text-emerald-300 overflow-auto flex-1 leading-relaxed">
+              <pre className="whitespace-pre font-mono">{selectedCodePreview.code}</pre>
+            </div>
           </div>
         </div>
       )}
