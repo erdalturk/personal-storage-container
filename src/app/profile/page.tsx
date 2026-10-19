@@ -27,6 +27,7 @@ import {
   Lock,
   Code2,
   Compass,
+  GraduationCap,
 } from "lucide-react";
 import {
   getSharedLinks,
@@ -310,6 +311,8 @@ export default function ProfilePage() {
                           ? "bg-emerald-600"
                           : link.type === "travel"
                           ? "bg-amber-500"
+                          : link.type === "study"
+                          ? "bg-sky-600"
                           : "bg-purple-600"
                       }`}
                     >
@@ -321,6 +324,8 @@ export default function ProfilePage() {
                         <Code2 className="w-5 h-5" />
                       ) : link.type === "travel" ? (
                         <Compass className="w-5 h-5" />
+                      ) : link.type === "study" ? (
+                        <GraduationCap className="w-5 h-5" />
                       ) : (
                         <Film className="w-5 h-5" />
                       )}

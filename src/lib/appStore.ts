@@ -8,7 +8,7 @@ export interface TrashItem {
   id: string;
   title: string;
   originContainer: string;
-  type: "container" | "text" | "movie" | "code" | "travel" | "file";
+  type: "container" | "text" | "movie" | "code" | "travel" | "study" | "file";
   deletedAt: string;
   daysRemaining: number;
   contentPreview?: string;
@@ -21,7 +21,7 @@ export interface SharedLink {
   token: string;
   itemTitle: string;
   containerName: string;
-  type: "text" | "movie" | "code" | "travel" | "container";
+  type: "text" | "movie" | "code" | "travel" | "study" | "container";
   scope: "container" | "item";
   createdAt: string;
   views: number;
@@ -37,6 +37,7 @@ const STORAGE_KEYS = {
   TEXTS: "psc_texts",
   SNIPPETS: "psc_snippets",
   TRAVELS: "psc_travels",
+  STUDY: "psc_study_notes",
 };
 
 // 1. Çöp Kutusu Başlangıç Verileri
@@ -151,6 +152,28 @@ const INITIAL_SHARED: SharedLink[] = [
     scope: "item",
     createdAt: "3 gün önce",
     views: 18,
+    isActive: true,
+  },
+  {
+    id: "s9",
+    token: "yapay-zeka-ve-algoritmalar-deposu",
+    itemTitle: "Yapay Zekâ & Algoritmalar Dersi",
+    containerName: "Yapay Zekâ & Algoritmalar Dersi",
+    type: "container",
+    scope: "container",
+    createdAt: "Ekim 2026",
+    views: 35,
+    isActive: true,
+  },
+  {
+    id: "s10",
+    token: "yapay-zeka-ders-notlari",
+    itemTitle: "A* Arama & Gradient Descent Özet Notları",
+    containerName: "Yapay Zekâ & Algoritmalar Dersi",
+    type: "study",
+    scope: "item",
+    createdAt: "2 gün önce",
+    views: 19,
     isActive: true,
   },
 ];
@@ -347,7 +370,7 @@ export function deleteSharedLink(id: string): void {
 /* KOLEKSİYONLAR (CONTAINERS, MOVIES, TEXTS, SNIPPETS) SENKRONİZASYONU        */
 /* ========================================================================== */
 
-export function getStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets" | "travels", fallback: T[]): T[] {
+export function getStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets" | "travels" | "study", fallback: T[]): T[] {
   const storageKey =
     key === "containers"
       ? STORAGE_KEYS.CONTAINERS
@@ -357,12 +380,14 @@ export function getStoredCollection<T>(key: "containers" | "movies" | "texts" | 
       ? STORAGE_KEYS.TEXTS
       : key === "snippets"
       ? STORAGE_KEYS.SNIPPETS
-      : STORAGE_KEYS.TRAVELS;
+      : key === "travels"
+      ? STORAGE_KEYS.TRAVELS
+      : STORAGE_KEYS.STUDY;
 
   return safeGet<T[]>(storageKey, fallback);
 }
 
-export function saveStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets" | "travels", data: T[]): void {
+export function saveStoredCollection<T>(key: "containers" | "movies" | "texts" | "snippets" | "travels" | "study", data: T[]): void {
   const storageKey =
     key === "containers"
       ? STORAGE_KEYS.CONTAINERS
@@ -372,7 +397,9 @@ export function saveStoredCollection<T>(key: "containers" | "movies" | "texts" |
       ? STORAGE_KEYS.TEXTS
       : key === "snippets"
       ? STORAGE_KEYS.SNIPPETS
-      : STORAGE_KEYS.TRAVELS;
+      : key === "travels"
+      ? STORAGE_KEYS.TRAVELS
+      : STORAGE_KEYS.STUDY;
 
   safeSet(storageKey, data);
   notifyStoreUpdate();

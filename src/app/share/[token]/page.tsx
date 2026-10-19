@@ -22,6 +22,10 @@ import {
   Folder,
   X,
   Clapperboard,
+  GraduationCap,
+  BookOpen,
+  FileCheck,
+  Download,
 } from "lucide-react";
 import { isTokenDeleted } from "@/lib/appStore";
 
@@ -30,7 +34,7 @@ interface SharedRecord {
   author: string;
   authorAvatar: string;
   scope: "container" | "item"; // "container" = Deponun Tamamı, "item" = Tek Bir İçerik
-  type: "text" | "movie" | "code" | "travel";
+  type: "text" | "movie" | "code" | "travel" | "study";
   createdAt: string;
   isActive: boolean;
   isDeleted?: boolean; // Eğer içerik silindiyse otomatik iptal kuralı
@@ -53,6 +57,19 @@ interface SharedRecord {
   code?: string;
   language?: string;
   tags?: string[];
+  // Ders & Çalışma Notu alanları
+  courseCode?: string;
+  term?: string;
+  instructor?: string;
+  targetExam?: string;
+  examDate?: string;
+  daysLeft?: number;
+  topics?: string[];
+  pdfName?: string;
+  pdfPages?: number;
+  pdfSize?: string;
+  flashcards?: Array<{ question: string; answer: string }>;
+  formulaSummary?: string;
   // Tüm depo alanları
   containerDesc?: string;
   containerItems?: Array<{
@@ -75,6 +92,18 @@ interface SharedRecord {
     country?: string;
     durationDays?: number;
     highlightPlaces?: string[];
+    courseCode?: string;
+    term?: string;
+    instructor?: string;
+    targetExam?: string;
+    examDate?: string;
+    daysLeft?: number;
+    topics?: string[];
+    pdfName?: string;
+    pdfPages?: number;
+    pdfSize?: string;
+    flashcards?: Array<{ question: string; answer: string }>;
+    formulaSummary?: string;
   }>;
 }
 
@@ -366,7 +395,129 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     highlightPlaces: ["Kaputaş Plajı", "Kekova Batık Şehir", "Patara Kum Tepeleri", "Saklıkent Kanyonu", "Meis Adası"],
   },
 
-  // 8. SİLİNMİŞ İÇERİK (Otomatik İptal Örneği)
+  // 8. DEPONUN TAMAMI PAYLAŞIMI: Ders & Çalışma Notları Deposu
+  "yapay-zeka-ve-algoritmalar-deposu": {
+    title: "Yapay Zekâ & Algoritmalar Dersi",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "container",
+    type: "study",
+    createdAt: "Ekim 2026",
+    isActive: true,
+    containerDesc: "Yapay zekâ ders notları, algoritma özetleri, vize/final hazırlık kartları ve PDF dökümanları arşivi.",
+    containerItems: [
+      {
+        id: "st-1",
+        title: "A* Arama & Heuristic Fonksiyonları",
+        courseCode: "CENG 451",
+        term: "2026 Güz",
+        instructor: "Prof. Dr. Ahmet Yılmaz",
+        targetExam: "vize",
+        examDate: "14 Kasım 2026",
+        daysLeft: 18,
+        topics: ["f(n) = g(n) + h(n)", "Admissibility Şartı", "Consistency", "Manhattan Mesafesi"],
+        overview: "A* algoritmasının temel matematiksel ispatı, Manhattan ve Euclidean heuristic'lerinin karşılaştırılması. Düğüm genişletme sırası ve optimal rota garantisi.",
+        userNote: "Hoca vizede tutarlılık (consistency) ispatını kesin soracak. Formül tablosuna odaklan.",
+        pdfName: "A_Star_Search_Lecture_Slides.pdf",
+        pdfPages: 28,
+        pdfSize: "4.2 MB",
+        flashcards: [
+          { question: "Heuristic admissibility (kabul edilebilirlik) şartı nedir?", answer: "h(n) değeri, hedefe olan gerçek maliyeti asla aşmamalıdır: h(n) <= h*(n)." },
+          { question: "Manhattan vs Euclidean mesafesi ne zaman tercih edilir?", answer: "Sadece 4 yöne (yukarı, aşağı, sağ, sol) hareket izinliyse Manhattan; serbest açılı harekette Euclidean." },
+        ],
+      },
+      {
+        id: "st-2",
+        title: "Gradient Descent & Backpropagation Temelleri",
+        courseCode: "CENG 451",
+        term: "2026 Güz",
+        instructor: "Prof. Dr. Ahmet Yılmaz",
+        targetExam: "vize",
+        examDate: "14 Kasım 2026",
+        daysLeft: 18,
+        topics: ["Zincir Kuralı", "Learning Rate Seçimi", "Momentum", "Adam Optimizer"],
+        overview: "Çok katmanlı yapay sinir ağlarında kayıp fonksiyonunun gradyanını hesaplama ve ağırlıkların güncellenmesi. Aşırı öğrenmeyi (overfitting) engelleme stratejileri.",
+        userNote: "Zincir kuralı türev adımlarını elle çözme alıştırması yap.",
+        pdfName: "Neural_Nets_Backprop_Notes.pdf",
+        pdfPages: 34,
+        pdfSize: "5.8 MB",
+        flashcards: [
+          { question: "Öğrenme oranı (learning rate) çok büyük seçilirse ne olur?", answer: "Ağırlık güncellemeleri sapar (divergence meydana gelir) ve minimum noktası ıskalanır." },
+          { question: "Overfitting'i engellemenin 3 temel yolu nedir?", answer: "Dropout katmanı eklemek, L1/L2 ağırlık cezalandırma (weight decay) ve Early Stopping." },
+        ],
+      },
+      {
+        id: "st-3",
+        title: "Dinamik Programlama: Sırt Çantası & En Uzun Alt Dizi",
+        courseCode: "CENG 301",
+        term: "2026 Güz",
+        instructor: "Doç. Dr. Selin Kaya",
+        targetExam: "final",
+        examDate: "28 Aralık 2026",
+        daysLeft: 62,
+        topics: ["0/1 Knapsack", "Longest Common Subsequence (LCS)", "Memoization", "Tabulation"],
+        overview: "Böl ve yönet yönteminin yetersiz kaldığı örtüşen alt problemler için optimum alt yapı yaklaşımı. Zaman ve bellek karmaşıklığı analizleri.",
+        userNote: "Tablo doldurma yönü (bottom-up) matris indekslerine dikkat.",
+        pdfName: "Dynamic_Programming_Handout.pdf",
+        pdfPages: 22,
+        pdfSize: "3.1 MB",
+        flashcards: [
+          { question: "Dinamik programlamanın 2 temel özelliği nedir?", answer: "1. Optimal alt yapı (Optimal Substructure) 2. Örtüşen alt problemler (Overlapping Subproblems)." },
+          { question: "Top-down (Memoization) ile Bottom-up (Tabulation) farkı nedir?", answer: "Memoization özyinelemelidir ve ihtiyaç duyuldukça çözer; Tabulation iteratiftir ve tüm tabloyu sırayla doldurur." },
+        ],
+      },
+      {
+        id: "st-4",
+        title: "Konvolüsyonel Sinir Ağları (CNN) & Evrişim Katmanları",
+        courseCode: "CENG 451",
+        term: "2026 Güz",
+        instructor: "Prof. Dr. Ahmet Yılmaz",
+        targetExam: "final",
+        examDate: "5 Ocak 2027",
+        daysLeft: 70,
+        topics: ["Filtre / Kernel", "Stride & Padding", "Max Pooling", "Receptive Field"],
+        overview: "Görsel tanıma için mekansal hiyerarşi çıkaran konvolüsyon katmanları, havuzlama (pooling) yöntemleri ve Flattening aşamaları.",
+        userNote: "Çıktı matrisi boyutu formülü: ((W - K + 2P)/S) + 1.",
+        pdfName: "CNN_Architecture_Guide.pdf",
+        pdfPages: 40,
+        pdfSize: "7.4 MB",
+        flashcards: [
+          { question: "Pooling (Havuzlama) katmanının ana amacı nedir?", answer: "Boyutu ve hesaplama yükünü azaltmak, dönüşüm değişmezliği (translation invariance) sağlamak." },
+          { question: "Zero Padding neden kullanılır?", answer: "Köşe piksellerindeki bilginin kaybolmasını önlemek ve çıktı haritasının boyutunu korumak için." },
+        ],
+      },
+    ],
+  },
+
+  // 9. TEKİL İÇERİK PAYLAŞIMI: Ders & Çalışma Notu
+  "yapay-zeka-ders-notlari": {
+    title: "A* Arama & Heuristic Fonksiyonları",
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "item",
+    type: "study",
+    createdAt: "2 gün önce",
+    isActive: true,
+    courseCode: "CENG 451",
+    term: "2026 Güz",
+    instructor: "Prof. Dr. Ahmet Yılmaz",
+    targetExam: "vize",
+    examDate: "14 Kasım 2026",
+    daysLeft: 18,
+    topics: ["f(n) = g(n) + h(n)", "Admissibility Şartı", "Consistency (Monotonluk)", "Manhattan vs Euclidean Mesafesi"],
+    overview: "A* arama algoritmasının adım adım düğüm genişletme mantığı, optimal rota garantisi için gereken admissibility şartı ve tutarlılık teoreminin ispatı.",
+    userNote: "Vizede admissibility ispatı kesinlikle soru olarak gelecek. Formül tablosunu ve örnek 8-puzzle matrisini ezberle.",
+    pdfName: "A_Star_Search_Lecture_Slides.pdf",
+    pdfPages: 28,
+    pdfSize: "4.2 MB",
+    flashcards: [
+      { question: "Heuristic admissibility (kabul edilebilirlik) şartı nedir?", answer: "h(n) değeri, hedefe olan gerçek maliyeti asla aşmamalıdır: h(n) <= h*(n)." },
+      { question: "Manhattan vs Euclidean mesafesi ne zaman tercih edilir?", answer: "Sadece 4 yöne (yukarı, aşağı, sağ, sol) hareket izinliyse Manhattan; serbest açılı harekette Euclidean." },
+      { question: "Tutarlılık (Consistency / Monotonicity) ne anlama gelir?", answer: "Her n düğümü ve komşusu n' için: h(n) <= c(n, a, n') + h(n'). Tutarlı ise A* asla bir düğümü birden fazla ziyaret etmez." },
+    ],
+  },
+
+  // 10. SİLİNMİŞ İÇERİK (Otomatik İptal Örneği)
   "silinmis-icerik-ornegi": {
     title: "Eski Taslak Şiir",
     author: "Erdal Türk",
@@ -388,6 +539,7 @@ function ShareContent() {
   const [selectedMoviePreview, setSelectedMoviePreview] = useState<any>(null);
   const [selectedCodePreview, setSelectedCodePreview] = useState<any>(null);
   const [selectedTravelPreview, setSelectedTravelPreview] = useState<any>(null);
+  const [selectedStudyPreview, setSelectedStudyPreview] = useState<any>(null);
 
   const handleCopyText = (text?: string) => {
     if (text) {
@@ -525,6 +677,8 @@ function ShareContent() {
                     ? "Kod Parçacıkları Deposu"
                     : item.type === "travel"
                     ? "Gezi & Seyahat Anıları Deposu"
+                    : item.type === "study"
+                    ? "Ders & Çalışma Notları Deposu"
                     : "Metin Deposu"}
                 </span>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
@@ -738,6 +892,103 @@ function ShareContent() {
                 ))}
               </div>
             )}
+
+            {/* DERS & ÇALIŞMA NOTLARI DEPOSU TAMAMI VİTRİNİ */}
+            {item.type === "study" && item.containerItems && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
+                {item.containerItems.map((studyItem: any) => (
+                  <div
+                    key={studyItem.id}
+                    onClick={() => setSelectedStudyPreview(studyItem)}
+                    className="group bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm hover:border-sky-400 hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between"
+                  >
+                    <div className="p-6 space-y-4">
+                      {/* Üst Şerit: Ders Kodu, Sınav Türü, Geri Sayım */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-extrabold uppercase px-2.5 py-1 rounded-xl bg-sky-50 text-sky-700 border border-sky-200">
+                            {studyItem.courseCode || "DERS"}
+                          </span>
+                          <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600">
+                            {studyItem.targetExam === "vize" ? "Vize Notu" : "Final Notu"}
+                          </span>
+                        </div>
+
+                        {studyItem.daysLeft !== undefined && (
+                          <span
+                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                              studyItem.daysLeft <= 20
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            }`}
+                          >
+                            <Clock className="w-3 h-3" />
+                            {studyItem.daysLeft} gün kaldı
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Başlık & Eğitmen */}
+                      <div>
+                        <h3 className="font-extrabold text-base sm:text-lg text-slate-900 group-hover:text-sky-600 transition-colors line-clamp-1">
+                          {studyItem.title}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5 font-medium">
+                          {studyItem.instructor} • {studyItem.term}
+                        </p>
+                      </div>
+
+                      {/* Özet Açıklama */}
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                        {studyItem.overview}
+                      </p>
+
+                      {/* Konu Başlıkları */}
+                      {studyItem.topics && studyItem.topics.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {studyItem.topics.slice(0, 3).map((topic: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 border border-slate-200/80"
+                            >
+                              #{topic}
+                            </span>
+                          ))}
+                          {studyItem.topics.length > 3 && (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              +{studyItem.topics.length - 3} konu
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* PDF ve Sınav Kartı Rozetleri */}
+                      <div className="pt-2 flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
+                        {studyItem.pdfName && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50/70 border border-sky-100 text-sky-800 font-medium">
+                            <FileText className="w-3.5 h-3.5 text-sky-600" />
+                            {studyItem.pdfPages} Sayfa PDF
+                          </span>
+                        )}
+                        {studyItem.flashcards && studyItem.flashcards.length > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50/70 border border-indigo-100 text-indigo-800 font-medium">
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                            {studyItem.flashcards.length} Sınav Kartı
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
+                      <span className="text-sky-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                        Ders Notunu & Sınav Kartlarını Aç →
+                      </span>
+                      <span className="text-[11px] text-slate-400">Salt Okunur</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           /* ======================================================== */
@@ -892,6 +1143,124 @@ function ShareContent() {
                       ✨ {item.author}'ın Seyahat Tavsiyesi & İpuçları
                     </span>
                     <p className="italic">"{item.userNote}"</p>
+                  </div>
+                )}
+              </div>
+            ) : item.type === "study" ? (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-md max-w-3xl mx-auto space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-xl text-xs font-extrabold uppercase bg-sky-50 text-sky-700 border border-sky-200">
+                      {item.courseCode || "DERS NOTU"}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700">
+                      {item.targetExam === "vize" ? "Vize Hazırlığı" : "Final Hazırlığı"}
+                    </span>
+                  </div>
+                  {item.daysLeft !== undefined && (
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                        item.daysLeft <= 20
+                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      }`}
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      Sınava {item.daysLeft} Gün Kaldı
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                    {item.title}
+                  </h1>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">
+                    {item.instructor} • {item.term} • Sınav Tarihi: {item.examDate || "Kasım 2026"}
+                  </p>
+                </div>
+
+                {item.topics && item.topics.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      Kapsanan Konu Başlıkları
+                    </h4>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {item.topics.map((t, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-xs font-semibold"
+                        >
+                          #{t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Ders & Konu Özeti
+                  </h4>
+                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50 p-5 rounded-2xl border border-slate-200/80">
+                    {item.overview}
+                  </p>
+                </div>
+
+                {item.userNote && (
+                  <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/70 text-xs text-amber-950 space-y-1">
+                    <span className="font-bold text-amber-800 block">
+                      📌 Sınav İpucu & Önemli Vurgular
+                    </span>
+                    <p className="italic">"{item.userNote}"</p>
+                  </div>
+                )}
+
+                {item.flashcards && item.flashcards.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                        Sınav Soru - Cevap Kartları ({item.flashcards.length})
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {item.flashcards.map((fc, idx) => (
+                        <div
+                          key={idx}
+                          className="p-4 rounded-2xl bg-indigo-50/40 border border-indigo-100 text-xs space-y-1.5"
+                        >
+                          <span className="font-bold text-indigo-900 block">
+                            Soru: {fc.question}
+                          </span>
+                          <p className="text-slate-700 font-medium bg-white p-2.5 rounded-xl border border-indigo-100/60">
+                            Cevap: {fc.answer}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {item.pdfName && (
+                  <div className="p-4 rounded-2xl bg-sky-50/50 border border-sky-200/70 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-xs text-slate-900 line-clamp-1">
+                          {item.pdfName}
+                        </h5>
+                        <p className="text-[11px] text-slate-500">
+                          {item.pdfPages} Sayfa • {item.pdfSize} • Ders Slaytı
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1.5 rounded-xl bg-sky-100 text-sky-800 text-xs font-bold shrink-0">
+                      Salt Okunur Ek
+                    </span>
                   </div>
                 )}
               </div>
@@ -1106,6 +1475,127 @@ function ShareContent() {
                     ✨ Gezgin Tavsiyesi & İpuçları
                   </span>
                   <p className="italic">"{selectedTravelPreview.userNote}"</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TÜM DEPO İÇİNDEN DERS NOTU VE SINAV KARTI DETAYI MODALI */}
+      {selectedStudyPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setSelectedStudyPreview(null)}
+            className="fixed inset-0 bg-black/75 backdrop-blur-xs"
+          />
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-2xl z-10 max-h-[90vh] flex flex-col">
+            <div className="p-6 bg-gradient-to-r from-sky-600 to-blue-700 text-white shrink-0 relative">
+              <button
+                onClick={() => setSelectedStudyPreview(null)}
+                className="absolute top-4 right-4 p-2 rounded-full bg-black/20 text-white hover:bg-black/40 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase bg-white/20 backdrop-blur-md">
+                  {selectedStudyPreview.courseCode || "DERS NOTU"}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase bg-sky-900/60">
+                  {selectedStudyPreview.targetExam === "vize" ? "Vize Notu" : "Final Notu"}
+                </span>
+                {selectedStudyPreview.daysLeft !== undefined && (
+                  <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-amber-400 text-amber-950 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {selectedStudyPreview.daysLeft} gün kaldı
+                  </span>
+                )}
+              </div>
+              <h3 className="text-xl sm:text-2xl font-extrabold text-white">
+                {selectedStudyPreview.title}
+              </h3>
+              <p className="text-xs text-sky-100 mt-1 font-medium">
+                {selectedStudyPreview.instructor} • {selectedStudyPreview.term}
+              </p>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-5">
+              {selectedStudyPreview.topics && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    Konu Başlıkları
+                  </h4>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {selectedStudyPreview.topics.map((t: string, idx: number) => (
+                      <span
+                        key={idx}
+                        className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-xs font-medium"
+                      >
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Ders & Konu Özeti
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+                  {selectedStudyPreview.overview}
+                </p>
+              </div>
+
+              {selectedStudyPreview.userNote && (
+                <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/70 text-xs text-amber-950 space-y-1">
+                  <span className="font-bold text-amber-800 block">
+                    📌 Sınav İpucu & Önemli Vurgular
+                  </span>
+                  <p className="italic">"{selectedStudyPreview.userNote}"</p>
+                </div>
+              )}
+
+              {selectedStudyPreview.flashcards && selectedStudyPreview.flashcards.length > 0 && (
+                <div className="space-y-2.5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    Sınav Soru - Cevap Kartları ({selectedStudyPreview.flashcards.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedStudyPreview.flashcards.map((fc: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-2xl bg-indigo-50/40 border border-indigo-100 text-xs space-y-1"
+                      >
+                        <span className="font-bold text-indigo-950 block">S: {fc.question}</span>
+                        <p className="text-slate-700 font-medium bg-white p-2 rounded-xl border border-indigo-100/50">
+                          C: {fc.answer}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedStudyPreview.pdfName && (
+                <div className="p-4 rounded-2xl bg-sky-50/50 border border-sky-200/70 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-bold text-xs text-slate-900 line-clamp-1">
+                        {selectedStudyPreview.pdfName}
+                      </h5>
+                      <p className="text-[11px] text-slate-500">
+                        {selectedStudyPreview.pdfPages} Sayfa • {selectedStudyPreview.pdfSize} • Ders Slaytı
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1.5 rounded-xl bg-sky-100 text-sky-800 text-xs font-bold shrink-0">
+                    Salt Okunur Ek
+                  </span>
                 </div>
               )}
             </div>

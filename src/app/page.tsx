@@ -270,6 +270,8 @@ export default function HomePage() {
         router.push("/containers/code");
       } else if (target.formatTitle === "Gezi & Seyahat" || target.id === "c3") {
         router.push("/containers/travel");
+      } else if (target.formatTitle === "Ders & Notlar" || target.id === "c4") {
+        router.push("/containers/study");
       }
     } else {
       setPinError(true);
@@ -420,6 +422,8 @@ export default function HomePage() {
                       router.push("/containers/code");
                     } else if (card.id === "travel") {
                       router.push("/containers/travel");
+                    } else if (card.id === "study") {
+                      router.push("/containers/study");
                     } else {
                       alert(`"${card.title}" oluşturma sihirbazı başlatılıyor.`);
                     }
@@ -581,6 +585,8 @@ export default function HomePage() {
                         router.push("/containers/code");
                       } else if (item.formatTitle === "Gezi & Seyahat" || item.id === "c3") {
                         router.push("/containers/travel");
+                      } else if (item.formatTitle === "Ders & Notlar" || item.id === "c4") {
+                        router.push("/containers/study");
                       } else {
                         alert(`"${item.title}" açılıyor...`);
                       }
@@ -656,6 +662,8 @@ export default function HomePage() {
                                   ? "kod-parcaciklari-deposu"
                                   : item.formatTitle === "Gezi & Seyahat" || item.id === "c3"
                                   ? "gezi-ve-seyahat-deposu"
+                                  : item.formatTitle === "Ders & Notlar" || item.id === "c4"
+                                  ? "yapay-zeka-ve-algoritmalar-deposu"
                                   : "sinema-kulubu-deposu";
                               window.open(`/share/${token}`, "_blank");
                             }}

@@ -19,6 +19,7 @@ import {
   Layers,
   Code2,
   Compass,
+  GraduationCap,
 } from "lucide-react";
 import {
   getTrashItems,
@@ -31,7 +32,7 @@ import {
 export default function TrashPage() {
   const [items, setItems] = useState<TrashItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"all" | "container" | "text" | "movie" | "code" | "travel">("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "container" | "text" | "movie" | "code" | "travel" | "study">("all");
   const [itemToDeletePermanently, setItemToDeletePermanently] = useState<TrashItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -83,6 +84,7 @@ export default function TrashPage() {
     if (activeFilter === "movie") return item.type === "movie";
     if (activeFilter === "code") return item.type === "code";
     if (activeFilter === "travel") return item.type === "travel";
+    if (activeFilter === "study") return item.type === "study";
     return true;
   });
 
@@ -191,6 +193,14 @@ export default function TrashPage() {
             >
               Geziler ({items.filter((i) => i.type === "travel").length})
             </button>
+            <button
+              onClick={() => setActiveFilter("study")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                activeFilter === "study" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Ders Notları ({items.filter((i) => i.type === "study").length})
+            </button>
           </div>
 
           <div className="relative w-full sm:w-64">
@@ -237,6 +247,8 @@ export default function TrashPage() {
                         ? "bg-emerald-600"
                         : item.type === "travel"
                         ? "bg-amber-500"
+                        : item.type === "study"
+                        ? "bg-sky-600"
                         : "bg-slate-600"
                     }`}
                   >
@@ -250,6 +262,8 @@ export default function TrashPage() {
                       <Code2 className="w-5 h-5" />
                     ) : item.type === "travel" ? (
                       <Compass className="w-5 h-5" />
+                    ) : item.type === "study" ? (
+                      <GraduationCap className="w-5 h-5" />
                     ) : (
                       <FolderArchive className="w-5 h-5" />
                     )}
@@ -268,6 +282,10 @@ export default function TrashPage() {
                           ? "Film"
                           : item.type === "code"
                           ? "Kod"
+                          : item.type === "travel"
+                          ? "Gezi"
+                          : item.type === "study"
+                          ? "Ders Notu"
                           : "Metin"}
                       </span>
                     </div>
