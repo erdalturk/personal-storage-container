@@ -1,8 +1,24 @@
-# Kişisel Depo — Scrum Sprint Planı & Yol Haritası (Agile Sprint Roadmap)
+# Kişisel Depo — 7 Günlük Hızlı MVP Teslimat Planı (Fast-Track Roadmap)
 
 **Proje:** Kişisel Dijital Depo (Personal Storage Container)  
-**Metodoloji:** Agile / Scrum (Hızlı Micro-Sprint Döngüleri)  
-**Hedef Lansman (Release Target):** 8 Kasım 2026 (~3 Haftalık Hızlı Teslimat)  
+**Metodoloji:** Agile / Scrum (Günlük Hızlı Teslimat Döngüleri)  
+**Hedef MVP Lansmanı (Deadline):** 27 Ekim 2026  
+**Durum:** 21 Ekim Görevi Devam Ediyor (Sprint Day 2)
+
+---
+
+## 📅 Gün Gün Teslimat Planı (20 – 27 Ekim 2026)
+
+| Tarih | Durum | Odak / Sprint Hedefi | Çıktı / Teslim Edilecek Özellik |
+| :--- | :---: | :--- | :--- |
+| **20 Ekim (Dün)** | ✅ **Tamamlandı** | **Mobil & PWA Deneyimi** | Telefona yerel uygulama gibi kurulabilme (`manifest.json`, Service Worker `sw.js`), çevrimdışı önbellek desteği, PWA yükleme banner'ı. |
+| **21 Ekim (Bugün)** | ⏳ **Şu Anki Görev** | **Kişisel Güvenlik & Süreli Paylaşım** | Kullanıcının kendi 4-6 haneli PIN'ini belirlemesi, paylaşılan vitrin linklerine parola ve süre sınırı (örn: 24 saat, 3 gün, 7 gün) koyabilme. |
+| **22 Ekim (Yarın)** | 📋 Sırada | **Karanlık Mod & İndirme Seçenekleri** | OLED uyumlu Dark Mode, notları `.md`/`.pdf` ve kodları `.py`/`.ts` olarak tekil veya ZIP indirme. |
+| **23 Ekim (Cuma)** | 📋 Planlandı | **Bulut Veritabanı (Supabase)** | PostgreSQL + RLS entegrasyonu (mevcut `localStorage` ile hibrit çalışarak kesintisiz veri kalıcılığı). |
+| **24 Ekim (Cumartesi)** | 📋 Planlandı | **Canlı API (TMDB Film/Dizi)** | Film deposunda film ararken The Movie Database (TMDB) API'den anında gerçek afiş, özet ve puan çekme. |
+| **25 Ekim (Pazar)** | 📋 Planlandı | **Gerçek Medya Yükleme (Storage)** | Kullanıcının kendi cihazından gerçek ses dosyası (MP3/WAV), fotoğraf ve PDF dökümanı yükleyebilmesi. |
+| **26 Ekim (Pazartesi)** | 📋 Planlandı | **Kullanıcı Jestleri & E2E Testler** | Klasörlere sürükle-bırak (Drag & Drop), toplu seçim/silme ve Playwright ile tam otomatik tarayıcı testleri. |
+| **🎯 27 Ekim (Salı)** | 🚀 **Hedef** | **MVP FINAL RELEASE (Lansman)** | **Üretim ortamı (Vercel) canlı yayını, son güvenlik kontrolleri ve Müşteri Kabul Onayı.** |
 
 ---
 
@@ -25,85 +41,18 @@
 
 ---
 
-## 📅 Sprint Takvimi & İş Dağılımı
+## 🏃 21 Ekim (Bugünkü Görev) Detayları: Kişisel Güvenlik & Süreli Paylaşım
 
-```mermaid
-gantt
-    title Kişisel Depo — Sprint Teslimat Takvimi (Ekim - Kasım 2026)
-    dateFormat  YYYY-MM-DD
-    section Tamamlanan (v2.0)
-    8 Depo + Çöp Kutusu + Paylaşım + Global Arama + Auth :done, 2026-10-15, 2026-10-19
-    section Sprint 1: Mobil & Güvenlik
-    PWA & Offline Desteği               :active, s1_1, 2026-10-20, 2d
-    Dinamik PIN & Süreli Paylaşım       :active, s1_2, 2026-10-21, 2d
-    Karanlık Mod & Zengin Dışa Aktarma  :s1_3, 2026-10-22, 2d
-    section Sprint 2: Bulut & Kalıcılık
-    Supabase Veritabanı & RLS           :s2_1, 2026-10-25, 3d
-    Gerçek OAuth & Medya Storage        :s2_2, 2026-10-27, 3d
-    OpenGraph Önizleme Kartları         :s2_3, 2026-10-29, 2d
-    section Sprint 3: Yapay Zekâ & API
-    Canlı TMDB Film Entegrasyonu        :s3_1, 2026-10-31, 2d
-    Whisper Sesten Metne Transkript     :s3_2, 2026-11-02, 2d
-    AI Flashcard Üretici                :s3_3, 2026-11-03, 2d
-    section Sprint 4: Stabilizasyon & Lansman
-    Sürükle & Bırak + Toplu Seçim       :s4_1, 2026-11-05, 2d
-    İstatistikler & E2E Testler         :s4_2, 2026-11-06, 2d
-    Final Dağıtım (Production Release)  :s4_3, 2026-11-08, 1d
-```
+**Tarih:** 21 Ekim 2026  
+**Hedef:** Sabit PIN yerine dinamik kullanıcı PIN'i ve paylaşılan linklere isteğe bağlı süre/parola koruması eklemek.
 
----
-
-## 🏃 Sprint Detayları
-
-### 🔹 Sprint 1: Mobil Deneyim, PWA ve İleri Düzey Güvenlik
-**Tarih Aralığı:** 20 Ekim – 24 Ekim 2026 (4 İş Günü)  
-**Hedef:** Uygulamayı cebe indirilebilir (PWA) hale getirmek, şifreleme ve süre kısıtlı paylaşım özelliklerini eklemek.
-
-| ID | Görev / User Story | Puan | Öncelik | Kabul Kriteri (DoD) |
-| :--- | :--- | :---: | :---: | :--- |
-| **SP1-1** | **PWA (Progressive Web App) Kurulumu** | 5 | 🔴 Must | Telefonda "Ana Ekrana Ekle" butonu çalışmalı, çevrimdışı önbellekleme aktif olmalı. |
-| **SP1-2** | **Dinamik Depo PIN Belirleme & Kriptolama** | 5 | 🔴 Must | Kullanıcı 1234 yerine kendi 4-6 haneli PIN'ini belirleyebilmeli, yanlış denemede kilitlenmeli. |
-| **SP1-3** | **Süreli ve Parolalı Paylaşım Linkleri** | 3 | 🟡 Should | Paylaşırken "24 saat sonra kapansın" veya "Şifre girilerek açılsın" seçilebilmeli. |
-| **SP1-4** | **Karanlık Mod (Dark Mode) Desteği** | 3 | 🟡 Should | Tek tıkla OLED uyumlu gece moduna geçiş, sistem temasına otomatik uyum. |
-| **SP1-5** | **Zengin Dışa Aktarma (.md, .pdf, .zip)** | 3 | 🟡 Should | Şiirler/notlar `.md` veya `.pdf`, kodlar `.py`/`.ts` olarak tek tıkla indirilebilmeli. |
-
----
-
-### 🔹 Sprint 2: Bulut Veritabanı, Medya Storage & Gerçek Kalıcılık
-**Tarih Aralığı:** 25 Ekim – 30 Ekim 2026 (6 İş Günü)  
-**Hedef:** Tarayıcı hafızasını bulut altyapısıyla (Supabase) desteklemek ve gerçek dosya/medya yüklemesini açmak.
-
-| ID | Görev / User Story | Puan | Öncelik | Kabul Kriteri (DoD) |
-| :--- | :--- | :---: | :---: | :--- |
-| **SP2-1** | **Supabase PostgreSQL & RLS Şeması** | 8 | 🔴 Must | 8 depo için tablolar oluşturulmalı, kullanıcı sadece kendi verisini okuyabilmeli. |
-| **SP2-2** | **Bulut Medya Depolama (Storage Bucket)** | 8 | 🔴 Must | Kullanıcı gerçek MP3 ses kaydı, yüksek çözünürlüklü görsel ve PDF yükleyebilmeli. |
-| **SP2-3** | **Gerçek OAuth Sağlayıcıları** | 5 | 🔴 Must | Google ve GitHub hesapları ile tek tıkla gerçek yetkilendirme. |
-| **SP2-4** | **Dinamik OpenGraph (OG Meta Tags)** | 3 | 🟡 Should | `/share/[token]` linki WhatsApp/Twitter'da paylaşıldığında zengin önizleme kartı çıkmalı. |
-
----
-
-### 🔹 Sprint 3: Yapay Zekâ (AI) ve Akıllı Dış API Entegrasyonları
-**Tarih Aralığı:** 31 Ekim – 4 Kasım 2026 (5 İş Günü)  
-**Hedef:** Depoları otomatik içerik üreten akıllı asistanlarla güçlendirmek.
-
-| ID | Görev / User Story | Puan | Öncelik | Kabul Kriteri (DoD) |
-| :--- | :--- | :---: | :---: | :--- |
-| **SP3-1** | **Canlı TMDB Film & Dizi Arama API** | 5 | 🟡 Should | Film adı yazılırken TMDB'den otomatik tamamlama, gerçek afiş ve detay çekme. |
-| **SP3-2** | **Whisper AI Ses Transkript Motoru** | 8 | 🟢 Could | Ses deposuna eklenen kaydın otomatik olarak Türkçe metin dökümünün çıkarılması. |
-| **SP3-3** | **Ders Notlarından Otomatik Flashcard Üretici** | 5 | 🟢 Could | Eklenen özetten Gemini/AI ile tek tıkla 5 adet çalışma soru-cevabı üretme. |
-
----
-
-### 🔹 Sprint 4: Sürükle & Bırak, Analitik, E2E Testler & Lansman
-**Tarih Aralığı:** 5 Kasım – 8 Kasım 2026 (4 İş Günü)  
-**Hedef:** Tam stabilizasyon, toplu yönetim jestleri ve üretim sürümünün yayını.
-
-| ID | Görev / User Story | Puan | Öncelik | Kabul Kriteri (DoD) |
-| :--- | :--- | :---: | :---: | :--- |
-| **SP4-1** | **Sürükle & Bırak (Drag & Drop) ve Toplu Seçim** | 5 | 🟡 Should | Dosyaları klasörlere sürükleyebilme, birden çok öğeyi tek seferde silebilme. |
-| **SP4-2** | **Kişisel Hafıza İstatistikleri (Wrapped)** | 3 | 🟢 Could | "Bu ay 12 film izledin, 4 ses kaydettin" özet analitik paneli. |
-| **SP4-3** | **Playwright E2E Otomatik Test Paketi** | 5 | 🔴 Must | Tarayıcı üzerinde baştan sona giriş, arama, ekleme ve paylaşım testleri. |
-| **SP4-4** | **Canlı Dağıtım (Production Release v2.1)** | 3 | 🔴 Must | Vercel üzerinde canlı ortam yayını ve son kontroller. |
+| ID | Görev / User Story | Öncelik | Kabul Kriteri (DoD) |
+| :--- | :--- | :---: | :--- |
+| **SP-2.1** | **Dinamik Depo PIN Belirleme & Kriptolama** | 🔴 Must | Kullanıcı 1234 yerine kendi 4-6 haneli PIN'ini belirleyebilmeli, yanlış denemede kilitlenmeli. |
+| **SP-2.2** | **Süreli Paylaşım Linkleri (24s / 3g / 7g)** | 🟡 Should | Paylaşırken "24 saat sonra kapansın" seçilebilmeli; süresi dolunca "Süre Doldu" ekranı çıkmalı. |
+| **SP-2.3** | **Parolalı Paylaşım Vitrini** | 🟡 Should | İsteğe bağlı şifre koyulabilmeli, `/share/[token]` açıldığında doğru parola girilmeden içerik görünmemeli. |
+| **SP-2.4** | **Profil Güvenlik Paneli & Paylaşım Rozetleri** | 🟡 Should | `/profile` sayfasında "PIN Değiştir" alanı ve paylaşılan linklerde `⏳ Süreli` / `🔒 Parolalı` rozetleri olmalı. |
+| **SP-2.5** | **Otomatik Birim Testleri** | 🔴 Must | `tests/appStore.test.mjs` içinde PIN doğrulama, süre aşımı ve parola kontrol testlerinin yeşil geçmesi. |
 
 ---
 
