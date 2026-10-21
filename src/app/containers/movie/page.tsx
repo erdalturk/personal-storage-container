@@ -32,6 +32,7 @@ import {
   Check,
   Clapperboard,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface MovieItem {
   id: string;
@@ -422,8 +423,10 @@ export default function MovieContainerPage() {
           </div>
         </div>
 
-        {/* Sağ Eylemler: Kilit Switch'i & Film Ekle */}
+        {/* Sağ Eylemler: Tema Değiştirici, Kilit Switch'i & Film Ekle */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle />
+
           {/* Depo Kilidi Switch'i */}
           <button
             onClick={() => setIsLocked(!isLocked)}

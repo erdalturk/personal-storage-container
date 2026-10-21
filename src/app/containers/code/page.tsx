@@ -33,6 +33,7 @@ import {
   Bookmark,
   CheckCircle2,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 // Desteklenen Yazılım Dilleri & Renk Temaları
 export type SupportedLang =
@@ -651,8 +652,10 @@ export default function CodeContainerPage() {
           </div>
         </div>
 
-        {/* Sağ Butonlar: Yeni Kod Ekle & Depoyu Paylaş */}
+        {/* Sağ Butonlar: Tema, Yeni Kod Ekle & Depoyu Paylaş */}
         <div className="flex items-center gap-2">
+          <ThemeToggle />
+
           <button
             onClick={() => window.open("/share/kod-parcaciklari-deposu", "_blank")}
             title="Tüm Kod Deposunu Salt Okunur Paylaş"

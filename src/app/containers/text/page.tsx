@@ -34,6 +34,7 @@ import {
   X,
   AlertCircle,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 // Örnek Klasörler
 interface FolderItem {
@@ -330,13 +331,13 @@ export default function TextContainerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
       {/* 1. ÜST HEADER BAR */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200/80 shadow-xs h-16 flex items-center justify-between px-4 sm:px-6">
+      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 shadow-xs h-16 flex items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             title="Ana Sayfaya Dön"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -347,8 +348,8 @@ export default function TextContainerPage() {
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className={`p-2 rounded-xl transition-colors ${
               isSidebarOpen
-                ? "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
             title={isSidebarOpen ? "Sol Paneli Gizle" : "Sol Paneli Göster (Tek Tık)"}
           >
@@ -359,35 +360,37 @@ export default function TextContainerPage() {
             )}
           </button>
 
-          <div className="h-5 w-px bg-slate-200" />
+          <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
 
           {/* Depo Başlığı & Format Rozeti */}
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-bold text-base sm:text-lg text-slate-900 tracking-tight">
+              <h1 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
                 Gece Düşünceleri & Şiirlerim
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
                 Metin Formatı
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 hidden sm:block">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
               {texts.length} içerik • {totalWords} toplam kelime
             </p>
           </div>
         </div>
 
-        {/* Sağ Araçlar: Arama, Görünüm Değiştirici (Galeri/Liste) & Yeni Ekle */}
+        {/* Sağ Araçlar: Tema, Görünüm Değiştirici (Galeri/Liste) & Yeni Ekle */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle />
+
           {/* Görünüm Değiştirici Switch (Galeri vs Liste) */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/60">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
             <button
               onClick={() => setViewMode("grid")}
               title="Galeri (Kart) Görünümü"
               className={`p-1.5 rounded-lg transition-all ${
                 viewMode === "grid"
-                  ? "bg-white text-indigo-600 shadow-xs font-bold"
-                  : "text-slate-400 hover:text-slate-700"
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
+                  : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               }`}
             >
               <LayoutGrid className="w-4 h-4" />
@@ -397,8 +400,8 @@ export default function TextContainerPage() {
               title="Liste Görünümü"
               className={`p-1.5 rounded-lg transition-all ${
                 viewMode === "list"
-                  ? "bg-white text-indigo-600 shadow-xs font-bold"
-                  : "text-slate-400 hover:text-slate-700"
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
+                  : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               }`}
             >
               <ListIcon className="w-4 h-4" />
@@ -410,7 +413,7 @@ export default function TextContainerPage() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleOpenEditor()}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 dark:shadow-none transition-colors"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Yeni Metin / Şiir</span>

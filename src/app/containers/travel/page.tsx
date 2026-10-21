@@ -36,6 +36,7 @@ import {
   ChevronRight,
   Info,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export type TravelCategory = "deniz" | "kultur" | "doga" | "sehir" | "gastronomi";
 
@@ -465,13 +466,13 @@ export default function TravelContainerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-200">
       {/* 1. ÜST HEADER */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/90 h-16 flex items-center justify-between px-4 sm:px-8 shadow-xs">
+      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 h-16 flex items-center justify-between px-4 sm:px-8 shadow-xs">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             title="Ana Sayfaya Dön"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -482,14 +483,14 @@ export default function TravelContainerPage() {
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-xs">
                 <Compass className="w-4 h-4" />
               </div>
-              <h1 className="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight">
+              <h1 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
                 Gezi & Seyahat Anıları
               </h1>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
                 Akıllı Depo
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 hidden sm:block">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
               Keşfedilen rotalar, seyahat deneyimleri, duraklar ve fotoğraf albümleri
             </p>
           </div>
@@ -497,18 +498,20 @@ export default function TravelContainerPage() {
 
         {/* Sağ Butonlar */}
         <div className="flex items-center gap-2.5">
+          <ThemeToggle />
+
           <button
             onClick={() => handleShareTravel("gezi-ve-seyahat-deposu", "Gezi & Seyahat Deposu")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-2xs"
             title="Tüm Gezi Deposunu Salt Okunur Paylaş"
           >
-            <Share2 className="w-3.5 h-3.5 text-slate-500" />
+            <Share2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             <span className="hidden sm:inline">Depoyu Paylaş</span>
           </button>
 
           <button
             onClick={handleOpenNewTravel}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-bold shadow-md shadow-amber-200 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-bold shadow-md shadow-amber-200 dark:shadow-none transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>Yeni Rota Ekle</span>

@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Clock,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 import {
   addToTrash,
   restoreFromTrash,
@@ -387,40 +388,42 @@ export default function FilesContainerPage() {
   const totalMB = files.reduce((acc, f) => acc + f.sizeMB, 0);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 font-sans pb-24">
+    <div className="min-h-screen bg-[#FAF8F5] dark:bg-slate-950 text-stone-900 dark:text-slate-100 font-sans pb-24 transition-colors duration-200">
       {/* Top Header */}
-      <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-stone-200/80">
+      <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-stone-200/80 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 h-20 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="p-2.5 rounded-xl bg-white border border-stone-200/80 text-stone-600 hover:text-stone-900 hover:border-stone-300 transition shadow-sm"
+              className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-stone-200/80 dark:border-slate-700 text-stone-600 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:border-stone-300 transition shadow-sm"
               title="Ana Sayfaya Dön"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
               <div className="flex items-center gap-2.5">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200/60 flex items-center gap-1.5">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 flex items-center gap-1.5">
                   <FolderArchive className="w-3.5 h-3.5" />
                   Standart Depo • Dosya & Belge
                 </span>
-                <span className="text-xs text-stone-400">1-Seviye Klasör & Doküman Kasası</span>
+                <span className="text-xs text-stone-400 dark:text-slate-500">1-Seviye Klasör & Doküman Kasası</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-stone-900 tracking-tight mt-0.5">
+              <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight mt-0.5">
                 Sözleşmeler, Faturalar & Belgelerim
               </h1>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
+
             <button
               onClick={() =>
                 window.open("/share/belge-ve-dosya-deposu", "_blank")
               }
-              className="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-stone-200 text-stone-700 text-sm font-medium hover:bg-stone-50 hover:border-stone-300 transition shadow-sm cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-200 text-sm font-medium hover:bg-stone-50 dark:hover:bg-slate-700 transition shadow-sm cursor-pointer"
             >
-              <Share2 className="w-4 h-4 text-emerald-600" />
+              <Share2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               Depoyu Paylaş
             </button>
             <button

@@ -38,6 +38,7 @@ import {
   Layers,
   HelpCircle,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export type ExamType = "vize" | "final" | "but" | "genel";
 export type PriorityLevel = "yuksek" | "orta" | "dusuk";
@@ -563,13 +564,13 @@ export default function StudyContainerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-200">
       {/* 1. ÜST HEADER */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/90 h-16 flex items-center justify-between px-4 sm:px-8 shadow-xs">
+      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 h-16 flex items-center justify-between px-4 sm:px-8 shadow-xs">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             title="Ana Sayfaya Dön"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -580,14 +581,14 @@ export default function StudyContainerPage() {
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-xs">
                 <GraduationCap className="w-4 h-4" />
               </div>
-              <h1 className="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight">
+              <h1 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
                 Ders & Çalışma Notları
               </h1>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60">
                 Akıllı Depo
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 hidden sm:block">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
               Vize/final özetleri, sınav hazırlık kartları, formüller ve PDF dokümanları
             </p>
           </div>
@@ -595,18 +596,20 @@ export default function StudyContainerPage() {
 
         {/* Sağ Butonlar */}
         <div className="flex items-center gap-2.5">
+          <ThemeToggle />
+
           <button
             onClick={() => handleShareStudy("yapay-zeka-ve-algoritmalar-deposu")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-2xs"
             title="Tüm Ders Deposunu Salt Okunur Paylaş"
           >
-            <Share2 className="w-3.5 h-3.5 text-slate-500" />
+            <Share2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             <span className="hidden sm:inline">Depoyu Paylaş</span>
           </button>
 
           <button
             onClick={handleOpenNewNote}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold shadow-md shadow-sky-200 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold shadow-md shadow-sky-200 dark:shadow-none transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>Yeni Not Ekle</span>
