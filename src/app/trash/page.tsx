@@ -30,6 +30,7 @@ import {
   emptyTrash,
   TrashItem,
 } from "@/lib/appStore";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function TrashPage() {
   const [items, setItems] = useState<TrashItem[]>([]);
@@ -88,54 +89,57 @@ export default function TrashPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-200">
       {/* ÜST BAR */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 sm:px-8 shadow-xs">
+      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-4 sm:px-8 shadow-xs">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             title="Ana Sayfaya Dön"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
 
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200">
+            <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-900/60">
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-base sm:text-lg text-slate-900">
+                <h1 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white">
                   Çöp Kutusu
                 </h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                   {items.length} Öğe
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
                 Silinen depolar ve içerikler 30 gün boyunca burada saklanır
               </p>
             </div>
           </div>
         </div>
 
-        {/* Tümünü Boşalt Butonu */}
-        {items.length > 0 && (
-          <button
-            onClick={handleEmptyTrash}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors"
-          >
-            Çöp Kutusunu Boşalt
-          </button>
-        )}
+        {/* Sağ Butonlar: Tema & Tümünü Boşalt */}
+        <div className="flex items-center gap-2.5">
+          <ThemeToggle />
+          {items.length > 0 && (
+            <button
+              onClick={handleEmptyTrash}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-900/60 transition-colors"
+            >
+              Çöp Kutusunu Boşalt
+            </button>
+          )}
+        </div>
       </header>
 
       {/* ANA İÇERİK ALANI */}
       <main className="max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 flex-1">
         {/* Bilgi Kutusu (Section 12.3 Açıklaması) */}
-        <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-start gap-3 text-xs text-indigo-900">
-          <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-start gap-3 text-xs text-indigo-900 dark:text-indigo-200">
+          <Info className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
           <div>
             <span className="font-bold">Otomatik Silme Kuralı:</span> Silinen içerikler ve depolar varsayılan olarak 30 gün boyunca burada saklanır. Bir içerik silindiğinde ona ait dış paylaşımlar otomatik olarak sonlandırılır. Dilediğiniz içeriği süresi dolmadan geri yükleyebilirsiniz.
           </div>
@@ -143,11 +147,11 @@ export default function TrashPage() {
 
         {/* Filtre ve Arama */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl flex-wrap">
+          <div className="flex items-center gap-1.5 bg-slate-200/60 dark:bg-slate-800/80 p-1 rounded-xl flex-wrap">
             <button
               onClick={() => setActiveFilter("all")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "all" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Tümü ({items.length})
@@ -155,7 +159,7 @@ export default function TrashPage() {
             <button
               onClick={() => setActiveFilter("container")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "container" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "container" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Depolar ({items.filter((i) => i.type === "container").length})
@@ -163,7 +167,7 @@ export default function TrashPage() {
             <button
               onClick={() => setActiveFilter("movie")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "movie" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "movie" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Filmler ({items.filter((i) => i.type === "movie").length})
@@ -171,7 +175,7 @@ export default function TrashPage() {
             <button
               onClick={() => setActiveFilter("text")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "text" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "text" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Metinler ({items.filter((i) => i.type === "text").length})
@@ -179,7 +183,7 @@ export default function TrashPage() {
             <button
               onClick={() => setActiveFilter("code")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "code" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "code" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Kodlar ({items.filter((i) => i.type === "code").length})
@@ -187,7 +191,7 @@ export default function TrashPage() {
             <button
               onClick={() => setActiveFilter("travel")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "travel" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "travel" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Geziler ({items.filter((i) => i.type === "travel").length})
@@ -195,7 +199,7 @@ export default function TrashPage() {
             <button
               onClick={() => setActiveFilter("study")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "study" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "study" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Ders ({items.filter((i) => i.type === "study").length})
@@ -203,7 +207,7 @@ export default function TrashPage() {
             <button
               onClick={() => setActiveFilter("audio")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "audio" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "audio" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Ses ({items.filter((i) => i.type === "audio").length})
@@ -211,7 +215,7 @@ export default function TrashPage() {
             <button
               onClick={() => setActiveFilter("image")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "image" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "image" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Görüntü ({items.filter((i) => i.type === "image").length})
@@ -219,7 +223,7 @@ export default function TrashPage() {
             <button
               onClick={() => setActiveFilter("file")}
               className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                activeFilter === "file" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeFilter === "file" ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Dosya ({items.filter((i) => i.type === "file").length})
@@ -227,25 +231,25 @@ export default function TrashPage() {
           </div>
 
           <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Çöp kutusunda ara..."
-              className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 shadow-2xs"
+              className="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl text-xs outline-none focus:border-indigo-500 shadow-2xs"
             />
           </div>
         </div>
 
         {/* LİSTE */}
         {filteredItems.length === 0 ? (
-          <div className="bg-white rounded-3xl p-16 text-center border-2 border-dashed border-slate-200 space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto border border-emerald-100">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-16 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center mx-auto border border-emerald-100 dark:border-emerald-800/60">
               <CheckCircle2 className="w-6 h-6 text-emerald-500" />
             </div>
-            <h3 className="font-bold text-slate-800">Çöp kutusu tertemiz</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            <h3 className="font-bold text-slate-800 dark:text-slate-200">Çöp kutusu tertemiz</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
               Şu anda silinmiş veya çöp kutusunda bekleyen herhangi bir içerik bulunmuyor.
             </p>
           </div>
@@ -255,7 +259,7 @@ export default function TrashPage() {
               <motion.div
                 key={item.id}
                 layout
-                className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
                 <div className="flex items-start gap-3.5">
                   <div
@@ -302,11 +306,11 @@ export default function TrashPage() {
 
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-bold text-sm text-slate-900">{item.title}</h4>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">{item.title}</h4>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                         {item.originContainer}
                       </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60">
                         {item.type === "container"
                           ? "Depo"
                           : item.type === "movie"
@@ -328,15 +332,15 @@ export default function TrashPage() {
                     </div>
 
                     {item.contentPreview && (
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-1">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
                         {item.contentPreview}
                       </p>
                     )}
 
-                    <div className="flex items-center gap-3 mt-2 text-[11px] font-semibold text-slate-400">
+                    <div className="flex items-center gap-3 mt-2 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
                       <span>Silindi: {item.deletedAt}</span>
                       <span>•</span>
-                      <span className="flex items-center gap-1 text-amber-600 font-bold">
+                      <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold">
                         <Clock className="w-3 h-3" />
                         {item.daysRemaining} gün kaldı
                       </span>
@@ -348,7 +352,7 @@ export default function TrashPage() {
                 <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                   <button
                     onClick={() => handleRestore(item)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 text-xs font-bold transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Geri Yükle</span>
@@ -356,7 +360,7 @@ export default function TrashPage() {
 
                   <button
                     onClick={() => setItemToDeletePermanently(item)}
-                    className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                    className="p-2 rounded-xl text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
                     title="Kalıcı Olarak Sil"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -383,29 +387,29 @@ export default function TrashPage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 z-10 space-y-4"
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 z-10 space-y-4"
             >
-              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-100 dark:border-rose-900/60">
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-extrabold text-base text-slate-900">
+                <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
                   Kalıcı Olarak Silinsin mi?
                 </h3>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  <b className="text-slate-800">"{itemToDeletePermanently.title}"</b> öğesi tamamen silinecektir. Bu işlem geri alınamaz.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  <b className="text-slate-800 dark:text-slate-200">"{itemToDeletePermanently.title}"</b> öğesi tamamen silinecektir. Bu işlem geri alınamaz.
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   onClick={() => setItemToDeletePermanently(null)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition-colors"
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold transition-colors"
                 >
                   Vazgeç
                 </button>
                 <button
                   onClick={handlePermanentDelete}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-200 transition-colors"
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-200 dark:shadow-none transition-colors"
                 >
                   Evet, Kalıcı Olarak Sil
                 </button>

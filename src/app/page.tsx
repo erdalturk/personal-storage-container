@@ -43,6 +43,7 @@ import {
   verifyMasterPin,
   resetMasterPinForDemo,
 } from "@/lib/appStore";
+import ThemeToggle from "@/components/ThemeToggle";
 
 // Akıllı Depo Tanımları (Vitrindeki 4 Sabit Kart)
 const SMART_CONTAINERS = [
@@ -490,66 +491,69 @@ export default function HomePage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
       {/* 1. ÜST HEADER / NAVBAR */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo & Başlık */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-200">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-200 dark:shadow-none">
               <Layers className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 bg-clip-text text-transparent">
+                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 dark:from-white dark:via-indigo-200 dark:to-slate-200 bg-clip-text text-transparent">
                   Kişisel Depo
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
                   Container
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
                 Kişisel Dijital Arşiv Sistemi
               </p>
             </div>
           </div>
 
-          {/* Sağ Eylemler: Global Arama, Çöp Kutusu & Profil */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Sağ Eylemler: Tema Değiştirici, Global Arama, Çöp Kutusu & Profil */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
             <button
               type="button"
               onClick={() => {
                 setGlobalQuery("");
                 setIsGlobalSearchOpen(true);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 border border-slate-200/80 hover:border-indigo-200 transition text-xs font-semibold"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-slate-600 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-300 border border-slate-200/80 dark:border-slate-700/80 transition text-xs font-semibold"
               title="Tüm Depolarda ve İçeriklerde Ara (Ctrl + K)"
             >
               <Search className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Global Arama</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-white text-slate-500 rounded border border-slate-200 shadow-2xs">
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 rounded border border-slate-200 dark:border-slate-700 shadow-2xs">
                 Ctrl K
               </kbd>
             </button>
 
+            {/* Tema Geçiş Butonu (Açık / Koyu / Sistem) */}
+            <ThemeToggle />
+
             <Link
               href="/trash"
               title="Çöp Kutusu (30 gün saklanır)"
-              className="p-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors relative"
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors relative border border-slate-200/60 dark:border-slate-700/60"
             >
               <Trash2 className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"></span>
             </Link>
 
             <Link
               href="/profile"
               title="Hesap, Yedekleme ve Paylaşım Yönetimi"
-              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/80 transition-colors border border-slate-200/60"
+              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 transition-colors border border-slate-200/60 dark:border-slate-700/60"
             >
               <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shadow-xs">
                 {userAvatar}
               </div>
-              <span className="text-xs font-semibold text-slate-700 hidden sm:inline">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 hidden sm:inline">
                 {userName}
               </span>
             </Link>
@@ -565,19 +569,19 @@ export default function HomePage() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-medium"
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 text-xs font-medium"
           >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
             <span>Dağınık dosyalar yok, tek bir akıllı merkez var.</span>
           </motion.div>
 
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
             Neyi saklamak istiyorsun?
           </h1>
 
           {/* Büyük Arama Girişi + Global İçerik Sonuçları */}
           <div className="relative max-w-xl mx-auto group">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-600 transition-colors">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400 transition-colors">
               <Search className="w-5 h-5" />
             </div>
             <input
@@ -585,13 +589,13 @@ export default function HomePage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Depolarında, filmlerinde, şiirlerinde veya ders notlarında ara..."
-              className="w-full pl-11 pr-28 py-3.5 bg-white rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 text-sm font-medium transition-all shadow-xs outline-none"
+              className="w-full pl-11 pr-28 py-3.5 bg-white dark:bg-slate-900 rounded-2xl border-2 border-slate-200 dark:border-slate-800 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-950/50 text-slate-900 dark:text-slate-100 text-sm font-medium transition-all shadow-xs outline-none"
             />
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1.5">
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -602,7 +606,7 @@ export default function HomePage() {
                   setGlobalQuery(searchQuery);
                   setIsGlobalSearchOpen(true);
                 }}
-                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-[11px] font-mono font-bold text-slate-500 hover:text-indigo-600 border border-slate-200 transition"
+                className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200 dark:border-slate-700 transition"
                 title="Komut Paletini Aç (Ctrl + K)"
               >
                 Ctrl + K
@@ -612,8 +616,8 @@ export default function HomePage() {
 
           {/* Ana Arama Çubuğuna Yazıldığında Tekil İçerik Eşleşmeleri Özeti */}
           {searchQuery.trim().length > 0 && globalResults.length > 0 && (
-            <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-lg p-3 text-left space-y-1.5">
-              <div className="flex items-center justify-between px-2 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="max-w-xl mx-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-lg p-3 text-left space-y-1.5">
+              <div className="flex items-center justify-between px-2 py-1 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 <span>Tüm Depolardaki İçerik Eşleşmeleri ({globalResults.length})</span>
                 <button
                   type="button"
@@ -621,28 +625,28 @@ export default function HomePage() {
                     setGlobalQuery(searchQuery);
                     setIsGlobalSearchOpen(true);
                   }}
-                  className="text-indigo-600 hover:underline font-semibold normal-case"
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold normal-case"
                 >
                   Tümünü Komut Paletinde Gör →
                 </button>
               </div>
-              <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+              <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                 {globalResults.slice(0, 5).map((res) => (
                   <button
                     key={res.id}
                     type="button"
                     onClick={() => router.push(res.href)}
-                    className="w-full px-3 py-2.5 hover:bg-indigo-50/60 flex items-center justify-between gap-3 rounded-xl transition text-left"
+                    className="w-full px-3 py-2.5 hover:bg-indigo-50/60 dark:hover:bg-slate-800/60 flex items-center justify-between gap-3 rounded-xl transition text-left"
                   >
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-slate-900 truncate">
+                      <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
                         {res.title}
                       </div>
-                      <div className="text-[11px] text-slate-500 truncate">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                         {res.containerName} • {res.subtitle}
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800/60 shrink-0">
                       {res.badge}
                     </span>
                   </button>
@@ -656,10 +660,10 @@ export default function HomePage() {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                 Yeni Depo Başlat
               </h2>
-              <span className="text-xs text-slate-500 font-medium">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                 (Akıllı şablonlar veya özel format)
               </span>
             </div>
@@ -675,7 +679,7 @@ export default function HomePage() {
                   whileHover={{ y: -6, scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
                   transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  className={`relative group bg-white rounded-3xl p-5 border-2 border-slate-200/90 shadow-sm hover:border-indigo-400 ${card.shadow} transition-all cursor-pointer flex flex-col justify-between overflow-hidden`}
+                  className={`relative group bg-white dark:bg-slate-900 rounded-3xl p-5 border-2 border-slate-200/90 dark:border-slate-800 shadow-sm hover:border-indigo-400 dark:hover:border-indigo-500 ${card.shadow} transition-all cursor-pointer flex flex-col justify-between overflow-hidden`}
                   onClick={() => {
                     if (card.id === "movie") {
                       router.push("/containers/movie");
@@ -703,22 +707,22 @@ export default function HomePage() {
                       >
                         <IconComp className="w-6 h-6" />
                       </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
                         Akıllı
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-base text-slate-900 group-hover:text-indigo-600 transition-colors">
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                       {card.title}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                       {card.desc}
                     </p>
                   </div>
 
                   {/* Etiketler ve Tıklama İpucu */}
-                  <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600 group-hover:text-indigo-600">
-                    <span className="text-[11px] text-slate-400">Hemen Oluştur</span>
+                  <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">Hemen Oluştur</span>
                     <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </motion.div>
@@ -731,15 +735,15 @@ export default function HomePage() {
               whileTap={{ scale: 0.98 }}
               transition={{ type: "spring", stiffness: 400, damping: 25 }}
               onClick={() => setIsCreateModalOpen(true)}
-              className="bg-gradient-to-b from-indigo-50/60 via-white to-indigo-50/30 rounded-3xl p-5 border-2 border-dashed border-indigo-300 hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100 transition-all cursor-pointer flex flex-col items-center justify-center text-center group min-h-[200px]"
+              className="bg-gradient-to-b from-indigo-50/60 dark:from-indigo-950/40 via-white dark:via-slate-900 to-indigo-50/30 dark:to-indigo-950/20 rounded-3xl p-5 border-2 border-dashed border-indigo-300 dark:border-indigo-800 hover:border-indigo-500 dark:hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer flex flex-col items-center justify-center text-center group min-h-[200px]"
             >
-              <div className="w-13 h-13 rounded-2xl bg-white border-2 border-indigo-200 group-hover:border-indigo-500 text-indigo-600 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform mb-3">
+              <div className="w-13 h-13 rounded-2xl bg-white dark:bg-slate-800 border-2 border-indigo-200 dark:border-indigo-700 group-hover:border-indigo-500 dark:group-hover:border-indigo-400 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform mb-3">
                 <Plus className="w-7 h-7" />
               </div>
-              <h3 className="font-bold text-base text-slate-900 group-hover:text-indigo-600 transition-colors">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                 Standart Depo
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Metin, Ses, Görüntü veya Dosya formatında serbest depo kur.
               </p>
               <span className="mt-3 px-3 py-1 rounded-full bg-indigo-600 text-white text-[11px] font-bold shadow-xs">
@@ -751,21 +755,21 @@ export default function HomePage() {
 
         {/* 4. KULLANICININ OLUŞTURDUĞU DEPOLAR */}
         <section className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
             {/* Sol Sekmeler */}
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-900">Depolarım</h2>
-              <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Depolarım</h2>
+              <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold">
                 {filteredContainers.length}
               </span>
 
-              <div className="ml-4 flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <div className="ml-4 flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                 <button
                   onClick={() => setActiveTab("all")}
                   className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
                     activeTab === "all"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
+                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
                   Tümü
@@ -774,8 +778,8 @@ export default function HomePage() {
                   onClick={() => setActiveTab("smart")}
                   className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
                     activeTab === "smart"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
+                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
                   Akıllı Depolar
@@ -784,8 +788,8 @@ export default function HomePage() {
                   onClick={() => setActiveTab("standard")}
                   className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
                     activeTab === "standard"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
+                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
                   Standart
@@ -794,13 +798,13 @@ export default function HomePage() {
             </div>
 
             {/* Sağ Sıralama Seçenekleri (Section 4.6) */}
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
               <span>Sırala:</span>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
               >
                 <option value="updated">Son Güncellenen</option>
                 <option value="alpha">Alfabetik (A-Z)</option>
@@ -811,12 +815,12 @@ export default function HomePage() {
 
           {/* Depo Kartları Grid'i */}
           {filteredContainers.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center border-2 border-slate-200 space-y-3">
-              <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-12 text-center border-2 border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto">
                 <Search className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-slate-800">Aramana uygun depo bulunamadı</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <h3 className="font-bold text-slate-800 dark:text-slate-200">Aramana uygun depo bulunamadı</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                 Farklı bir kelime deneyebilir veya yukarıdaki vitrinden yeni bir depo oluşturabilirsin.
               </p>
             </div>
@@ -830,7 +834,7 @@ export default function HomePage() {
                     layout
                     whileHover={{ y: -5 }}
                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                    className="bg-white rounded-3xl border-2 border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all overflow-hidden flex flex-col justify-between group cursor-pointer"
+                    className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all overflow-hidden flex flex-col justify-between group cursor-pointer"
                     onClick={() => {
                       if (item.isLocked) {
                         setPinModalTarget(item);
@@ -880,22 +884,22 @@ export default function HomePage() {
                     {/* Depo Bilgileri */}
                     <div className="p-5 flex-1 flex flex-col justify-between">
                       <div>
-                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
                           <span>{item.formatTitle}</span>
-                          <span className="text-slate-500 font-medium">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">
                             {item.lastUpdated}
                           </span>
                         </div>
 
-                        <h3 className="font-bold text-base text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
+                        <h3 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
                           {item.title}
                         </h3>
                       </div>
 
                       {/* Alt Bilgi Çubuğu: İçerik Sayısı & Eylemler */}
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                          <Layers className="w-3.5 h-3.5 text-slate-400" />
+                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          <Layers className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                           <span>{item.itemCount} içerik</span>
                         </div>
 
@@ -923,14 +927,14 @@ export default function HomePage() {
                               activateShareToken(token);
                               window.open(`/share/${token}`, "_blank");
                             }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                           >
                             <Share2 className="w-4 h-4" />
                           </button>
                           <button
                             title="Depoyu Çöp Kutusuna Taşı (Sil)"
                             onClick={(e) => handleDeleteContainer(item, e)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -963,24 +967,24 @@ export default function HomePage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-slate-200 z-10 space-y-6"
+              className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-slate-200 dark:border-slate-800 z-10 space-y-6"
             >
               {/* Modal Başlığı */}
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-800/60">
                     Standart Depo Oluştur
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-2">
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white mt-2">
                     Depo formatını seç
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Format, deponun tasarımını ve içinde saklayacağın içerik türünü belirler.
                   </p>
                 </div>
                 <button
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -999,8 +1003,8 @@ export default function HomePage() {
                       onClick={() => setSelectedFormat(fmt.id)}
                       className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
                         isSelected
-                          ? "border-indigo-600 bg-indigo-50/50 shadow-sm ring-2 ring-indigo-200"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
+                          ? "border-indigo-600 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 shadow-sm ring-2 ring-indigo-200 dark:ring-indigo-800"
+                          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900/80"
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -1011,21 +1015,21 @@ export default function HomePage() {
                         </div>
                         <div>
                           <div className="flex items-center justify-between">
-                            <h4 className="font-bold text-sm text-slate-900">
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white">
                               {fmt.title}
                             </h4>
                             {isSelected && (
-                              <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                              <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
                             {fmt.desc}
                           </p>
                         </div>
                       </div>
 
                       {/* Canlı Önizleme İpucu */}
-                      <div className="mt-3 pt-2 border-t border-slate-100/80 text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                      <div className="mt-3 pt-2 border-t border-slate-100/80 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500 font-medium flex items-center gap-1">
                         <Eye className="w-3 h-3 text-slate-400" />
                         <span>{fmt.preview}</span>
                       </div>
@@ -1035,10 +1039,10 @@ export default function HomePage() {
               </div>
 
               {/* Alt Butonlar */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   İptal
                 </button>
@@ -1088,26 +1092,26 @@ export default function HomePage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-sm bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200 z-10 text-center space-y-5"
+              className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 z-10 text-center space-y-5"
             >
               {/* Kilit İkonu */}
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto border border-indigo-100 shadow-xs">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto border border-indigo-100 dark:border-indigo-800/60 shadow-xs">
                 <Lock className="w-7 h-7" />
               </div>
 
               <div>
-                <h3 className="text-lg font-extrabold text-slate-900">
+                <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
                   {(pinModalTarget as any)?.isUnlockAction
                     ? "Depo Kilidini Kaldır"
                     : "Bu Depo Korumalı"}
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   {(pinModalTarget as any)?.isUnlockAction
                     ? `"${pinModalTarget.title}" deposunun kilidini kaldırmak için Master PIN'inizi girin.`
                     : `"${pinModalTarget.title}" deposuna erişmek için lütfen Master PIN'inizi girin.`}
                 </p>
                 {!hasMasterPin() && (
-                  <div className="mt-2 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 py-1 px-2.5 rounded-lg inline-block">
+                  <div className="mt-2 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 py-1 px-2.5 rounded-lg inline-block">
                     Henüz özel PIN oluşturmadınız (Varsayılan: 1234)
                   </div>
                 )}
@@ -1115,10 +1119,10 @@ export default function HomePage() {
 
               {/* Kilitlenme Sayacı Aktifse */}
               {lockoutTimer > 0 ? (
-                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 space-y-1">
+                <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 space-y-1">
                   <div className="text-xs font-bold">Geçici Güvenlik Kilidi Aktif</div>
                   <div className="text-2xl font-mono font-extrabold">{lockoutTimer} sn</div>
-                  <div className="text-[10px] text-rose-600">
+                  <div className="text-[10px] text-rose-600 dark:text-rose-400">
                     Çok fazla hatalı deneme yapıldı. Lütfen sürenin dolmasını bekleyin.
                   </div>
                 </div>
@@ -1137,16 +1141,16 @@ export default function HomePage() {
                       if (e.key === "Enter") handleVerifyPin();
                     }}
                     placeholder="••••"
-                    className={`w-44 mx-auto text-center tracking-[0.4em] text-2xl font-mono font-bold py-2.5 bg-slate-50 border-2 rounded-2xl outline-none transition-all ${
+                    className={`w-44 mx-auto text-center tracking-[0.4em] text-2xl font-mono font-bold py-2.5 bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl outline-none transition-all ${
                       pinErrorMsg
-                        ? "border-rose-500 bg-rose-50 text-rose-700 focus:ring-4 focus:ring-rose-100"
-                        : "border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                        ? "border-rose-500 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 focus:ring-4 focus:ring-rose-100 dark:focus:ring-rose-950/40"
+                        : "border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-950/40"
                     }`}
                     autoFocus
                   />
 
                   {pinErrorMsg && (
-                    <p className="text-xs text-rose-600 font-bold animate-shake">
+                    <p className="text-xs text-rose-600 dark:text-rose-400 font-bold animate-shake">
                       {pinErrorMsg}
                     </p>
                   )}
@@ -1159,7 +1163,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => setPinModalTarget(null)}
-                    className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   >
                     Vazgeç
                   </button>
@@ -1167,7 +1171,7 @@ export default function HomePage() {
                     type="button"
                     disabled={lockoutTimer > 0 || !enteredPin.trim()}
                     onClick={handleVerifyPin}
-                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-colors"
+                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-indigo-200 dark:shadow-none transition-colors"
                   >
                     {(pinModalTarget as any)?.isUnlockAction ? "Kilidi Aç" : "Giriş Yap →"}
                   </button>
@@ -1175,7 +1179,7 @@ export default function HomePage() {
 
                 <Link
                   href="/profile"
-                  className="text-[11px] font-semibold text-slate-400 hover:text-indigo-600 transition-colors block mx-auto underline"
+                  className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors block mx-auto underline"
                 >
                   PIN'i Değiştir veya Sıfırla (Profil)
                 </Link>
@@ -1201,31 +1205,31 @@ export default function HomePage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-sm bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200 z-10 text-center space-y-5"
+              className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 z-10 text-center space-y-5"
             >
               {/* İkon */}
-              <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 shadow-xs">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto border border-amber-200 dark:border-amber-800/60 shadow-xs">
                 <KeyRound className="w-7 h-7" />
               </div>
 
               <div>
-                <h3 className="text-lg font-extrabold text-slate-900">
+                <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
                   Kişisel PIN'inizi Belirleyin
                 </h3>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                   İlk kez bir depo kilitliyorsunuz. Belirleyeceğiniz bu Master PIN, tüm kilitli depolarınızı koruyacak ve sadece Profil sayfasından değiştirilebilecektir.
                 </p>
               </div>
 
               {firstTimeError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/60 text-xs font-semibold text-rose-700 dark:text-rose-300">
                   {firstTimeError}
                 </div>
               )}
 
               <form onSubmit={handleSaveFirstTimePin} className="space-y-3.5 text-left">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
                     Yeni Master PIN (4-6 Haneli)
                   </label>
                   <input
@@ -1234,13 +1238,13 @@ export default function HomePage() {
                     value={newMasterPin}
                     onChange={(e) => setNewMasterPin(e.target.value)}
                     placeholder="••••"
-                    className="w-full text-center tracking-[0.4em] text-xl font-mono font-bold py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full text-center tracking-[0.4em] text-xl font-mono font-bold py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900"
                     autoFocus
                   />
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
                     PIN Tekrar
                   </label>
                   <input
@@ -1249,7 +1253,7 @@ export default function HomePage() {
                     value={confirmMasterPin}
                     onChange={(e) => setConfirmMasterPin(e.target.value)}
                     placeholder="••••"
-                    className="w-full text-center tracking-[0.4em] text-xl font-mono font-bold py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full text-center tracking-[0.4em] text-xl font-mono font-bold py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900"
                   />
                 </div>
 
@@ -1257,13 +1261,13 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => setFirstTimePinTarget(null)}
-                    className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   >
                     Vazgeç
                   </button>
                   <button
                     type="submit"
-                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-colors"
+                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 dark:shadow-none transition-colors"
                   >
                     PIN'i Kaydet & Kilitle
                   </button>
@@ -1304,11 +1308,11 @@ export default function HomePage() {
               initial={{ opacity: 0, scale: 0.96, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -10 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden z-10"
+              className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden z-10"
             >
               {/* Üst Arama Girişi */}
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50/60">
-                <Search className="w-5 h-5 text-indigo-600 shrink-0" />
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/60">
+                <Search className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <input
                   type="text"
                   value={globalQuery}
@@ -1320,14 +1324,14 @@ export default function HomePage() {
                     }
                   }}
                   placeholder="Tüm 8 depoda ara: Film, şiir, kod parçacığı, gezi rotası, ders notu, ses, fotoğraf, PDF..."
-                  className="w-full bg-transparent text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none"
+                  className="w-full bg-transparent text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none"
                   autoFocus
                 />
                 {globalQuery && (
                   <button
                     type="button"
                     onClick={() => setGlobalQuery("")}
-                    className="p-1 text-slate-400 hover:text-slate-700"
+                    className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1335,14 +1339,14 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setIsGlobalSearchOpen(false)}
-                  className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10px] font-mono font-bold text-slate-500 hover:text-slate-800"
+                  className="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                 >
                   ESC
                 </button>
               </div>
 
               {/* Hızlı Kategori Filtre Çipleri */}
-              <div className="px-5 py-2.5 bg-white border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto">
+              <div className="px-5 py-2.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto">
                 {[
                   { label: "Tümü", q: "" },
                   { label: "🎬 Filmler", q: "film" },
@@ -1361,7 +1365,7 @@ export default function HomePage() {
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition ${
                       globalQuery.toLowerCase() === chip.q && chip.q !== ""
                         ? "bg-indigo-600 text-white"
-                        : "bg-slate-100 hover:bg-slate-200/70 text-slate-600"
+                        : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700/70 text-slate-600 dark:text-slate-300"
                     }`}
                   >
                     {chip.label}
@@ -1370,14 +1374,14 @@ export default function HomePage() {
               </div>
 
               {/* Sonuç Listesi */}
-              <div className="max-h-96 overflow-y-auto p-3 divide-y divide-slate-100">
+              <div className="max-h-96 overflow-y-auto p-3 divide-y divide-slate-100 dark:divide-slate-800">
                 {globalResults.length === 0 ? (
                   <div className="py-12 text-center space-y-2">
-                    <Search className="w-8 h-8 text-slate-300 mx-auto" />
-                    <p className="text-sm font-bold text-slate-700">
+                    <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
                       "{globalQuery}" ile eşleşen içerik bulunamadı
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
                       Farklı bir anahtar kelime (örn. Inception, FastAPI, Kaş, A*, Podcast, PDF) deneyin.
                     </p>
                   </div>
@@ -1390,10 +1394,10 @@ export default function HomePage() {
                         setIsGlobalSearchOpen(false);
                         router.push(res.href);
                       }}
-                      className="w-full px-4 py-3 hover:bg-indigo-50/70 flex items-center justify-between gap-4 rounded-2xl transition text-left group"
+                      className="w-full px-4 py-3 hover:bg-indigo-50/70 dark:hover:bg-slate-800/70 flex items-center justify-between gap-4 rounded-2xl transition text-left group"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white text-slate-600 flex items-center justify-center shrink-0 transition">
+                        <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 group-hover:bg-indigo-600 group-hover:text-white text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition">
                           {res.type === "movie" ? (
                             <Film className="w-4 h-4" />
                           ) : res.type === "text" ? (
@@ -1415,11 +1419,11 @@ export default function HomePage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-bold text-slate-900 group-hover:text-indigo-700 truncate">
+                          <div className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-indigo-700 dark:group-hover:text-indigo-400 truncate">
                             {res.title}
                           </div>
-                          <div className="text-xs text-slate-500 truncate mt-0.5">
-                            <span className="font-semibold text-slate-600">
+                          <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                            <span className="font-semibold text-slate-600 dark:text-slate-300">
                               {res.containerName}
                             </span>{" "}
                             • {res.subtitle}
@@ -1428,10 +1432,10 @@ export default function HomePage() {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 group-hover:bg-indigo-100 text-slate-600 group-hover:text-indigo-800 border border-slate-200/70">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-950/60 text-slate-600 dark:text-slate-300 group-hover:text-indigo-800 dark:group-hover:text-indigo-300 border border-slate-200/70 dark:border-slate-700/70">
                           {res.badge}
                         </span>
-                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600" />
+                        <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-indigo-600 dark:group-hover:text-indigo-400" />
                       </div>
                     </button>
                   ))
@@ -1439,19 +1443,19 @@ export default function HomePage() {
               </div>
 
               {/* Alt Bilgi Çubuğu */}
-              <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="px-5 py-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                 <span>
                   Toplam <b>{globalResults.length}</b> sonuç listeleniyor
                 </span>
                 <div className="flex items-center gap-3">
                   <span>
-                    <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono">
+                    <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-[10px] font-mono">
                       Enter
                     </kbd>{" "}
                     İlk sonuca git
                   </span>
                   <span>
-                    <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono">
+                    <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-[10px] font-mono">
                       ESC
                     </kbd>{" "}
                     Kapat

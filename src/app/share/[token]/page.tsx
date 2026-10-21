@@ -34,6 +34,7 @@ import {
   Camera,
 } from "lucide-react";
 import { isTokenDeleted, getSharedLinks } from "@/lib/appStore";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface SharedRecord {
   title: string;
@@ -809,9 +810,9 @@ function ShareContent() {
 
   // 4. Durum: BAŞARILI SALT OKUNUR GÖRÜNÜM
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900 font-sans flex flex-col justify-between">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col justify-between transition-colors duration-200">
       {/* ÜST BİLGİ ŞERİDİ */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 sticky top-0 z-30 shadow-xs">
+      <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-8 py-3.5 sticky top-0 z-30 shadow-xs">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
@@ -819,24 +820,27 @@ function ShareContent() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-900">
+                <span className="text-xs font-bold text-slate-900 dark:text-white">
                   Kişisel Depo
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
                   {item.scope === "container" ? "Tüm Depo Paylaşımı" : "Tekil İçerik Paylaşımı"}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">
                 Salt Okunur Vitrin (Değişiklik yapılamaz)
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-600 flex items-center justify-center text-white text-[11px] font-bold">
-              {item.authorAvatar}
+          <div className="flex items-center gap-3 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            <ThemeToggle />
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-700">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-600 flex items-center justify-center text-white text-[11px] font-bold">
+                {item.authorAvatar}
+              </div>
+              <span>{item.author}</span>
             </div>
-            <span>{item.author}</span>
           </div>
         </div>
       </header>
@@ -849,9 +853,9 @@ function ShareContent() {
         {item.scope === "container" ? (
           <div className="space-y-8">
             {/* Depo Başlığı & Tanıtım Kartı */}
-            <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-800/60">
                   {item.type === "movie"
                     ? "Film & Dizi Deposu"
                     : item.type === "code"

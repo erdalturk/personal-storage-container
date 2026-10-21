@@ -36,7 +36,12 @@ import {
   Upload,
   LogOut,
   Database,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
+import { useTheme } from "@/components/ThemeProvider";
 import {
   getSharedLinks,
   toggleShareLinkActive,
@@ -64,6 +69,7 @@ const AVATAR_PALETTES = [
 export default function ProfilePage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   // Profil State'leri
   const [displayName, setDisplayName] = useState("Erdal Türk");
@@ -236,61 +242,64 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-200">
       {/* ÜST HEADER */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 sm:px-8 shadow-xs">
+      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-4 sm:px-8 shadow-xs">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             title="Ana Sayfaya Dön"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
 
           <div>
-            <h1 className="font-bold text-base sm:text-lg text-slate-900">
+            <h1 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white">
               Hesap, Yedekleme ve Paylaşım Yönetimi
             </h1>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Profil bilgileri, tam arşiv yedekleme ve salt okunur dış bağlantılar
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-colors"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Oturumu Kapat</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <ThemeToggle />
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/80 text-xs font-bold transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Oturumu Kapat</span>
+          </button>
+        </div>
       </header>
 
       {/* ANA İÇERİK ALANI */}
       <main className="max-w-4xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8 flex-1">
         {/* 1. KULLANICI KİMLİK KARTI (Görüntüleme Modu - Sade, Temiz, Düzenle Butonlu) */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div
-              className={`w-16 h-16 rounded-2xl bg-gradient-to-tr ${avatarGradient} flex items-center justify-center text-white text-xl font-bold shadow-md shadow-indigo-100 shrink-0 transition-all`}
+              className={`w-16 h-16 rounded-2xl bg-gradient-to-tr ${avatarGradient} flex items-center justify-center text-white text-xl font-bold shadow-md shadow-indigo-100 dark:shadow-none shrink-0 transition-all`}
             >
               {displayName.slice(0, 2).toUpperCase() || "ET"}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-extrabold text-xl sm:text-2xl text-slate-900 tracking-tight">
+                <h2 className="font-extrabold text-xl sm:text-2xl text-slate-900 dark:text-white tracking-tight">
                   {displayName}
                 </h2>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">{email}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{email}</p>
               
               <div className="flex items-center gap-2 mt-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
-                  <Shield className="w-3 h-3 text-emerald-600" />
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                  <Shield className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                   <span>Kişisel Arşiv Sahibi</span>
                 </div>
-                <span className="text-[10px] text-slate-400 font-medium">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
                   • Ekim 2026'dan beri üye
                 </span>
               </div>
@@ -301,37 +310,117 @@ export default function ProfilePage() {
           <div className="self-end sm:self-center flex items-center gap-2.5">
             <button
               onClick={handleOpenEdit}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold transition-all border border-slate-200 shadow-xs"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700 shadow-xs"
             >
-              <Settings className="w-4 h-4 text-slate-500" />
+              <Settings className="w-4 h-4 text-slate-500 dark:text-slate-400" />
               <span>Profili Düzenle</span>
             </button>
           </div>
         </div>
 
-        {/* 1.2 MASTER PIN GÜVENLİK YÖNETİMİ (Tek Master PIN ile Tüm Depoları Koruma) */}
-        <section className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-5">
+        {/* 1.1 GÖRÜNÜM & TEMA YÖNETİMİ (Karanlık Mod / Açık Mod / Sistem) */}
+        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-800/60">
+                {resolvedTheme === "dark" ? <Moon className="w-5 h-5 text-amber-400" /> : <Sun className="w-5 h-5 text-amber-500" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                    Görünüm ve Tema Tercihi
+                  </h3>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full border bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60">
+                    {theme === "system" ? "Sistem (Otomatik)" : theme === "dark" ? "Koyu Tema" : "Açık Tema"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Uygulamanın açık veya OLED uyumlu koyu modda nasıl görüneceğini belirleyin.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setTheme("system")}
+              className={`p-4 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
+                theme === "system"
+                  ? "border-indigo-600 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 ring-2 ring-indigo-200 dark:ring-indigo-800/60"
+                  : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-800/60"
+              }`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                <Monitor className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900 dark:text-white">Sistem Varsayılanı</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Cihaz ayarını izler</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTheme("light")}
+              className={`p-4 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
+                theme === "light"
+                  ? "border-indigo-600 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 ring-2 ring-indigo-200 dark:ring-indigo-800/60"
+                  : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-800/60"
+              }`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <Sun className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900 dark:text-white">Açık Tema</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Standart aydınlık mod</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTheme("dark")}
+              className={`p-4 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
+                theme === "dark"
+                  ? "border-indigo-600 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 ring-2 ring-indigo-200 dark:ring-indigo-800/60"
+                  : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-800/60"
+              }`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                <Moon className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900 dark:text-white">Koyu Tema</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">OLED uyumlu karanlık mod</div>
+              </div>
+            </button>
+          </div>
+        </section>
+
+        {/* 1.2 MASTER PIN GÜVENLİK YÖNETİMİ (Tek Master PIN ile Tüm Depoları Koruma) */}
+        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-800/60">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-base text-slate-900">
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">
                     Depo Güvenlik PIN'i (Master PIN)
                   </h3>
                   <span
                     className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                       isPinSet
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-amber-50 text-amber-800 border-amber-200"
+                        ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
+                        : "bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/60"
                     }`}
                   >
                     {isPinSet ? "Özel Master PIN Aktif" : "Varsayılan PIN (1234)"}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Tüm kilitli depolarınız tek bir Master PIN ile korunur ve sadece bu sayfadan değiştirilebilir.
                 </p>
               </div>
@@ -346,9 +435,9 @@ export default function ProfilePage() {
                 setNewPinInput("");
                 setConfirmPinInput("");
               }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition border border-slate-200 self-start sm:self-auto"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition border border-slate-200 dark:border-slate-700 self-start sm:self-auto"
             >
-              <Lock className="w-3.5 h-3.5 text-slate-500" />
+              <Lock className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <span>{isPinFormOpen ? "Formu Kapat" : isPinSet ? "PIN'i Değiştir" : "Kişisel PIN Belirle"}</span>
             </button>
           </div>
@@ -360,14 +449,14 @@ export default function ProfilePage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="pt-4 border-t border-slate-100 space-y-4 overflow-hidden"
+                className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4 overflow-hidden"
               >
                 {pinFeedback && (
                   <div
                     className={`p-3.5 rounded-2xl text-xs font-semibold border ${
                       pinFeedback.type === "success"
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : "bg-rose-50 text-rose-700 border-rose-200"
+                        ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
+                        : "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900/60"
                     }`}
                   >
                     {pinFeedback.msg}
@@ -377,7 +466,7 @@ export default function ProfilePage() {
                 <form onSubmit={handleUpdateMasterPin} className="space-y-4 max-w-md">
                   {isPinSet && (
                     <div>
-                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
                         Mevcut PIN
                       </label>
                       <input
@@ -386,7 +475,7 @@ export default function ProfilePage() {
                         value={currentPinInput}
                         onChange={(e) => setCurrentPinInput(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono tracking-widest outline-none focus:border-indigo-500 focus:bg-white"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl text-sm font-mono tracking-widest outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900"
                         autoFocus
                       />
                     </div>
@@ -394,7 +483,7 @@ export default function ProfilePage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
                         Yeni PIN (4-6 Haneli)
                       </label>
                       <input
@@ -403,12 +492,12 @@ export default function ProfilePage() {
                         value={newPinInput}
                         onChange={(e) => setNewPinInput(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono tracking-widest outline-none focus:border-indigo-500 focus:bg-white"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl text-sm font-mono tracking-widest outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900"
                         autoFocus={!isPinSet}
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-1">
                         Yeni PIN Tekrar
                       </label>
                       <input
@@ -417,7 +506,7 @@ export default function ProfilePage() {
                         value={confirmPinInput}
                         onChange={(e) => setConfirmPinInput(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono tracking-widest outline-none focus:border-indigo-500 focus:bg-white"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl text-sm font-mono tracking-widest outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900"
                       />
                     </div>
                   </div>
@@ -425,14 +514,14 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-2 pt-1">
                     <button
                       type="submit"
-                      className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 transition"
+                      className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 dark:shadow-none transition"
                     >
                       {isPinSet ? "PIN'i Güncelle" : "Master PIN'i Kaydet"}
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsPinFormOpen(false)}
-                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition"
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                     >
                       Vazgeç
                     </button>
@@ -490,31 +579,31 @@ export default function ProfilePage() {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Paylaşılan İçerikler
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Daha önce oluşturduğun salt okunur dış bağlantıları yönet ve istediğin zaman erişimi iptal et.
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-200">
+            <span className="px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800/60">
               {sharedLinks.filter((s) => s.isActive).length} Aktif Bağlantı
             </span>
           </div>
 
           {/* Otomatik İptal & Temizleme Güvenlik Bilgilendirmesi */}
-          <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center gap-3 text-xs text-indigo-900">
-            <Shield className="w-4 h-4 text-indigo-600 shrink-0" />
+          <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-center gap-3 text-xs text-indigo-900 dark:text-indigo-200">
+            <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
             <span>
               <b>Otomatik İptal Kuralı:</b> Silinen içerik veya depolara ait tüm dış bağlantılar anında sonlandırılır ve bu listeden otomatik olarak kaldırılır.
             </span>
           </div>
 
           {sharedLinks.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 space-y-2">
-              <Share2 className="w-8 h-8 text-slate-300 mx-auto" />
-              <h3 className="font-bold text-slate-800">Henüz paylaşılan içerik yok</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+              <Share2 className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+              <h3 className="font-bold text-slate-800 dark:text-slate-200">Henüz paylaşılan içerik yok</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                 Depolarındaki şiirleri veya filmleri dışarıdaki insanlara salt okunur göstermek için içerik kartındaki "Paylaş" butonunu kullanabilirsin.
               </p>
             </div>
@@ -523,10 +612,10 @@ export default function ProfilePage() {
               {sharedLinks.map((link) => (
                 <div
                   key={link.id}
-                  className={`bg-white rounded-2xl p-4 sm:p-5 border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                  className={`bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                     link.isActive
-                      ? "border-slate-200 shadow-xs"
-                      : "border-slate-200/60 bg-slate-50/50 opacity-60"
+                      ? "border-slate-200 dark:border-slate-800 shadow-xs"
+                      : "border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-850/40 opacity-60"
                   }`}
                 >
                   <div className="flex items-start gap-3.5">
@@ -574,14 +663,14 @@ export default function ProfilePage() {
 
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-bold text-sm text-slate-900">
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">
                           {link.itemTitle}
                         </h4>
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             link.scope === "container"
-                              ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                              : "bg-slate-100 text-slate-600 border border-slate-200"
+                              ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                           }`}
                         >
                           {link.scope === "container" ? "Tüm Depo" : "Tekil İçerik"}
@@ -589,15 +678,15 @@ export default function ProfilePage() {
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             link.isActive
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-rose-50 text-rose-700 border border-rose-200"
+                              ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60"
+                              : "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60"
                           }`}
                         >
                           {link.isActive ? "Aktif" : "Erişim Kapatıldı"}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500 font-medium flex-wrap">
+                      <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium flex-wrap">
                         <span>Depo: {link.containerName}</span>
                         <span>•</span>
                         <span>{link.createdAt}</span>
@@ -608,7 +697,7 @@ export default function ProfilePage() {
                         </span>
                       </div>
 
-                      <div className="mt-2 text-[11px] font-mono text-indigo-600 flex items-center gap-1">
+                      <div className="mt-2 text-[11px] font-mono text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
                         <span>/share/{link.token}</span>
                       </div>
                     </div>
@@ -620,7 +709,7 @@ export default function ProfilePage() {
                     <Link
                       href={`/share/${link.token}`}
                       target="_blank"
-                      className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                      className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       title="Salt Okunur Önizlemeyi Aç"
                     >
                       <ExternalLink className="w-4 h-4" />
@@ -629,7 +718,7 @@ export default function ProfilePage() {
                     {/* Linki Kopyala */}
                     <button
                       onClick={() => handleCopyLink(link.token)}
-                      className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                      className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       title="Bağlantıyı Kopyala"
                     >
                       {copiedToken === link.token ? (
@@ -644,8 +733,8 @@ export default function ProfilePage() {
                       onClick={() => handleToggleShareActive(link.id)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                         link.isActive
-                          ? "bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200"
-                          : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                          ? "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-900/60"
+                          : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700"
                       }`}
                       title={
                         link.isActive
@@ -660,7 +749,7 @@ export default function ProfilePage() {
                     {/* Bağlantıyı Tamamen Sil / Kaldır */}
                     <button
                       onClick={() => handleDeleteShare(link.id)}
-                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
                       title="Paylaşım Bağlantısını İptal Et ve Listeden Kaldır"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -689,26 +778,26 @@ export default function ProfilePage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 z-10 space-y-6"
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 z-10 space-y-6"
             >
               {/* Modal Başlık */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
                     <User className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-base text-slate-900">
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white">
                       Profili Düzenle
                     </h3>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Salt okunur paylaşımlarda görünecek kimliğinizi güncelleyin
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsEditModalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -718,7 +807,7 @@ export default function ProfilePage() {
               <div className="space-y-4">
                 {/* 1. Görünen Ad / Takma Ad */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
                     Görünen Ad / Takma Ad
                   </label>
                   <input
@@ -726,16 +815,16 @@ export default function ProfilePage() {
                     value={tempDisplayName}
                     onChange={(e) => setTempDisplayName(e.target.value)}
                     placeholder="Örn: Erdal Türk"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-100 transition-all"
                   />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
                     Bu isim dışarıya paylaştığınız içeriklerde imzanız olarak görünür.
                   </span>
                 </div>
 
                 {/* 2. Avatar Renk Paleti */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
                     Avatar Rengi Seçin
                   </label>
                   <div className="flex items-center gap-2.5">
@@ -761,27 +850,27 @@ export default function ProfilePage() {
 
                 {/* 3. E-posta (Salt Okunur) */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
                     Giriş E-postası (Değiştirilemez)
                   </label>
-                  <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-100 border border-slate-200/80 rounded-xl text-xs text-slate-500 font-medium">
+                  <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs text-slate-500 dark:text-slate-400 font-medium">
                     <span>{email}</span>
-                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    <Lock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                   </div>
                 </div>
 
                 {/* Bölüm 13.3 Kural Hatırlatması */}
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-[10px] text-slate-500 leading-relaxed">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
                   💡 <b>Not:</b> Platform sosyal medya olmadığı için biyografi (bio), takipçi ve benzeri alanlar bulunmamaktadır.
                 </div>
               </div>
 
               {/* Alt Eylemler: Vazgeç & Kaydet */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   Vazgeç
                 </button>

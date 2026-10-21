@@ -17,6 +17,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { loginUser } from "@/lib/appStore";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -69,7 +70,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col lg:flex-row font-sans">
+    <div className="min-h-screen bg-[#FAF8F5] dark:bg-slate-950 text-stone-900 dark:text-slate-100 flex flex-col lg:flex-row font-sans transition-colors duration-200">
       {/* Sol Vitrin Paneli */}
       <div className="lg:w-1/2 bg-gradient-to-br from-slate-900 via-indigo-950 to-stone-900 text-white p-8 sm:p-14 flex flex-col justify-between relative overflow-hidden">
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
@@ -90,10 +91,13 @@ export default function LoginPage() {
             </div>
           </Link>
 
-          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/10 border border-white/15 text-indigo-200 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            v2.0 Tam Sürüm
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/10 border border-white/15 text-indigo-200 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              v2.0 Tam Sürüm
+            </span>
+            <ThemeToggle />
+          </div>
         </div>
 
         <div className="relative z-10 my-12 lg:my-0 max-w-lg space-y-6">
@@ -141,10 +145,10 @@ export default function LoginPage() {
       </div>
 
       {/* Sağ Giriş / Kayıt Formu */}
-      <div className="lg:w-1/2 flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md bg-white rounded-3xl border border-stone-200/90 shadow-xl p-7 sm:p-9 space-y-6">
+      <div className="lg:w-1/2 flex items-center justify-center p-6 sm:p-12 bg-[#FAF8F5] dark:bg-slate-950 transition-colors">
+        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-stone-200/90 dark:border-slate-800 shadow-xl p-7 sm:p-9 space-y-6">
           {/* Mod Seçici */}
-          <div className="flex p-1 bg-stone-100 rounded-2xl border border-stone-200/70">
+          <div className="flex p-1 bg-stone-100 dark:bg-slate-800 rounded-2xl border border-stone-200/70 dark:border-slate-700">
             <button
               type="button"
               onClick={() => {
@@ -153,8 +157,8 @@ export default function LoginPage() {
               }}
               className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition ${
                 mode === "login"
-                  ? "bg-white text-stone-900 shadow-xs"
-                  : "text-stone-500 hover:text-stone-800"
+                  ? "bg-white dark:bg-slate-900 text-stone-900 dark:text-white shadow-xs"
+                  : "text-stone-500 dark:text-slate-400 hover:text-stone-800 dark:hover:text-slate-200"
               }`}
             >
               Giriş Yap
@@ -167,8 +171,8 @@ export default function LoginPage() {
               }}
               className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition ${
                 mode === "register"
-                  ? "bg-white text-stone-900 shadow-xs"
-                  : "text-stone-500 hover:text-stone-800"
+                  ? "bg-white dark:bg-slate-900 text-stone-900 dark:text-white shadow-xs"
+                  : "text-stone-500 dark:text-slate-400 hover:text-stone-800 dark:hover:text-slate-200"
               }`}
             >
               Yeni Hesap Oluştur
@@ -176,10 +180,10 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <h2 className="text-2xl font-extrabold text-stone-900 tracking-tight">
+            <h2 className="text-2xl font-extrabold text-stone-900 dark:text-white tracking-tight">
               {mode === "login" ? "Tekrar Hoş Geldiniz" : "Kişisel Deponuzu Açın"}
             </h2>
-            <p className="text-xs text-stone-500 mt-1">
+            <p className="text-xs text-stone-500 dark:text-slate-400 mt-1">
               {mode === "login"
                 ? "Kişisel arşivlerinize ve özel depolarınıza erişmek için giriş yapın."
                 : "Saniyeler içinde ücretsiz hesabınızı oluşturup arşivlemeye başlayın."}
@@ -187,7 +191,7 @@ export default function LoginPage() {
           </div>
 
           {errorMsg && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/60 text-xs font-semibold text-rose-700 dark:text-rose-300">
               {errorMsg}
             </div>
           )}
@@ -195,41 +199,41 @@ export default function LoginPage() {
           <form onSubmit={handleAuthSubmit} className="space-y-4">
             {mode === "register" && (
               <div>
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-stone-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                   Ad Soyad
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <User className="w-4 h-4 text-stone-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Örn: Erdal Türk"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-stone-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 E-Posta Adresi
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-stone-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="ornek@kisiseldepo.com"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                <label className="block text-xs font-bold text-stone-700 dark:text-slate-300 uppercase tracking-wider">
                   Şifre
                 </label>
                 {mode === "login" && (
@@ -240,25 +244,25 @@ export default function LoginPage() {
                         "Şifre sıfırlama bağlantısı e-posta adresinize gönderildi (Demo)."
                       )
                     }
-                    className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700"
+                    className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
                   >
                     Şifremi Unuttum?
                   </button>
                 )}
               </div>
               <div className="relative">
-                <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-stone-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-slate-500 hover:text-stone-700 dark:hover:text-slate-300"
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -286,18 +290,18 @@ export default function LoginPage() {
           </form>
 
           <div className="relative flex py-1 items-center">
-            <div className="grow border-t border-stone-200" />
-            <span className="shrink mx-3 text-[11px] uppercase tracking-wider text-stone-400 font-semibold">
+            <div className="grow border-t border-stone-200 dark:border-slate-800" />
+            <span className="shrink mx-3 text-[11px] uppercase tracking-wider text-stone-400 dark:text-slate-500 font-semibold">
               veya hızlı bağlantı
             </span>
-            <div className="grow border-t border-stone-200" />
+            <div className="grow border-t border-stone-200 dark:border-slate-800" />
           </div>
 
           <div className="space-y-2.5">
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-xs font-bold transition flex items-center justify-center gap-2.5 shadow-2xs"
+              className="w-full py-2.5 px-4 rounded-xl bg-white dark:bg-slate-800 hover:bg-stone-50 dark:hover:bg-slate-700/80 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-2.5 shadow-2xs"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path
@@ -323,9 +327,9 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={handleQuickDemo}
-              className="w-full py-2.5 px-4 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 text-amber-900 text-xs font-bold transition flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100/80 dark:hover:bg-amber-900/60 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs font-bold transition flex items-center justify-center gap-2"
             >
-              <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+              <KeyRound className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
               Demo Hesapla Tek Tıkla Giriş (Erdal Türk)
             </button>
           </div>
