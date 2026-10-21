@@ -668,6 +668,7 @@ export interface FullArchiveBackup {
   };
   trash: TrashItem[];
   sharedLinks: SharedLink[];
+  masterPin?: string | null;
 }
 
 export function exportFullArchive(): string {
@@ -689,6 +690,7 @@ export function exportFullArchive(): string {
     },
     trash: getTrashItems(),
     sharedLinks: getSharedLinks(),
+    masterPin: getMasterPin(),
   };
 
   return JSON.stringify(backup, null, 2);
@@ -752,6 +754,9 @@ export function importFullArchive(jsonString: string): {
     }
     if (Array.isArray(parsed.sharedLinks)) {
       safeSet(STORAGE_KEYS.SHARED, parsed.sharedLinks);
+    }
+    if (parsed.masterPin && typeof parsed.masterPin === "string") {
+      safeSet(PIN_STORAGE_KEY, parsed.masterPin);
     }
 
     notifyStoreUpdate();
@@ -1163,6 +1168,119 @@ export function searchAllItems(query: string): GlobalSearchResult[] {
       item.keywords.toLowerCase().includes(q)
   );
 }
+
+/* ========================================================================== */
+/* DİNAMİK DEPO MASTER PIN YÖNETİMİ                                           */
+/* ========================================================================== */
+
+const PIN_STORAGE_KEY = "psc_master_pin";
+const PIN_ATTEMPTS_KEY = "psc_pin_attempts_info";
+
+interface PinAttemptsInfo {
+  failedCount: number;
+  lockedUntil: number; // ms timestamp
+}
+
+export function hasMasterPin(): boolean {
+  const pin = getMasterPin();
+  return Boolean(pin && pin.trim().length >= 4);
+}
+
+export function getMasterPin(): string | null {
+  return safeGet<string | null>(PIN_STORAGE_KEY, null);
+}
+
+export function setMasterPin(pin: string): { success: boolean; message: string } {
+  const clean = pin.trim();
+  if (!/^\d{4,6}$/.test(clean)) {
+    return { success: false, message: "PIN sadece 4 ile 6 haneli rakamlardan oluşmalıdır." };
+  }
+  safeSet(PIN_STORAGE_KEY, clean);
+  // Hatalı deneme sayacını sıfırla
+  safeSet(PIN_ATTEMPTS_KEY, { failedCount: 0, lockedUntil: 0 });
+  notifyStoreUpdate();
+  return { success: true, message: "Kişisel Depo Master PIN'iniz başarıyla kaydedildi." };
+}
+
+export function verifyMasterPin(inputPin: string): {
+  valid: boolean;
+  isLockedOut: boolean;
+  lockSecondsRemaining: number;
+  remainingAttempts: number;
+  message?: string;
+} {
+  const now = Date.now();
+  const attempts: PinAttemptsInfo = safeGet<PinAttemptsInfo>(PIN_ATTEMPTS_KEY, {
+    failedCount: 0,
+    lockedUntil: 0,
+  });
+
+  // Kilitlenme kontrolü
+  if (attempts.lockedUntil > now) {
+    const diffSec = Math.ceil((attempts.lockedUntil - now) / 1000);
+    return {
+      valid: false,
+      isLockedOut: true,
+      lockSecondsRemaining: diffSec,
+      remainingAttempts: 0,
+      message: `Çok fazla hatalı deneme! Lütfen ${diffSec} saniye bekleyin.`,
+    };
+  }
+
+  const currentPin = getMasterPin();
+  // Eğer henüz PIN belirlenmemişse varsayılan "1234" ile de geçici olarak eşleşebilir
+  const effectivePin = currentPin || "1234";
+
+  if (inputPin.trim() === effectivePin) {
+    // Başarılı: sıfırla
+    safeSet(PIN_ATTEMPTS_KEY, { failedCount: 0, lockedUntil: 0 });
+    return {
+      valid: true,
+      isLockedOut: false,
+      lockSecondsRemaining: 0,
+      remainingAttempts: 5,
+    };
+  }
+
+  // Hatalı giriş
+  const newFailedCount = (attempts.failedCount || 0) + 1;
+  if (newFailedCount >= 5) {
+    const lockTime = now + 30 * 1000; // 30 saniye kilit
+    safeSet(PIN_ATTEMPTS_KEY, { failedCount: newFailedCount, lockedUntil: lockTime });
+    return {
+      valid: false,
+      isLockedOut: true,
+      lockSecondsRemaining: 30,
+      remainingAttempts: 0,
+      message: "5 kez hatalı PIN girildi! Güvenlik nedeniyle sistem 30 saniye kilitlendi.",
+    };
+  }
+
+  safeSet(PIN_ATTEMPTS_KEY, { failedCount: newFailedCount, lockedUntil: 0 });
+  const remaining = 5 - newFailedCount;
+  return {
+    valid: false,
+    isLockedOut: false,
+    lockSecondsRemaining: 0,
+    remainingAttempts: remaining,
+    message: `Hatalı PIN! ${remaining} deneme hakkınız kaldı.`,
+  };
+}
+
+export function changeMasterPin(oldPin: string, newPin: string): { success: boolean; message: string } {
+  const currentPin = getMasterPin() || "1234";
+  if (oldPin.trim() !== currentPin) {
+    return { success: false, message: "Mevcut PIN hatalı! Lütfen kontrol edin." };
+  }
+  return setMasterPin(newPin);
+}
+
+export function resetMasterPinForDemo(): void {
+  safeSet(PIN_STORAGE_KEY, "1234");
+  safeSet(PIN_ATTEMPTS_KEY, { failedCount: 0, lockedUntil: 0 });
+  notifyStoreUpdate();
+}
+
 
 
 

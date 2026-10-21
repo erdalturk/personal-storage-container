@@ -7,11 +7,11 @@
 
 ---
 
-## 📅 Gün Gün Yeniden Düzenlenmiş Teslimat Takvimi
+## 📅 Gün Gün Yeniden Düzenlenmiş MVP Teslimat Takvimi
 
 | Gün / Tarih | Durum | Odak / Sprint Hedefi | Teslim Edilecek Özellikler |
 | :--- | :---: | :--- | :--- |
-| **1. Gün (21 Ekim - Bugün)** | ⏳ **Aktif** | **PWA Mobil Kurulumu & Kişisel Güvenlik** | • PWA doğrulaması (`manifest.json`, `sw.js` offline önbellek, "Uygulamayı Yükle" banner'ı)<br>• Dinamik Depo PIN (kullanıcının kendi 4-6 haneli PIN'ini belirlemesi & kilitlenme koruması)<br>• Süreli Paylaşım (24 saat, 3 gün, 7 gün) ve Parolalı Paylaşım Vitrini |
+| **1. Gün (21 Ekim - Bugün)** | ⏳ **Aktif** | **PWA Mobil Kurulumu & Dinamik PIN Güvenliği** | • PWA doğrulaması (`manifest.json`, `sw.js` offline önbellek, "Uygulamayı Yükle" banner'ı)<br>• Dinamik Depo PIN (kullanıcının kendi 4-6 haneli PIN'ini belirlemesi & kilitlenme koruması) |
 | **2. Gün (22 Ekim - Yarın)** | 📋 Planlandı | **Karanlık Mod & Zengin Dışa Aktarma** | • OLED uyumlu Dark Mode (Açık/Koyu tema geçişi)<br>• Şiir ve notları `.md` / `.pdf`, kodları `.py` / `.ts` olarak tekil veya ZIP indirme |
 | **3. Gün (23 Ekim - Cuma)** | 📋 Planlandı | **Bulut Veritabanı (Supabase)** | • PostgreSQL şeması ve RLS politikaları<br>• `localStorage` ile hibrit çalışan kesintisiz bulut senkronizasyonu |
 | **4. Gün (24 Ekim - Cumartesi)** | 📋 Planlandı | **Canlı TMDB Film/Dizi API'si** | • Film ararken The Movie Database (TMDB) API'den anında gerçek afiş, özet, yönetmen ve puan çekme |
@@ -31,7 +31,7 @@
 
 ---
 
-## 🏃 1. Gün (21 Ekim - Bugün) Detaylı Görev Listesi
+## 🏃 1. Gün (21 Ekim - Bugün) Kapsamı: PWA ve Dinamik PIN Güvenliği
 
 1. **PWA & Mobil Uyumluluk:**
    - [x] Web App Manifest (`public/manifest.json`)
@@ -40,9 +40,21 @@
    - [x] "Kişisel Depo'yu Yükle" Banner'ı (`PwaRegister.tsx`)
 2. **Dinamik Depo PIN Güvenliği:**
    - [ ] Sabit 1234 yerine kullanıcının kendi PIN'ini belirleyebilmesi (`setUserPin`, `verifyUserPin`)
-   - [ ] 5 hatalı denemede 30 saniye geçici kilitlenme
-   - [ ] `/profile` sayfasında "PIN Değiştir" paneli
-3. **Süreli ve Parolalı Paylaşım:**
-   - [ ] Paylaşırken süre sınırı seçebilme (Sınırsız / 24 Saat / 3 Gün / 7 Gün)
-   - [ ] Paylaşırken isteğe bağlı parola belirleyebilme
-   - [ ] `/share/[token]` vitrininde süre aşımı ("Bağlantı Süresi Doldu") ve parola koruma ekranı
+   - [ ] Hatalı deneme kısıtlaması (Brute-force kilitlenme koruması)
+   - [ ] Kilit açma modalından veya Profil sayfasından PIN belirleme/değiştirme
+
+---
+
+## 💡 İleriye Dönük Geliştirme & Ölçeklenme Fikir Havuzu (Future Backlog)
+
+MVP sonrasında veya ileride ölçeklenirken kullanılmak üzere ayrılan fikir havuzu:
+
+1. **Süreli ve Parolalı Paylaşım Linkleri:**
+   - Paylaşılan vitrin linklerine 24 saat / 3 gün / 7 gün otomatik süre kısıtı ve parola doğrulama ekranı ekleme.
+2. **Yapay Zekâ Entegrasyonları:**
+   - Ses kayıtları için Whisper API ile otomatik Türkçe transkript dökümü.
+   - Ders notlarından tek tıkla otomatik soru-cevap ezber kartları (Flashcards) çıkarma.
+3. **Uçtan Uca İstemci Şifreleme (E2EE):**
+   - Web Crypto API ile hassas depoları (sözleşmeler, özel notlar) istemcide AES-GCM ile şifreleme.
+4. **Kişisel Hafıza Analitiği (Wrapped Dashboard):**
+   - Spotify Wrapped / Duolingo tarzı "Bu ay ne kadar arşivledin?" özet paneli.

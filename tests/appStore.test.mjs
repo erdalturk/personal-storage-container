@@ -147,3 +147,65 @@ test("5. Kullanıcı Oturumu (loginUser, getCurrentUser, logoutUser) doğru çal
   const afterLogout = store.getCurrentUser();
   assert.equal(afterLogout.isAuthenticated, false);
 });
+
+test("6. Master PIN Belirleme, Doğrulama ve Değiştirme doğru çalışmalı", () => {
+  localStorage.clear();
+
+  // Henüz PIN belirlenmemişse hasMasterPin false olmalı
+  assert.equal(store.hasMasterPin(), false);
+
+  // Varsayılan PIN (1234) doğrulanabilmeli
+  const defaultVerify = store.verifyMasterPin("1234");
+  assert.equal(defaultVerify.valid, true);
+
+  // Geçersiz format (harf veya kısa) reddedilmeli
+  const badPinRes = store.setMasterPin("abc");
+  assert.equal(badPinRes.success, false);
+
+  // 4 haneli yeni PIN belirlenmeli
+  const setRes = store.setMasterPin("5821");
+  assert.equal(setRes.success, true);
+  assert.equal(store.hasMasterPin(), true);
+
+  // Eski şifre (1234) artık geçersiz olmalı
+  const oldVerify = store.verifyMasterPin("1234");
+  assert.equal(oldVerify.valid, false);
+
+  // Yeni şifre (5821) geçerli olmalı
+  const newVerify = store.verifyMasterPin("5821");
+  assert.equal(newVerify.valid, true);
+
+  // PIN Değiştirme: Eski şifre yanlışsa hata vermeli
+  const wrongOld = store.changeMasterPin("0000", "9999");
+  assert.equal(wrongOld.success, false);
+
+  // Doğru eski şifreyle PIN değiştirilmeli
+  const changeRes = store.changeMasterPin("5821", "9999");
+  assert.equal(changeRes.success, true);
+  assert.equal(store.verifyMasterPin("9999").valid, true);
+});
+
+test("7. Master PIN 5 hatalı denemede 30 saniye kilitlenmeli", () => {
+  localStorage.clear();
+  store.setMasterPin("1234");
+
+  // 4 kez hatalı deneme
+  for (let i = 1; i <= 4; i++) {
+    const res = store.verifyMasterPin("0000");
+    assert.equal(res.valid, false);
+    assert.equal(res.isLockedOut, false);
+    assert.equal(res.remainingAttempts, 5 - i);
+  }
+
+  // 5. hatalı deneme: Kilitlenme tetiklenmeli
+  const fifthRes = store.verifyMasterPin("0000");
+  assert.equal(fifthRes.valid, false);
+  assert.equal(fifthRes.isLockedOut, true);
+  assert.ok(fifthRes.lockSecondsRemaining > 0);
+
+  // Kilitliyken doğru şifre girilse bile reddedilmeli
+  const lockedAttempt = store.verifyMasterPin("1234");
+  assert.equal(lockedAttempt.isLockedOut, true);
+  assert.equal(lockedAttempt.valid, false);
+});
+

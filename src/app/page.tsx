@@ -38,6 +38,10 @@ import {
   searchAllItems,
   GlobalSearchResult,
   getCurrentUser,
+  hasMasterPin,
+  setMasterPin,
+  verifyMasterPin,
+  resetMasterPinForDemo,
 } from "@/lib/appStore";
 
 // Akıllı Depo Tanımları (Vitrindeki 4 Sabit Kart)
@@ -338,7 +342,31 @@ export default function HomePage() {
   // Depo Kilidi (PIN) Doğrulama Durumları
   const [pinModalTarget, setPinModalTarget] = useState<ContainerItem | null>(null);
   const [enteredPin, setEnteredPin] = useState("");
-  const [pinError, setPinError] = useState(false);
+  const [pinErrorMsg, setPinErrorMsg] = useState<string | null>(null);
+  const [lockoutTimer, setLockoutTimer] = useState<number>(0);
+
+  // İlk Kez Master PIN Belirleme Modalı (Kullanıcı ilk defa bir depoyu kilitlediğinde)
+  const [firstTimePinTarget, setFirstTimePinTarget] = useState<ContainerItem | null>(null);
+  const [newMasterPin, setNewMasterPin] = useState("");
+  const [confirmMasterPin, setConfirmMasterPin] = useState("");
+  const [firstTimeError, setFirstTimeError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 4000);
+  };
+
+  // Kilitlenme sayacı
+  useEffect(() => {
+    if (lockoutTimer <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutTimer((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutTimer]);
 
   const navigateToContainer = (target: ContainerItem) => {
     if (target.formatTitle === "Metin" || target.id === "c5") {
@@ -360,25 +388,95 @@ export default function HomePage() {
     }
   };
 
+  // PIN Doğrulama
   const handleVerifyPin = () => {
-    // Demo varsayılan PIN: 1234
-    if (enteredPin === "1234" && pinModalTarget) {
+    if (!enteredPin.trim() || lockoutTimer > 0) return;
+    const res = verifyMasterPin(enteredPin);
+    if (res.valid) {
       const target = pinModalTarget;
       setPinModalTarget(null);
-      navigateToContainer(target);
+      setEnteredPin("");
+      setPinErrorMsg(null);
+      if ((target as any)?.isUnlockAction) {
+        // Kilidi tamamen kaldırma eylemi
+        const updated = containers.map((c) =>
+          c.id === target?.id ? { ...c, isLocked: false } : c
+        );
+        setContainers(updated);
+        saveStoredCollection("containers", updated);
+        showToast(`"${target?.title}" deposunun kilidi kaldırıldı.`);
+      } else if (target) {
+        navigateToContainer(target);
+      }
     } else {
-      setPinError(true);
+      if (res.isLockedOut) {
+        setLockoutTimer(res.lockSecondsRemaining || 30);
+      }
+      setPinErrorMsg(res.message || "Hatalı PIN! Lütfen tekrar deneyin.");
     }
   };
 
   // Kilit açma/kapama fonksiyonu (Depo Kilidi On/Off Switch)
   const toggleLock = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setContainers((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, isLocked: !item.isLocked } : item
-      )
-    );
+    const target = containers.find((c) => c.id === id);
+    if (!target) return;
+
+    if (!target.isLocked) {
+      // Depoyu KİLİTLEMEK istiyor
+      if (!hasMasterPin()) {
+        // İlk defa kilitleniyorsa kişisel PIN belirleme ekranı gelsin!
+        setFirstTimePinTarget(target);
+        setNewMasterPin("");
+        setConfirmMasterPin("");
+        setFirstTimeError(null);
+        return;
+      }
+      // Zaten Master PIN var: tekrar şifre oluşturmadan doğrudan kilitler!
+      const updated = containers.map((item) =>
+        item.id === id ? { ...item, isLocked: true } : item
+      );
+      setContainers(updated);
+      saveStoredCollection("containers", updated);
+      showToast(`"${target.title}" kilitlendi.`);
+    } else {
+      // Kilitli bir deponun kilidini açıp korumayı kaldırmak için PIN doğrula
+      setPinModalTarget({ ...target, isUnlockAction: true } as any);
+      setEnteredPin("");
+      setPinErrorMsg(null);
+    }
+  };
+
+  // İlk Kez Master PIN Kaydetme
+  const handleSaveFirstTimePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFirstTimeError(null);
+    const clean = newMasterPin.trim();
+    if (!/^\d{4,6}$/.test(clean)) {
+      setFirstTimeError("PIN sadece 4 ile 6 haneli rakamlardan oluşmalıdır.");
+      return;
+    }
+    if (clean !== confirmMasterPin.trim()) {
+      setFirstTimeError("Girdiğiniz PIN'ler birbiriyle uyuşmuyor!");
+      return;
+    }
+
+    const res = setMasterPin(clean);
+    if (res.success) {
+      if (firstTimePinTarget) {
+        const updated = containers.map((c) =>
+          c.id === firstTimePinTarget.id ? { ...c, isLocked: true } : c
+        );
+        setContainers(updated);
+        saveStoredCollection("containers", updated);
+        showToast(`Master PIN oluşturuldu ve "${firstTimePinTarget.title}" kilitlendi.`);
+      }
+      setFirstTimePinTarget(null);
+      setNewMasterPin("");
+      setConfirmMasterPin("");
+    } else {
+      setFirstTimeError(res.message);
+    }
   };
 
   // Depo filtreleme
@@ -737,7 +835,7 @@ export default function HomePage() {
                       if (item.isLocked) {
                         setPinModalTarget(item);
                         setEnteredPin("");
-                        setPinError(false);
+                        setPinErrorMsg(null);
                         return;
                       }
                       navigateToContainer(item);
@@ -972,7 +1070,7 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* 6. DEPO KİLİDİ (PIN) DOĞRULAMA MODALI (Bölüm 14.2) */}
+      {/* 6. MEVCUT MASTER PIN DOĞRULAMA MODALI */}
       <AnimatePresence>
         {pinModalTarget && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -980,7 +1078,9 @@ export default function HomePage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setPinModalTarget(null)}
+              onClick={() => {
+                if (lockoutTimer <= 0) setPinModalTarget(null);
+              }}
               className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
             />
 
@@ -991,82 +1091,200 @@ export default function HomePage() {
               className="relative w-full max-w-sm bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200 z-10 text-center space-y-5"
             >
               {/* Kilit İkonu */}
-              <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100 shadow-xs">
-                <KeyRound className="w-7 h-7" />
+              <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto border border-indigo-100 shadow-xs">
+                <Lock className="w-7 h-7" />
               </div>
 
               <div>
                 <h3 className="text-lg font-extrabold text-slate-900">
-                  Bu Depo Korumalı
+                  {(pinModalTarget as any)?.isUnlockAction
+                    ? "Depo Kilidini Kaldır"
+                    : "Bu Depo Korumalı"}
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  "{pinModalTarget.title}" deposuna erişmek için lütfen 4 haneli PIN şifrenizi girin.
+                  {(pinModalTarget as any)?.isUnlockAction
+                    ? `"${pinModalTarget.title}" deposunun kilidini kaldırmak için Master PIN'inizi girin.`
+                    : `"${pinModalTarget.title}" deposuna erişmek için lütfen Master PIN'inizi girin.`}
                 </p>
-                <div className="mt-2 text-[11px] font-semibold text-indigo-600 bg-indigo-50 py-1 px-2.5 rounded-lg inline-block">
-                  Demo PIN: 1234
-                </div>
-              </div>
-
-              {/* PIN Giriş Alanı */}
-              <div className="space-y-3">
-                <input
-                  type="password"
-                  maxLength={4}
-                  value={enteredPin}
-                  onChange={(e) => {
-                    setEnteredPin(e.target.value);
-                    setPinError(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleVerifyPin();
-                  }}
-                  placeholder="••••"
-                  className={`w-40 mx-auto text-center tracking-[0.5em] text-2xl font-mono font-bold py-2.5 bg-slate-50 border-2 rounded-2xl outline-none transition-all ${
-                    pinError
-                      ? "border-rose-500 bg-rose-50 text-rose-700 focus:ring-4 focus:ring-rose-100"
-                      : "border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-                  }`}
-                  autoFocus
-                />
-
-                {pinError && (
-                  <p className="text-xs text-rose-600 font-bold animate-shake">
-                    Hatalı PIN! Lütfen tekrar deneyin.
-                  </p>
+                {!hasMasterPin() && (
+                  <div className="mt-2 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 py-1 px-2.5 rounded-lg inline-block">
+                    Henüz özel PIN oluşturmadınız (Varsayılan: 1234)
+                  </div>
                 )}
               </div>
+
+              {/* Kilitlenme Sayacı Aktifse */}
+              {lockoutTimer > 0 ? (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 space-y-1">
+                  <div className="text-xs font-bold">Geçici Güvenlik Kilidi Aktif</div>
+                  <div className="text-2xl font-mono font-extrabold">{lockoutTimer} sn</div>
+                  <div className="text-[10px] text-rose-600">
+                    Çok fazla hatalı deneme yapıldı. Lütfen sürenin dolmasını bekleyin.
+                  </div>
+                </div>
+              ) : (
+                /* PIN Giriş Alanı */
+                <div className="space-y-3">
+                  <input
+                    type="password"
+                    maxLength={6}
+                    value={enteredPin}
+                    onChange={(e) => {
+                      setEnteredPin(e.target.value);
+                      setPinErrorMsg(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleVerifyPin();
+                    }}
+                    placeholder="••••"
+                    className={`w-44 mx-auto text-center tracking-[0.4em] text-2xl font-mono font-bold py-2.5 bg-slate-50 border-2 rounded-2xl outline-none transition-all ${
+                      pinErrorMsg
+                        ? "border-rose-500 bg-rose-50 text-rose-700 focus:ring-4 focus:ring-rose-100"
+                        : "border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                    }`}
+                    autoFocus
+                  />
+
+                  {pinErrorMsg && (
+                    <p className="text-xs text-rose-600 font-bold animate-shake">
+                      {pinErrorMsg}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Butonlar ve Şifremi Unuttum */}
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-center gap-2">
                   <button
+                    type="button"
                     onClick={() => setPinModalTarget(null)}
                     className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
                   >
                     Vazgeç
                   </button>
                   <button
+                    type="button"
+                    disabled={lockoutTimer > 0 || !enteredPin.trim()}
                     onClick={handleVerifyPin}
-                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-colors"
+                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-colors"
                   >
-                    Kilidi Aç →
+                    {(pinModalTarget as any)?.isUnlockAction ? "Kilidi Aç" : "Giriş Yap →"}
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    alert(
-                      "Şifre Kurtarma: Güvenlik politikası gereği, kayıtlı e-posta adresinize (erdalturk@example.com) tek kullanımlık depo PIN sıfırlama kodu gönderilebilir."
-                    )
-                  }
+                <Link
+                  href="/profile"
                   className="text-[11px] font-semibold text-slate-400 hover:text-indigo-600 transition-colors block mx-auto underline"
                 >
-                  Depo PIN'ini mi unuttun?
-                </button>
+                  PIN'i Değiştir veya Sıfırla (Profil)
+                </Link>
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* 6.5 İLK KEZ MASTER PIN BELİRLEME MODALI */}
+      <AnimatePresence>
+        {firstTimePinTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setFirstTimePinTarget(null)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-sm bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-200 z-10 text-center space-y-5"
+            >
+              {/* İkon */}
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 shadow-xs">
+                <KeyRound className="w-7 h-7" />
+              </div>
+
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900">
+                  Kişisel PIN'inizi Belirleyin
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  İlk kez bir depo kilitliyorsunuz. Belirleyeceğiniz bu Master PIN, tüm kilitli depolarınızı koruyacak ve sadece Profil sayfasından değiştirilebilecektir.
+                </p>
+              </div>
+
+              {firstTimeError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                  {firstTimeError}
+                </div>
+              )}
+
+              <form onSubmit={handleSaveFirstTimePin} className="space-y-3.5 text-left">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Yeni Master PIN (4-6 Haneli)
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    value={newMasterPin}
+                    onChange={(e) => setNewMasterPin(e.target.value)}
+                    placeholder="••••"
+                    className="w-full text-center tracking-[0.4em] text-xl font-mono font-bold py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    PIN Tekrar
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    value={confirmMasterPin}
+                    onChange={(e) => setConfirmMasterPin(e.target.value)}
+                    placeholder="••••"
+                    className="w-full text-center tracking-[0.4em] text-xl font-mono font-bold py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setFirstTimePinTarget(null)}
+                    className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-colors"
+                  >
+                    PIN'i Kaydet & Kilitle
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* TOAST BİLDİRİMİ */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-2"
+          >
+            <span>{toastMessage}</span>
+          </motion.div>
         )}
       </AnimatePresence>
 

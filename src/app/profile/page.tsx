@@ -47,6 +47,10 @@ import {
   logoutUser,
   exportFullArchive,
   importFullArchive,
+  hasMasterPin,
+  setMasterPin,
+  changeMasterPin,
+  resetMasterPinForDemo,
 } from "@/lib/appStore";
 
 const AVATAR_PALETTES = [
@@ -76,9 +80,18 @@ export default function ProfilePage() {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Master PIN Güvenlik State'leri
+  const [isPinSet, setIsPinSet] = useState(false);
+  const [currentPinInput, setCurrentPinInput] = useState("");
+  const [newPinInput, setNewPinInput] = useState("");
+  const [confirmPinInput, setConfirmPinInput] = useState("");
+  const [pinFeedback, setPinFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [isPinFormOpen, setIsPinFormOpen] = useState(false);
+
   useEffect(() => {
     const syncAll = () => {
       setSharedLinks(getSharedLinks());
+      setIsPinSet(hasMasterPin());
       const currentUser = getCurrentUser();
       if (currentUser?.name) setDisplayName(currentUser.name);
       if (currentUser?.email) setEmail(currentUser.email);
@@ -88,6 +101,49 @@ export default function ProfilePage() {
     window.addEventListener("psc-store-updated", syncAll);
     return () => window.removeEventListener("psc-store-updated", syncAll);
   }, []);
+
+  const handleUpdateMasterPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinFeedback(null);
+    const cleanNew = newPinInput.trim();
+    if (!/^\d{4,6}$/.test(cleanNew)) {
+      setPinFeedback({ type: "error", msg: "Yeni PIN 4 ile 6 haneli rakamlardan oluşmalıdır." });
+      return;
+    }
+    if (cleanNew !== confirmPinInput.trim()) {
+      setPinFeedback({ type: "error", msg: "Yeni PIN ve tekrarı birbiriyle uyuşmuyor!" });
+      return;
+    }
+
+    if (isPinSet) {
+      const res = changeMasterPin(currentPinInput, cleanNew);
+      if (res.success) {
+        setPinFeedback({ type: "success", msg: "Master PIN'iniz başarıyla güncellendi." });
+        setCurrentPinInput("");
+        setNewPinInput("");
+        setConfirmPinInput("");
+        setIsPinSet(true);
+        setIsPinFormOpen(false);
+        setToastMessage("Master PIN güncellendi.");
+        setTimeout(() => setToastMessage(null), 3500);
+      } else {
+        setPinFeedback({ type: "error", msg: res.message });
+      }
+    } else {
+      const res = setMasterPin(cleanNew);
+      if (res.success) {
+        setPinFeedback({ type: "success", msg: "Kişisel Master PIN'iniz oluşturuldu." });
+        setNewPinInput("");
+        setConfirmPinInput("");
+        setIsPinSet(true);
+        setIsPinFormOpen(false);
+        setToastMessage("Master PIN oluşturuldu.");
+        setTimeout(() => setToastMessage(null), 3500);
+      } else {
+        setPinFeedback({ type: "error", msg: res.message });
+      }
+    }
+  };
 
   // Düzenleme Modalını Aç
   const handleOpenEdit = () => {
@@ -252,6 +308,140 @@ export default function ProfilePage() {
             </button>
           </div>
         </div>
+
+        {/* 1.2 MASTER PIN GÜVENLİK YÖNETİMİ (Tek Master PIN ile Tüm Depoları Koruma) */}
+        <section className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-base text-slate-900">
+                    Depo Güvenlik PIN'i (Master PIN)
+                  </h3>
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                      isPinSet
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-amber-50 text-amber-800 border-amber-200"
+                    }`}
+                  >
+                    {isPinSet ? "Özel Master PIN Aktif" : "Varsayılan PIN (1234)"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tüm kilitli depolarınız tek bir Master PIN ile korunur ve sadece bu sayfadan değiştirilebilir.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsPinFormOpen(!isPinFormOpen);
+                setPinFeedback(null);
+                setCurrentPinInput("");
+                setNewPinInput("");
+                setConfirmPinInput("");
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition border border-slate-200 self-start sm:self-auto"
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-500" />
+              <span>{isPinFormOpen ? "Formu Kapat" : isPinSet ? "PIN'i Değiştir" : "Kişisel PIN Belirle"}</span>
+            </button>
+          </div>
+
+          {/* PIN Değiştirme / Belirleme Formu */}
+          <AnimatePresence>
+            {isPinFormOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="pt-4 border-t border-slate-100 space-y-4 overflow-hidden"
+              >
+                {pinFeedback && (
+                  <div
+                    className={`p-3.5 rounded-2xl text-xs font-semibold border ${
+                      pinFeedback.type === "success"
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : "bg-rose-50 text-rose-700 border-rose-200"
+                    }`}
+                  >
+                    {pinFeedback.msg}
+                  </div>
+                )}
+
+                <form onSubmit={handleUpdateMasterPin} className="space-y-4 max-w-md">
+                  {isPinSet && (
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                        Mevcut PIN
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={6}
+                        value={currentPinInput}
+                        onChange={(e) => setCurrentPinInput(e.target.value)}
+                        placeholder="••••"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono tracking-widest outline-none focus:border-indigo-500 focus:bg-white"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                        Yeni PIN (4-6 Haneli)
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={6}
+                        value={newPinInput}
+                        onChange={(e) => setNewPinInput(e.target.value)}
+                        placeholder="••••"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono tracking-widest outline-none focus:border-indigo-500 focus:bg-white"
+                        autoFocus={!isPinSet}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                        Yeni PIN Tekrar
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={6}
+                        value={confirmPinInput}
+                        onChange={(e) => setConfirmPinInput(e.target.value)}
+                        placeholder="••••"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono tracking-widest outline-none focus:border-indigo-500 focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 transition"
+                    >
+                      {isPinSet ? "PIN'i Güncelle" : "Master PIN'i Kaydet"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsPinFormOpen(false)}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition"
+                    >
+                      Vazgeç
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
 
         {/* 1.5 TAM ARŞİV YEDEKLEME VE GERİ YÜKLEME (.JSON) KARTI */}
         <section className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-lg border border-indigo-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
