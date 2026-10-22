@@ -27,6 +27,7 @@ import {
   Clock,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { exportDocumentFile } from "@/lib/exportUtils";
 import {
   addToTrash,
   restoreFromTrash,
@@ -752,9 +753,15 @@ export default function FilesContainerPage() {
                         Önizle
                       </button>
                       <button
-                        onClick={() =>
-                          showToast(`"${item.title}" indiriliyor (${item.sizeLabel})...`)
-                        }
+                        onClick={() => {
+                          exportDocumentFile({
+                            name: item.title,
+                            size: item.sizeLabel,
+                            format: item.extension,
+                            content: item.previewContent,
+                          });
+                          showToast(`"${item.title}" başarıyla indirildi.`);
+                        }}
                         className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -816,7 +823,13 @@ export default function FilesContainerPage() {
 
               <button
                 onClick={() => {
-                  showToast(`"${previewFile.title}" indiriliyor...`);
+                  exportDocumentFile({
+                    name: previewFile.title,
+                    size: previewFile.sizeLabel,
+                    format: previewFile.extension,
+                    content: previewFile.previewContent,
+                  });
+                  showToast(`"${previewFile.title}" başarıyla indirildi.`);
                   setPreviewFile(null);
                 }}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition cursor-pointer"

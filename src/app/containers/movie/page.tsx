@@ -31,8 +31,10 @@ import {
   Play,
   Check,
   Clapperboard,
+  Download,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { exportMovieCollection } from "@/lib/exportUtils";
 
 interface MovieItem {
   id: string;
@@ -450,6 +452,19 @@ export default function MovieContainerPage() {
             )}
           </button>
 
+          {/* Koleksiyon Dışa Aktar (JSON) */}
+          <button
+            onClick={() => {
+              exportMovieCollection(movies, "Film_Koleksiyonu_Yedek");
+              setToastMessage(`${movies.length} adet film JSON olarak dışa aktarıldı.`);
+            }}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+            title="Film Arşivini JSON Olarak İndir"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Arşivi İndir</span>
+          </button>
+
           {/* Film Ekle Butonu */}
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -863,6 +878,17 @@ export default function MovieContainerPage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-slate-900 via-white/40 dark:via-slate-900/40 to-transparent" />
 
                 <div className="absolute top-4 right-4 flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      exportMovieCollection([selectedMovie], selectedMovie.title);
+                      setToastMessage(`"${selectedMovie.title}" film kaydı JSON olarak indirildi.`);
+                    }}
+                    title="Bu Filmi JSON Olarak İndir"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 hover:bg-slate-800 text-white text-xs font-bold backdrop-blur-md border border-white/20 transition-all shadow-md"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>İndir (.json)</span>
+                  </button>
                   <button
                     onClick={() => window.open("/share/inception-arsiv", "_blank")}
                     title="Bu Filmi Salt Okunur Paylaş (Tekil İçerik)"

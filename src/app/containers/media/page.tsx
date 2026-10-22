@@ -25,8 +25,10 @@ import {
   ChevronRight,
   Sparkles,
   Clock,
+  Download,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { exportDocumentFile } from "@/lib/exportUtils";
 import {
   addToTrash,
   restoreFromTrash,
@@ -878,6 +880,19 @@ export default function MediaContainerPage() {
               </div>
 
               <div className="flex items-center gap-2 pt-4 border-t border-stone-800">
+                <button
+                  onClick={() =>
+                    exportDocumentFile({
+                      name: `${lightboxItem.title}.${lightboxItem.format.toLowerCase()}`,
+                      size: lightboxItem.size,
+                      format: lightboxItem.format,
+                    })
+                  }
+                  className="py-2.5 px-4 rounded-xl bg-stone-800 hover:bg-stone-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  İndir
+                </button>
                 <button
                   onClick={() =>
                     window.open("/share/minimalist-mimari-cekim", "_blank")

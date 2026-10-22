@@ -39,6 +39,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { exportStudyNotes, exportDocumentFile, downloadTextFile } from "@/lib/exportUtils";
 
 export type ExamType = "vize" | "final" | "but" | "genel";
 export type PriorityLevel = "yuksek" | "orta" | "dusuk";
@@ -1086,12 +1087,28 @@ export default function StudyContainerPage() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setPdfPreviewNote(selectedNote)}
-                      className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-colors shadow-xs"
-                    >
-                      Dokümanı Aç
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() =>
+                          exportDocumentFile({
+                            name: selectedNote.pdfAttachment?.name || "ders_notu.pdf",
+                            size: selectedNote.pdfAttachment?.size || "3.5 MB",
+                            format: "PDF",
+                          })
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-colors flex items-center gap-1"
+                        title="PDF Olarak İndir"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>İndir</span>
+                      </button>
+                      <button
+                        onClick={() => setPdfPreviewNote(selectedNote)}
+                        className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-colors shadow-xs"
+                      >
+                        Dokümanı Aç
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1107,6 +1124,29 @@ export default function StudyContainerPage() {
                 </button>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      exportStudyNotes({
+                        title: selectedNote.title,
+                        courseCode: selectedNote.courseCode,
+                        instructor: selectedNote.instructor,
+                        term: selectedNote.term,
+                        targetExam: selectedNote.targetExam,
+                        overview: selectedNote.summary,
+                        topics: selectedNote.topics,
+                        userNote: selectedNote.keyFormulas,
+                        flashcards: selectedNote.flashcards,
+                        pdfName: selectedNote.pdfAttachment?.name,
+                        pdfSize: selectedNote.pdfAttachment?.size,
+                        pdfPages: selectedNote.pdfAttachment?.pages,
+                      });
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+                    title="Ders Notunu Markdown Olarak İndir"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Notları İndir (.md)</span>
+                  </button>
                   <button
                     onClick={() => handleOpenEditNote(selectedNote)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"

@@ -32,8 +32,10 @@ import {
   Edit3,
   Bookmark,
   CheckCircle2,
+  Download,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { exportCodeFile } from "@/lib/exportUtils";
 
 // Desteklenen Yazılım Dilleri & Renk Temaları
 export type SupportedLang =
@@ -853,6 +855,18 @@ export default function CodeContainerPage() {
                       </span>
 
                       <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          exportCodeFile(snippet.title, snippet.code, snippet.language);
+                          setToastMessage(`"${snippet.title}" kaynak dosyası indirildi.`);
+                        }}
+                        title="Dosya Olarak İndir"
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
                         onClick={(e) => handleCopyCode(snippet.id, snippet.code, e)}
                         title="Kodu Kopyala"
                         className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors flex items-center gap-1"
@@ -1092,6 +1106,18 @@ export default function CodeContainerPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      exportCodeFile(detailSnippet.title, detailSnippet.code, detailSnippet.language);
+                      setToastMessage(`"${detailSnippet.title}" kaynak kodu indirildi.`);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700"
+                    title="Dosya Olarak İndir"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Dosyayı İndir</span>
+                  </button>
+
                   <button
                     onClick={() => handleCopyCode(detailSnippet.id, detailSnippet.code)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md"

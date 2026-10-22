@@ -35,6 +35,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { exportMarkdownFile, downloadTextFile } from "@/lib/exportUtils";
 
 // Örnek Klasörler
 interface FolderItem {
@@ -622,13 +623,25 @@ export default function TextContainerPage() {
                       <span>{item.lineCount} dize/satır</span>
                     </div>
 
-                    <button
-                      onClick={(e) => handleDeleteText(item.id, e)}
-                      className="p-1 rounded-md text-slate-300 hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Sil (Çöp Kutusu)"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          exportMarkdownFile(item.title, item.content);
+                        }}
+                        className="p-1 rounded-md text-slate-300 hover:text-indigo-600 transition-colors"
+                        title="Markdown (.md) Olarak İndir"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteText(item.id, e)}
+                        className="p-1 rounded-md text-slate-300 hover:text-rose-600 transition-colors"
+                        title="Sil (Çöp Kutusu)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -762,11 +775,18 @@ export default function TextContainerPage() {
                     <Share2 className="w-4 h-4" />
                   </button>
                   <button
+                    onClick={() => exportMarkdownFile(editTitle || "metin", editContent)}
+                    className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+                    title="Markdown (.md) Olarak İndir"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={handleDownloadTxt}
                     className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
                     title="TXT Olarak İndir"
                   >
-                    <Download className="w-4 h-4" />
+                    <FileText className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setIsEditorOpen(false)}

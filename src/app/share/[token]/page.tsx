@@ -30,13 +30,32 @@ import {
   Image as ImageIcon,
   FolderArchive,
   Play,
+  Pause,
+  Volume2,
+  RotateCcw,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
   Headphones,
   Camera,
+  Video,
 } from "lucide-react";
 import { isTokenDeleted, getSharedLinks } from "@/lib/appStore";
 import ThemeToggle from "@/components/ThemeToggle";
+import {
+  exportMarkdownFile,
+  exportCodeFile,
+  exportAudioFile,
+  exportVideoFile,
+  exportDocumentFile,
+  exportTravelGuide,
+  exportStudyNotes,
+  exportMovieCollection,
+  downloadTextFile,
+} from "@/lib/exportUtils";
 
 interface SharedRecord {
+  id?: string;
   title: string;
   author: string;
   authorAvatar: string;
@@ -700,6 +719,61 @@ function ShareContent() {
   const [selectedCodePreview, setSelectedCodePreview] = useState<any>(null);
   const [selectedTravelPreview, setSelectedTravelPreview] = useState<any>(null);
   const [selectedStudyPreview, setSelectedStudyPreview] = useState<any>(null);
+  const [selectedImageModal, setSelectedImageModal] = useState<any>(null);
+  const [selectedVideoModal, setSelectedVideoModal] = useState<any>(null);
+  const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(true);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [audioElapsed, setAudioElapsed] = useState<number>(0);
+  const [activeFlashcardIndex, setActiveFlashcardIndex] = useState<number>(0);
+  const [isFlashcardFlipped, setIsFlashcardFlipped] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+  const triggerToast = showToast;
+
+  // Ses Çalma / Durdurma Simülasyonu & Web Audio Tonu
+  const handleToggleAudioPlay = (id: string) => {
+    if (playingAudioId === id) {
+      setPlayingAudioId(null);
+    } else {
+      setPlayingAudioId(id);
+      setAudioElapsed(0);
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(480, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.2);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1.2);
+      } catch (e) {
+        // Tarayıcı kısıtı olursa sessiz devam et
+      }
+    }
+  };
+  const toggleAudio = (id: string, title?: string) => handleToggleAudioPlay(id);
+
+  useEffect(() => {
+    if (!playingAudioId) return;
+    const interval = setInterval(() => {
+      setAudioElapsed((prev) => {
+        if (prev >= 25) {
+          setPlayingAudioId(null);
+          return 0;
+        }
+        return prev + 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [playingAudioId]);
+
   const [deletedState, setDeletedState] = useState(false);
   const [activeState, setActiveState] = useState(true);
 
@@ -931,24 +1005,34 @@ function ShareContent() {
                 {item.containerItems.map((text) => (
                   <div
                     key={text.id}
-                    className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between"
+                    className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between"
                   >
                     <div>
-                      <span className="text-[10px] font-bold uppercase text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-bold uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-200/50 dark:border-indigo-800/50">
                         {text.folder}
                       </span>
-                      <h3 className="font-bold text-sm text-slate-900 mt-2">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white mt-2">
                         {text.title}
                       </h3>
-                      <p className="text-xs text-slate-600 mt-2 italic font-serif leading-relaxed line-clamp-5 whitespace-pre-line">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 italic font-serif leading-relaxed line-clamp-5 whitespace-pre-line">
                         {text.content}
                       </p>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Salt Okunur</span>
+                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                      <button
+                        onClick={() => {
+                          exportMarkdownFile(text.title, text.content, { folder: text.folder });
+                          showToast(`"${text.title}.md" indirildi.`);
+                        }}
+                        className="text-indigo-600 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                        title="Markdown Olarak İndir (.md)"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>.md İndir</span>
+                      </button>
                       <button
                         onClick={() => handleCopyText(text.content)}
-                        className="text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1"
+                        className="text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold flex items-center gap-1 cursor-pointer"
                       >
                         <Copy className="w-3 h-3" />
                         <span>Kopyala</span>
@@ -973,16 +1057,29 @@ function ShareContent() {
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-emerald-400 border border-emerald-500/20">
                           {codeItem.language || "Kod"}
                         </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyText(codeItem.code);
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-                          title="Kodu Kopyala"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              exportCodeFile(codeItem.title, codeItem.code, codeItem.language || "typescript", codeItem.description);
+                              showToast(`"${codeItem.title}" dosyası indirildi.`);
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 transition-colors"
+                            title="Dosya Olarak İndir"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyText(codeItem.code);
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                            title="Kodu Kopyala"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <h3 className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors line-clamp-1">
@@ -1181,109 +1278,210 @@ function ShareContent() {
               </div>
             )}
 
-            {/* SES DEPOSU TAMAMI VİTRİNİ */}
+            {/* SES DEPOSU TAMAMI VİTRİNİ (ETKİLEŞİMLİ SES OYNATICI & İNDİRME) */}
             {item.type === "audio" && item.containerItems && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {item.containerItems.map((au: any) => (
-                  <div
-                    key={au.id}
-                    className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                          {au.format}
-                        </span>
-                        <span className="text-xs text-slate-400 font-mono">
-                          {au.durationLabel} • {au.size}
-                        </span>
+                {item.containerItems.map((au: any) => {
+                  const isPlaying = playingAudioId === au.id;
+                  return (
+                    <div
+                      key={au.id}
+                      className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between space-y-4"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                            {au.format}
+                          </span>
+                          <span className="text-xs text-slate-400 font-mono">
+                            {au.durationLabel} • {au.size}
+                          </span>
+                        </div>
+                        <h3 className="font-bold text-base text-slate-900 dark:text-white mb-2">
+                          {au.title}
+                        </h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-3">
+                          {au.transcript}
+                        </p>
+
+                        {/* Etkileşimli Mini Ses Oynatıcı Çubuğu */}
+                        <div className="mt-4 p-3 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60 flex items-center gap-3">
+                          <button
+                            onClick={() => handleToggleAudioPlay(au.id)}
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                              isPlaying
+                                ? "bg-amber-600 text-white shadow-md shadow-amber-300 dark:shadow-none animate-pulse"
+                                : "bg-amber-100 dark:bg-amber-900/60 hover:bg-amber-200 text-amber-800 dark:text-amber-200"
+                            }`}
+                            title={isPlaying ? "Durdur" : "Kaydı Dinle"}
+                          >
+                            {isPlaying ? (
+                              <Pause className="w-4 h-4" />
+                            ) : (
+                              <Play className="w-4 h-4 ml-0.5" />
+                            )}
+                          </button>
+
+                          {/* Dinamik Ses Dalgası */}
+                          <div className="flex-1 flex items-center gap-1 h-6">
+                            {[35, 75, 55, 90, 45, 80, 95, 60, 40, 70, 85, 50, 90, 65].map((h, idx) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  height: isPlaying ? `${Math.min(100, h * (0.6 + Math.random() * 0.7))}%` : "30%",
+                                }}
+                                className={`flex-1 rounded-full transition-all duration-300 ${
+                                  isPlaying
+                                    ? "bg-amber-600 dark:bg-amber-400"
+                                    : "bg-amber-300 dark:bg-amber-800"
+                                }`}
+                              />
+                            ))}
+                          </div>
+
+                          <span className="text-[11px] font-mono font-bold text-amber-900 dark:text-amber-300 shrink-0">
+                            {isPlaying ? `0:${audioElapsed.toString().padStart(2, "0")}` : au.durationLabel}
+                          </span>
+                        </div>
                       </div>
-                      <h3 className="font-bold text-base text-slate-900 mb-2">
-                        {au.title}
-                      </h3>
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        {au.transcript}
-                      </p>
+
+                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-amber-700 dark:text-amber-300 font-semibold">
+                        <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                          <Headphones className="w-4 h-4 text-amber-600" />
+                          {au.folder}
+                        </span>
+                        <button
+                          onClick={() => {
+                            exportAudioFile(au.title, au.format, au.transcript);
+                            showToast(`"${au.title}.${(au.format || "mp3").toLowerCase()}" indirildi.`);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs font-bold transition-colors cursor-pointer"
+                          title="Sesi Orijinal Formatında İndir"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>İndir</span>
+                        </button>
+                      </div>
                     </div>
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-amber-700 font-semibold">
-                      <span className="flex items-center gap-1.5">
-                        <Headphones className="w-4 h-4" />
-                        {au.folder}
-                      </span>
-                      <span className="text-slate-400">Salt Okunur</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
-            {/* GÖRÜNTÜ DEPOSU TAMAMI VİTRİNİ */}
+            {/* GÖRÜNTÜ & VİDEO DEPOSU TAMAMI VİTRİNİ (LIGHTBOX & OYNATICI) */}
             {item.type === "image" && item.containerItems && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {item.containerItems.map((img: any) => (
-                  <div
-                    key={img.id}
-                    className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="h-56 bg-slate-100 relative overflow-hidden">
-                        <img
-                          src={img.posterUrl}
-                          alt={img.title}
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-black/75 text-white">
-                          {img.format} • {img.resolution}
-                        </span>
+                {item.containerItems.map((img: any) => {
+                  const isVideo = (img.format || "").toUpperCase().includes("MP4") || (img.title || "").toLowerCase().includes("video");
+                  return (
+                    <div
+                      key={img.id}
+                      className="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                    >
+                      <div>
+                        <div
+                          onClick={() => {
+                            if (isVideo) {
+                              setSelectedVideoModal(img);
+                            } else {
+                              setSelectedImageModal(img);
+                            }
+                          }}
+                          className="h-56 bg-slate-100 dark:bg-slate-950 relative overflow-hidden cursor-pointer"
+                        >
+                          <img
+                            src={img.posterUrl}
+                            alt={img.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                            {isVideo ? (
+                              <div className="w-12 h-12 rounded-full bg-white/90 text-indigo-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                <Play className="w-6 h-6 ml-0.5 fill-indigo-600" />
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Maximize2 className="w-5 h-5" />
+                              </div>
+                            )}
+                          </div>
+                          <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-black/75 text-white backdrop-blur-md">
+                            {img.format} • {img.resolution}
+                          </span>
+                        </div>
+                        <div className="p-5">
+                          <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                            {img.folder}
+                          </span>
+                          <h3 className="font-bold text-base text-slate-900 dark:text-white mt-1">
+                            {img.title}
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                            {img.overview}
+                          </p>
+                        </div>
                       </div>
-                      <div className="p-5">
-                        <span className="text-[11px] font-bold text-rose-600">
-                          {img.folder}
-                        </span>
-                        <h3 className="font-bold text-base text-slate-900 mt-1">
-                          {img.title}
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                          {img.overview}
-                        </p>
+                      <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>{img.cameraInfo || "Yüksek Kalite"}</span>
+                        <button
+                          onClick={() => {
+                            if (isVideo) {
+                              exportVideoFile(img.title, img.format);
+                              showToast(`"${img.title}.mp4" video indirildi.`);
+                            } else {
+                              exportDocumentFile(img.title, img.format || "png", "4.2 MB", img.overview);
+                              showToast(`"${img.title}.${(img.format || "png").toLowerCase()}" indirildi.`);
+                            }
+                          }}
+                          className="flex items-center gap-1 text-rose-600 dark:text-rose-400 hover:underline font-bold cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>İndir</span>
+                        </button>
                       </div>
                     </div>
-                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>{img.cameraInfo}</span>
-                      <span>Salt Okunur</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
-            {/* DOSYA & BELGE DEPOSU TAMAMI VİTRİNİ */}
+            {/* DOSYA & BELGE DEPOSU TAMAMI VİTRİNİ (PDF, XLSX, ZIP vb. İNDİRME) */}
             {item.type === "file" && item.containerItems && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 {item.containerItems.map((fl: any) => (
                   <div
                     key={fl.id}
-                    className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4"
+                    className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between space-y-4"
                   >
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
                           {fl.format}
                         </span>
-                        <span className="text-xs font-semibold text-slate-500">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                           {fl.size} • {fl.version}
                         </span>
                       </div>
-                      <h3 className="font-bold text-base text-slate-900 mb-2">
+                      <h3 className="font-bold text-base text-slate-900 dark:text-white mb-2">
                         {fl.title}
                       </h3>
-                      <p className="text-xs text-slate-600 leading-relaxed">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                         {fl.overview}
                       </p>
                     </div>
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-emerald-700 font-semibold">
-                      <span>{fl.folder}</span>
-                      <span className="text-slate-400">Salt Okunur</span>
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-300 font-semibold">
+                      <span className="text-slate-500 dark:text-slate-400">{fl.folder}</span>
+                      <button
+                        onClick={() => {
+                          exportDocumentFile(fl.title, fl.format, fl.size, fl.overview);
+                          showToast(`"${fl.title}.${(fl.format || "pdf").toLowerCase()}" indirildi.`);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold transition-colors cursor-pointer"
+                        title={`${fl.format} Olarak İndir`}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Dosyayı İndir</span>
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1458,18 +1656,30 @@ function ShareContent() {
                       {item.targetExam === "vize" ? "Vize Hazırlığı" : "Final Hazırlığı"}
                     </span>
                   </div>
-                  {item.daysLeft !== undefined && (
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
-                        item.daysLeft <= 20
-                          ? "bg-rose-50 text-rose-700 border border-rose-200"
-                          : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      }`}
+                  <div className="flex items-center gap-2">
+                    {item.daysLeft !== undefined && (
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                          item.daysLeft <= 20
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        Sınava {item.daysLeft} Gün Kaldı
+                      </span>
+                    )}
+                    <button
+                      onClick={() => {
+                        exportStudyNotes(item);
+                        triggerToast(`"${item.title}" çalışma notları indirildi.`);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
                     >
-                      <Clock className="w-3.5 h-3.5" />
-                      Sınava {item.daysLeft} Gün Kaldı
-                    </span>
-                  )}
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Notları İndir (.md)</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -1518,27 +1728,83 @@ function ShareContent() {
                 )}
 
                 {item.flashcards && item.flashcards.length > 0 && (
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-4 pt-2">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                        Sınav Soru - Cevap Kartları ({item.flashcards.length})
+                        Etkileşimli Sınav Kartları ({activeFlashcardIndex + 1} / {item.flashcards.length})
                       </h4>
+                      <button
+                        onClick={() => {
+                          const fcs = item.flashcards || [];
+                          const exportText = `# Sınav Kartları: ${item.title}\n\n` +
+                            fcs.map((fc: any, i: number) => `### Kart ${i+1}\n**Soru:** ${fc.question}\n**Cevap:** ${fc.answer}\n`).join("\n");
+                          downloadTextFile(exportText, `${item.courseCode || 'ders'}-flashcards.md`);
+                          triggerToast("Sınav kartları Markdown olarak indirildi.");
+                        }}
+                        className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Kartları İndir</span>
+                      </button>
                     </div>
-                    <div className="grid grid-cols-1 gap-2.5">
-                      {item.flashcards.map((fc, idx) => (
-                        <div
-                          key={idx}
-                          className="p-4 rounded-2xl bg-indigo-50/40 border border-indigo-100 text-xs space-y-1.5"
-                        >
-                          <span className="font-bold text-indigo-900 block">
-                            Soru: {fc.question}
-                          </span>
-                          <p className="text-slate-700 font-medium bg-white p-2.5 rounded-xl border border-indigo-100/60">
-                            Cevap: {fc.answer}
-                          </p>
-                        </div>
-                      ))}
+
+                    {/* İnteraktif Çevrilebilir Flashcard */}
+                    <div
+                      onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)}
+                      className="cursor-pointer min-h-[160px] p-6 rounded-3xl bg-gradient-to-br from-indigo-500/10 via-sky-500/5 to-purple-500/10 border-2 border-dashed border-indigo-200 hover:border-indigo-400 transition-all flex flex-col justify-between group relative shadow-xs"
+                    >
+                      <div className="flex items-center justify-between text-[11px] font-bold text-indigo-600">
+                        <span>{isFlashcardFlipped ? "💡 CEVAP" : "❓ SORU"}</span>
+                        <span className="text-slate-400 font-normal">Tıklayarak çevir</span>
+                      </div>
+                      <div className="py-4 text-center">
+                        <p className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
+                          {isFlashcardFlipped
+                            ? item.flashcards[activeFlashcardIndex]?.answer
+                            : item.flashcards[activeFlashcardIndex]?.question}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-indigo-100/60 text-xs text-slate-400">
+                        <span>Kart {activeFlashcardIndex + 1}</span>
+                        <span className="text-indigo-600 font-bold group-hover:underline">
+                          {isFlashcardFlipped ? "Soruyu Gör ↺" : "Cevabı Göster ↻"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Navigasyon Tuşları */}
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        onClick={() => {
+                          const len = item.flashcards?.length || 1;
+                          setIsFlashcardFlipped(false);
+                          setActiveFlashcardIndex((prev) =>
+                            prev > 0 ? prev - 1 : len - 1
+                          );
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
+                      >
+                        ← Önceki Kart
+                      </button>
+                      <button
+                        onClick={() => setIsFlashcardFlipped(!isFlashcardFlipped)}
+                        className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all border border-indigo-200"
+                      >
+                        {isFlashcardFlipped ? "Soruyu Göster" : "Cevabı Çevir"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const len = item.flashcards?.length || 1;
+                          setIsFlashcardFlipped(false);
+                          setActiveFlashcardIndex((prev) =>
+                            prev < len - 1 ? prev + 1 : 0
+                          );
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
+                      >
+                        Sonraki Kart →
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1558,44 +1824,99 @@ function ShareContent() {
                         </p>
                       </div>
                     </div>
-                    <span className="px-3 py-1.5 rounded-xl bg-sky-100 text-sky-800 text-xs font-bold shrink-0">
-                      Salt Okunur Ek
-                    </span>
+                    <button
+                      onClick={() => {
+                        exportDocumentFile({
+                          name: item.pdfName || "Ders_Slayti.pdf",
+                          size: item.pdfSize || "3.5 MB",
+                          format: "PDF",
+                        });
+                        triggerToast(`"${item.pdfName}" başarıyla indirildi.`);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all shadow-xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>PDF İndir</span>
+                    </button>
                   </div>
                 )}
               </div>
             ) : item.type === "audio" ? (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 flex items-center gap-1.5">
                     <Music className="w-3.5 h-3.5" />
                     Ses Kaydı • {item.format}
                   </span>
-                  <span className="text-xs text-slate-400">
-                    {item.durationLabel} • {item.size}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">
+                      {item.durationLabel} • {item.size}
+                    </span>
+                    <button
+                      onClick={() => {
+                        exportAudioFile({
+                          title: item.title,
+                          durationLabel: item.durationLabel || "04:32",
+                          format: item.format || "MP3",
+                        });
+                        triggerToast(`Ses kaydı "${item.title}.mp3" indirildi.`);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Ses Dosyasını İndir (.mp3)</span>
+                    </button>
+                  </div>
                 </div>
                 <h1 className="text-2xl font-extrabold text-slate-900">
                   {item.title}
                 </h1>
                 <div className="p-5 rounded-2xl bg-amber-50/60 border border-amber-200/70 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-600 text-white flex items-center justify-center shrink-0">
-                    <Play className="w-5 h-5 ml-0.5" />
-                  </div>
-                  <div className="flex-1 flex items-center gap-1 h-10">
-                    {[40, 75, 60, 90, 50, 85, 95, 70, 55, 80, 65, 45, 90, 70, 60, 85, 50, 75].map(
-                      (h, i) => (
-                        <div
-                          key={i}
-                          style={{ height: `${h}%` }}
-                          className="flex-1 bg-amber-500/80 rounded-full"
-                        />
-                      )
+                  <button
+                    onClick={() => toggleAudio(item.id || "single-audio", item.title)}
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-transform active:scale-95 shadow-md ${
+                      playingAudioId === (item.id || "single-audio")
+                        ? "bg-rose-600 text-white animate-pulse"
+                        : "bg-amber-600 hover:bg-amber-700 text-white"
+                    }`}
+                  >
+                    {playingAudioId === (item.id || "single-audio") ? (
+                      <Pause className="w-6 h-6" />
+                    ) : (
+                      <Play className="w-6 h-6 ml-0.5" />
                     )}
+                  </button>
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-1 h-12">
+                      {[40, 75, 60, 90, 50, 85, 95, 70, 55, 80, 65, 45, 90, 70, 60, 85, 50, 75, 60, 80, 90, 65, 70, 85].map(
+                        (h, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              height: `${
+                                playingAudioId === (item.id || "single-audio")
+                                  ? Math.max(20, (h + audioElapsed * 8) % 100)
+                                  : h
+                              }%`,
+                            }}
+                            className={`flex-1 rounded-full transition-all duration-300 ${
+                              playingAudioId === (item.id || "single-audio")
+                                ? "bg-amber-600"
+                                : "bg-amber-400/70"
+                            }`}
+                          />
+                        )
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[11px] font-mono text-amber-900 font-bold">
+                      <span>
+                        {playingAudioId === (item.id || "single-audio")
+                          ? `00:${audioElapsed.toString().padStart(2, "0")}`
+                          : "00:00"}
+                      </span>
+                      <span>{item.durationLabel}</span>
+                    </div>
                   </div>
-                  <span className="text-xs font-mono font-bold text-amber-900">
-                    {item.durationLabel}
-                  </span>
                 </div>
                 <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
@@ -1608,19 +1929,49 @@ function ShareContent() {
               </div>
             ) : item.type === "image" ? (
               <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xl space-y-6 pb-6">
-                <div className="bg-slate-950 max-h-[60vh] flex items-center justify-center overflow-hidden">
+                <div
+                  onClick={() =>
+                    setSelectedImageModal({
+                      title: item.title,
+                      url: item.posterUrl,
+                      resolution: item.resolution,
+                      size: item.size,
+                    })
+                  }
+                  className="bg-slate-950 max-h-[60vh] flex items-center justify-center overflow-hidden cursor-zoom-in group relative"
+                >
                   <img
                     src={item.posterUrl}
                     alt={item.title}
-                    className="w-full max-h-[60vh] object-contain"
+                    className="w-full max-h-[60vh] object-contain group-hover:scale-105 transition-transform duration-300"
                   />
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-2">
+                    <Maximize2 className="w-5 h-5" />
+                    <span>Büyütmek için tıkla</span>
+                  </div>
                 </div>
                 <div className="px-6 sm:px-8 space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="px-3 py-1 rounded-lg text-xs font-bold bg-rose-100 text-rose-800">
                       {item.format} • {item.resolution}
                     </span>
-                    <span className="text-xs text-slate-400">{item.size}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">{item.size}</span>
+                      <button
+                        onClick={() => {
+                          exportDocumentFile({
+                            name: `${item.title}.jpg`,
+                            size: item.size || "4.2 MB",
+                            format: "JPG",
+                          });
+                          triggerToast(`Görsel "${item.title}.jpg" indirildi.`);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Orijinalini İndir</span>
+                      </button>
+                    </div>
                   </div>
                   <h1 className="text-2xl font-extrabold text-slate-900">
                     {item.title}
@@ -1636,13 +1987,30 @@ function ShareContent() {
               </div>
             ) : item.type === "file" ? (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4 flex-wrap gap-2">
                   <span className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800">
                     {item.format} • {item.version}
                   </span>
-                  <span className="text-xs font-bold text-slate-500">
-                    {item.size}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500">
+                      {item.size}
+                    </span>
+                    <button
+                      onClick={() => {
+                        exportDocumentFile({
+                          name: item.title,
+                          size: item.size || "1.2 MB",
+                          format: item.format || "TXT",
+                          content: item.content,
+                        });
+                        triggerToast(`Dosya "${item.title}" başarıyla indirildi.`);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Dosyayı İndir</span>
+                    </button>
+                  </div>
                 </div>
                 <h1 className="text-2xl font-extrabold text-slate-900">
                   {item.title}
@@ -1651,8 +2019,22 @@ function ShareContent() {
                   {item.overview}
                 </p>
                 {item.content && (
-                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
-                    {item.content}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        Dosya İçeriği
+                      </span>
+                      <button
+                        onClick={() => handleCopyText(item.content)}
+                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                      >
+                        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copied ? "Kopyalandı" : "Metni Kopyala"}</span>
+                      </button>
+                    </div>
+                    <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed max-h-96 overflow-auto">
+                      {item.content}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1667,8 +2049,20 @@ function ShareContent() {
                 </div>
                 <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-4">
                   <div>
-                    <div className="text-xs text-purple-400 font-bold mb-1">
-                      {item.year} • {item.director}
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-purple-400 font-bold mb-1">
+                        {item.year} • {item.director}
+                      </div>
+                      <button
+                        onClick={() => {
+                          exportMovieCollection([item], item.title);
+                          triggerToast(`"${item.title}" film arşivi JSON olarak indirildi.`);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Kaydı İndir (.json)</span>
+                      </button>
                     </div>
                     <h1 className="text-2xl font-extrabold text-white">
                       {item.title}
@@ -1985,12 +2379,170 @@ function ShareContent() {
                       </p>
                     </div>
                   </div>
-                  <span className="px-3 py-1.5 rounded-xl bg-sky-100 text-sky-800 text-xs font-bold shrink-0">
-                    Salt Okunur Ek
-                  </span>
+                  <button
+                    onClick={() => {
+                      exportDocumentFile({
+                        name: selectedStudyPreview.pdfName || "Ders_Notu.pdf",
+                        size: selectedStudyPreview.pdfSize || "4.2 MB",
+                        format: "PDF",
+                      });
+                      triggerToast(`"${selectedStudyPreview.pdfName}" başarıyla indirildi.`);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all shadow-xs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>PDF İndir</span>
+                  </button>
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* GÖRÜNTÜ ÖNİZLEME (LIGHTBOX) MODALI */}
+      {selectedImageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setSelectedImageModal(null)}
+            className="fixed inset-0 bg-black/90 backdrop-blur-md"
+          />
+          <div className="relative max-w-4xl w-full bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl z-10 flex flex-col max-h-[90vh]">
+            <div className="p-4 flex items-center justify-between border-b border-slate-800 text-white">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  {selectedImageModal.resolution || "HD GÖRSEL"}
+                </span>
+                <h3 className="font-bold text-sm text-white line-clamp-1">
+                  {selectedImageModal.title}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    exportDocumentFile({
+                      name: `${selectedImageModal.title}.jpg`,
+                      size: selectedImageModal.size || "4.5 MB",
+                      format: "JPG",
+                    });
+                    triggerToast(`"${selectedImageModal.title}.jpg" indirildi.`);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>İndir</span>
+                </button>
+                <button
+                  onClick={() => setSelectedImageModal(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 flex items-center justify-center p-4 overflow-auto bg-black/60">
+              <img
+                src={selectedImageModal.url}
+                alt={selectedImageModal.title}
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-xl shadow-2xl"
+              />
+            </div>
+            <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+              <span>Boyut: {selectedImageModal.size || "Orijinal"}</span>
+              <span className="flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-rose-400" /> Tam Çözünürlük Önizleme
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VİDEO OYNATICI MODALI */}
+      {selectedVideoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setSelectedVideoModal(null)}
+            className="fixed inset-0 bg-black/90 backdrop-blur-md"
+          />
+          <div className="relative max-w-3xl w-full bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl z-10 flex flex-col">
+            <div className="p-4 flex items-center justify-between border-b border-slate-800 text-white">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  {selectedVideoModal.duration || "VIDEO"}
+                </span>
+                <h3 className="font-bold text-sm text-white line-clamp-1">
+                  {selectedVideoModal.title}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    exportVideoFile({
+                      title: selectedVideoModal.title,
+                      durationLabel: selectedVideoModal.duration || "01:45",
+                    });
+                    triggerToast(`"${selectedVideoModal.title}.mp4" indirildi.`);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>MP4 İndir</span>
+                </button>
+                <button
+                  onClick={() => setSelectedVideoModal(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Simüle Edilmiş / Gerçek Video Player Alanı */}
+            <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden group">
+              <img
+                src={selectedVideoModal.posterUrl || "https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=1200&q=80"}
+                alt={selectedVideoModal.title}
+                className="w-full h-full object-cover opacity-60"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+              
+              {/* Ortadaki Oynat Butonu */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <button
+                  onClick={() => {
+                    toggleAudio("video-" + selectedVideoModal.title, selectedVideoModal.title);
+                    triggerToast(`"${selectedVideoModal.title}" oynatılıyor.`);
+                  }}
+                  className="w-16 h-16 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-2xl transition-transform active:scale-95 group-hover:scale-110"
+                >
+                  <Play className="w-7 h-7 ml-1" />
+                </button>
+              </div>
+
+              {/* Alt Kontrol Çubuğu */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/95 to-transparent space-y-2">
+                <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden cursor-pointer">
+                  <div className="bg-indigo-500 h-full w-2/5 rounded-full" />
+                </div>
+                <div className="flex items-center justify-between text-xs text-white/90">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-[11px]">00:42 / {selectedVideoModal.duration || "01:45"}</span>
+                    <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">1080p HD</span>
+                  </div>
+                  <span className="text-[11px] text-white/60">Etkileşimli Oynatıcı</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CANLI BİLDİRİM (TOAST ALERT) */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+          <div className="px-4 py-3 rounded-2xl bg-slate-900 text-white border border-slate-700 shadow-2xl flex items-center gap-3 text-xs font-semibold backdrop-blur-md">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+            <span>{toastMessage}</span>
           </div>
         </div>
       )}

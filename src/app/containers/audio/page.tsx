@@ -28,8 +28,10 @@ import {
   Headphones,
   FastForward,
   AlignLeft,
+  Download,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { exportAudioFile } from "@/lib/exportUtils";
 import {
   addToTrash,
   restoreFromTrash,
@@ -749,6 +751,19 @@ export default function AudioContainerPage() {
                         title="Paylaşım Kartını Aç"
                       >
                         <Share2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          exportAudioFile({
+                            title: item.title,
+                            durationLabel: item.durationLabel,
+                            format: item.format,
+                          })
+                        }
+                        className="p-2 rounded-xl text-stone-400 hover:bg-amber-50 hover:text-amber-700 transition cursor-pointer"
+                        title="Ses Dosyasını İndir (.mp3)"
+                      >
+                        <Download className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => openEditModal(item)}
