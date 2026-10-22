@@ -16,7 +16,7 @@
 | **3. Gün (23 Ekim)** | ✅ **Tamamlandı (Erken)** | **Bulut Veritabanı & Güvenli Kimlik Doğrulama (Supabase)** | • PostgreSQL şeması ve RLS güvenlik politikaları (`supabase/schema.sql`)<br>• Hibrit çalışan kesintisiz bulut senkronizasyonu (`syncService.ts`) ve profil rozeti |
 | **4. Gün (24 Ekim)** | ✅ **Tamamlandı (Erken)** | **Canlı TMDB Film/Dizi API'si** | • Canlı TMDB API entegrasyonu (`/api/movies/search`) ile tek tıkla Türkçe afiş, yönetmen, puan ve konu özeti çekme |
 | **5. Gün (25 Ekim)** | ✅ **Tamamlandı (Erken)** | **Evrensel Dosya & Medya Yükleme (Universal Upload)** | • Tüm 8 depoda ve ana sayfa Dropzone'unda cihazdan gerçek dosya yükleme (`.py, .md, .txt, .mp3, .wav, .pdf, .docx, .pptx, .jpg, .png, .mp4`) |
-| **6. Gün (26 Ekim)** | 🔄 **Sıradaki Sprint** | **Detaylı İnce Ayar (Fine-Tuning), Rötuş & E2E Kontroller** | • Kullanıcı gözüyle tüm detayların incelenmesi, UI/UX düzeltmeleri, klasör organizasyonu |
+| **6. Gün (26 Ekim)** | 🔄 **Sıradaki Sprint** | **4 Fonksiyonel Kapanış & Detaylı Fine-Tuning** | • **1. Klasör Yeniden Adlandırma:** Depo içi klasörlerin adını değiştirme (`Rename Folder`)<br>• **2. Depo Sıralama Motoru:** Ana sayfada Alfabetik (A-Z), Son Güncelleme ve Manuel sıralamayı bağlama<br>• **3. Çöp Kutusu Süre Ayarı:** 15, 30 veya 60 günlük otomatik saklama süresi tercihi<br>• **4. Toplu Seçim & Silme:** Listelerde çoklu seçim ile toplu silme<br>• **5. Kullanıcı İncelemesi & Rötuşlar:** UI/UX ince ayarları ve görsel düzeltmeler |
 | **7. Gün (27 Ekim)** | 🚀 **HEDEF (DEADLINE)** | **MVP FINAL RELEASE (Lansman)** | • **Üretim ortamı (Vercel) canlı yayını, son güvenlik kontrolleri ve Müşteri Kabul Onayı** |
 
 ---
