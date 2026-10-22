@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportDocumentFile } from "@/lib/exportUtils";
-import { formatBytes, getFileExtension } from "@/lib/uploadUtils";
+import { formatBytes, getFileExtension, readFileAsDataUrl } from "@/lib/uploadUtils";
 import {
   addToTrash,
   restoreFromTrash,
@@ -53,6 +53,7 @@ export interface FileItem {
   tags: string[];
   updatedAt: string;
   isFavorite: boolean;
+  fileDataUrl?: string;
 }
 
 const INITIAL_FOLDERS = [
@@ -172,8 +173,9 @@ export default function FilesContainerPage() {
   const [formSummary, setFormSummary] = useState("");
   const [formPreview, setFormPreview] = useState("");
   const [formTags, setFormTags] = useState("");
+  const [formFileDataUrl, setFormFileDataUrl] = useState<string | null>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -186,6 +188,10 @@ export default function FilesContainerPage() {
     setFormSize(sizeStr.replace(/\s*MB/i, ""));
     setFormSummary(`${file.name} — Cihazınızdan aktarılan orijinal arşiv kopyası (${sizeStr}).`);
     setFormVersion("v1.0 • Orijinal Belge");
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setFormFileDataUrl(dataUrl);
+    } catch {}
   };
 
   // Toast & Undo
@@ -309,6 +315,7 @@ export default function FilesContainerPage() {
     setFormSummary("");
     setFormPreview("");
     setFormTags("belge, resmi");
+    setFormFileDataUrl(null);
     setIsModalOpen(true);
   };
 
@@ -322,6 +329,7 @@ export default function FilesContainerPage() {
     setFormSummary(item.summary);
     setFormPreview(item.previewContent);
     setFormTags(item.tags.join(", "));
+    setFormFileDataUrl(item.fileDataUrl || null);
     setIsModalOpen(true);
   };
 
@@ -350,6 +358,7 @@ export default function FilesContainerPage() {
               previewContent:
                 formPreview.trim() || "Belge önizleme metni.",
               tags: parsedTags,
+              fileDataUrl: formFileDataUrl || editingItem.fileDataUrl,
             }
           : f
       );
@@ -373,6 +382,7 @@ export default function FilesContainerPage() {
         tags: parsedTags.length > 0 ? parsedTags : ["belge"],
         updatedAt: "Az önce",
         isFavorite: false,
+        fileDataUrl: formFileDataUrl || undefined,
       };
       syncFiles([newFile, ...files]);
       showToast(`"${newFile.title}" dosya deposuna eklendi.`);
@@ -851,12 +861,19 @@ export default function FilesContainerPage() {
 
               <button
                 onClick={() => {
-                  exportDocumentFile({
-                    name: previewFile.title,
-                    size: previewFile.sizeLabel,
-                    format: previewFile.extension,
-                    content: previewFile.previewContent,
-                  });
+                  if (previewFile.fileDataUrl) {
+                    const link = document.createElement("a");
+                    link.href = previewFile.fileDataUrl;
+                    link.download = previewFile.title;
+                    link.click();
+                  } else {
+                    exportDocumentFile({
+                      name: previewFile.title,
+                      size: previewFile.sizeLabel,
+                      format: previewFile.extension,
+                      content: previewFile.previewContent,
+                    });
+                  }
                   showToast(`"${previewFile.title}" başarıyla indirildi.`);
                   setPreviewFile(null);
                 }}

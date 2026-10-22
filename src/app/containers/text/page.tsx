@@ -34,9 +34,11 @@ import {
   MoreVertical,
   X,
   AlertCircle,
+  Upload,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportMarkdownFile, downloadTextFile } from "@/lib/exportUtils";
+import { readFileAsText } from "@/lib/uploadUtils";
 
 // Örnek Klasörler
 interface FolderItem {
@@ -768,6 +770,33 @@ export default function TextContainerPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <label
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors cursor-pointer border border-indigo-200"
+                    title="Cihazdan .txt veya .md Dosyası Yükle"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Metin / MD Yükle</span>
+                    <input
+                      type="file"
+                      accept=".txt,.md,.markdown,text/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const text = await readFileAsText(file);
+                          setEditContent(text);
+                          const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ");
+                          setEditTitle(cleanTitle);
+                          const isMd = file.name.toLowerCase().endsWith(".md");
+                          setEditFormatType(isMd ? "note" : "plain");
+                        } catch {
+                          alert("Dosya okunamadı.");
+                        }
+                      }}
+                    />
+                  </label>
+
                   <button
                     onClick={handleCopy}
                     className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"

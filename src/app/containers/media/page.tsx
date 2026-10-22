@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportDocumentFile, exportImageFile } from "@/lib/exportUtils";
-import { compressImageClient } from "@/lib/uploadUtils";
+import { compressImageClient, readFileAsDataUrl, formatBytes } from "@/lib/uploadUtils";
 import {
   addToTrash,
   restoreFromTrash,
@@ -182,18 +182,30 @@ export default function MediaContainerPage() {
 
     setIsUploadingImage(true);
     try {
-      const res = await compressImageClient(file);
-      setFormImageUrl(res.dataUrl);
-      setFormResolution(`${res.width} × ${res.height}`);
-      const ext = file.name.split(".").pop()?.toUpperCase() || "JPG";
-      setFormFormat(ext === "PNG" ? "PNG" : ext === "WEBP" ? "WEBP" : "JPG");
-      if (!formTitle.trim()) {
-        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ");
-        setFormTitle(cleanName);
+      if (file.type.startsWith("video/")) {
+        const dataUrl = await readFileAsDataUrl(file);
+        setFormImageUrl(dataUrl);
+        setFormResolution("Video Oynatıcı");
+        setFormFormat("RAW");
+        if (!formTitle.trim()) {
+          const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ");
+          setFormTitle(cleanName);
+        }
+        setFormCamera(`Video Dosyası • ${formatBytes(file.size)}`);
+      } else {
+        const res = await compressImageClient(file);
+        setFormImageUrl(res.dataUrl);
+        setFormResolution(`${res.width} × ${res.height}`);
+        const ext = file.name.split(".").pop()?.toUpperCase() || "JPG";
+        setFormFormat(ext === "PNG" ? "PNG" : ext === "WEBP" ? "WEBP" : "JPG");
+        if (!formTitle.trim()) {
+          const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ");
+          setFormTitle(cleanName);
+        }
+        setFormCamera(`Cihazdan Yüklendi • ${res.sizeStr}`);
       }
-      setFormCamera(`Cihazdan Yüklendi • ${res.sizeStr}`);
     } catch (err) {
-      alert("Fotoğraf okunurken bir hata oluştu.");
+      alert("Medya dosyası okunurken bir hata oluştu.");
     } finally {
       setIsUploadingImage(false);
     }
@@ -1036,23 +1048,23 @@ export default function MediaContainerPage() {
                 <div className="border-2 border-dashed border-rose-300 dark:border-rose-900/60 rounded-2xl p-4 text-center hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition cursor-pointer relative mb-3 bg-rose-50/20 dark:bg-slate-900">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*,.mp4,.webm,.mov,.mkv,.avi"
                     onChange={handleFileInputChange}
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
                   {isUploadingImage ? (
                     <div className="flex items-center justify-center gap-2 py-2 text-rose-600">
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span className="text-xs font-bold">Görsel işleniyor ve optimize ediliyor...</span>
+                      <span className="text-xs font-bold">Medya işleniyor ve optimize ediliyor...</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center">
                       <Upload className="w-6 h-6 text-rose-500 mb-1" />
                       <p className="text-xs font-bold text-stone-800 dark:text-stone-200">
-                        Bilgisayarınızdan Fotoğraf Seçin veya Sürükleyin
+                        Bilgisayarınızdan Fotoğraf veya Video Seçin ya da Sürükleyin
                       </p>
                       <p className="text-[11px] text-stone-400 mt-0.5">
-                        PNG, JPG, WEBP • Çözünürlük ve boyut otomatik algılanır
+                        PNG, JPG, WEBP, MP4, WEBM • Otomatik çözünürlük & optimizasyon
                       </p>
                     </div>
                   )}

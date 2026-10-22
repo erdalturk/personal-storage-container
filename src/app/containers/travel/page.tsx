@@ -37,9 +37,11 @@ import {
   ChevronRight,
   Info,
   Download,
+  Upload,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportTravelGuide } from "@/lib/exportUtils";
+import { compressImageClient } from "@/lib/uploadUtils";
 
 export type TravelCategory = "deniz" | "kultur" | "doga" | "sehir" | "gastronomi";
 
@@ -1139,16 +1141,49 @@ export default function TravelContainerPage() {
                   </div>
                 </div>
 
-                {/* Kapak Fotoğrafı URL ve Hızlı Şablonlar */}
+                {/* Kapak Fotoğrafı URL, Cihazdan Yükleme ve Hızlı Şablonlar */}
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Kapak Fotoğrafı URL</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700 block text-xs">Kapak Fotoğrafı</label>
+                    <label className="cursor-pointer px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] transition-colors flex items-center gap-1.5 shadow-xs">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Cihazdan Fotoğraf Yükle</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const comp = await compressImageClient(file);
+                            setFormCoverPhoto(comp.dataUrl);
+                          } catch {
+                            alert("Fotoğraf yüklenemedi.");
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                   <input
                     type="text"
                     value={formCoverPhoto}
                     onChange={(e) => setFormCoverPhoto(e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
+                    placeholder="https://images.unsplash.com/... veya Cihazdan Yükleyin"
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium text-xs"
                   />
+                  {formCoverPhoto && (
+                    <div className="mt-2 flex items-center gap-3 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                      <img
+                        src={formCoverPhoto}
+                        alt="Kapak önizleme"
+                        className="w-14 h-10 object-cover rounded-lg shadow-xs"
+                      />
+                      <span className="text-[11px] text-slate-500 font-medium line-clamp-1">
+                        Kapak görseli seçildi
+                      </span>
+                    </div>
+                  )}
                   {/* Hızlı Şablon Seçiciler */}
                   <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
                     <span className="text-[10px] text-slate-400 font-bold shrink-0">Hızlı Seç:</span>

@@ -29,6 +29,8 @@ import {
   X,
   CheckCircle2,
   Eye,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import {
   addToTrash,
@@ -43,6 +45,7 @@ import {
   verifyMasterPin,
   resetMasterPinForDemo,
 } from "@/lib/appStore";
+import { autoIngestFile } from "@/lib/uploadUtils";
 import ThemeToggle from "@/components/ThemeToggle";
 
 // Akıllı Depo Tanımları (Vitrindeki 4 Sabit Kart)
@@ -270,6 +273,34 @@ export default function HomePage() {
   const [globalQuery, setGlobalQuery] = useState("");
   const [userName, setUserName] = useState("Erdal Türk");
   const [userAvatar, setUserAvatar] = useState("ET");
+
+  // Evrensel Dosya Yükleyici State'leri
+  const [isIngestingFile, setIsIngestingFile] = useState(false);
+  const [ingestSuccess, setIngestSuccess] = useState<{
+    title: string;
+    containerName: string;
+    route: string;
+  } | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  const handleUniversalUpload = async (file: File) => {
+    setIsIngestingFile(true);
+    try {
+      const res = await autoIngestFile(file);
+      setIngestSuccess({
+        title: res.title,
+        containerName: res.containerName,
+        route: res.route,
+      });
+      setTimeout(() => {
+        setIngestSuccess((curr) => (curr?.title === res.title ? null : curr));
+      }, 9000);
+    } catch {
+      alert("Dosya yüklenirken bir sorun oluştu.");
+    } finally {
+      setIsIngestingFile(false);
+    }
+  };
 
   useEffect(() => {
     const loadAndMerge = () => {
@@ -655,6 +686,114 @@ export default function HomePage() {
             </div>
           )}
         </div>
+
+        {/* 2.5 EVRENSEL HIZLI DOSYA & MEDYA YÜKLEYİCİ (Universal Dropzone) */}
+        <section
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingOver(true);
+          }}
+          onDragLeave={() => setIsDraggingOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDraggingOver(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) handleUniversalUpload(file);
+          }}
+          className={`relative overflow-hidden rounded-3xl p-5 sm:p-6 border-2 transition-all duration-300 ${
+            isDraggingOver
+              ? "border-emerald-500 bg-emerald-500/10 scale-[1.01] shadow-xl"
+              : "border-dashed border-indigo-200 dark:border-indigo-900/50 bg-gradient-to-r from-indigo-50/50 via-white to-sky-50/40 dark:from-slate-900/80 dark:via-slate-900 dark:to-slate-900/80 hover:border-indigo-400 dark:hover:border-indigo-700 shadow-xs"
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 text-center sm:text-left">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-sky-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                {isIngestingFile ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <Upload className="w-6 h-6" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 justify-center sm:justify-start">
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                    Evrensel Dosya & Medya Yükleyici
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                    Oto-Yönlendirme
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-xl">
+                  Dosyayı buraya sürükleyin veya cihazınızdan seçin. Sistem türü otomatik algılayıp ilgili depoya depolar.
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2 justify-center sm:justify-start">
+                  {[
+                    { tag: ".py / .ts / .js", desc: "Kod" },
+                    { tag: ".txt / .md", desc: "Metin" },
+                    { tag: ".mp3 / .wav", desc: "Ses" },
+                    { tag: ".jpg / .png / .mp4", desc: "Medya" },
+                    { tag: ".pdf / .docx / .pptx", desc: "Belge" },
+                  ].map((item, idx) => (
+                    <span
+                      key={idx}
+                      className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                    >
+                      <b>{item.tag}</b> ({item.desc})
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <label className="shrink-0 cursor-pointer px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-indigo-500/20 transition-all">
+              <Upload className="w-4 h-4" />
+              <span>{isIngestingFile ? "İşleniyor..." : "Cihazdan Dosya Seç"}</span>
+              <input
+                type="file"
+                disabled={isIngestingFile}
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUniversalUpload(file);
+                }}
+              />
+            </label>
+          </div>
+
+          {/* Başarı Bildirim Şeridi */}
+          <AnimatePresence>
+            {ingestSuccess && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -10, height: 0 }}
+                className="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-900/60 flex items-center justify-between flex-wrap gap-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300"
+              >
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>
+                    <b>"{ingestSuccess.title}"</b> dosyası başarıyla <b>{ingestSuccess.containerName}</b> alanına yüklendi!
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => router.push(ingestSuccess.route)}
+                    className="px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors"
+                  >
+                    Depoya Git →
+                  </button>
+                  <button
+                    onClick={() => setIngestSuccess(null)}
+                    className="p-1 rounded-lg text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
 
         {/* 3. VİTRİN: 4 AKILLI DEPO KARTI + 1 STANDART DEPO KARTI (TOPLAM 5 KART) */}
         <section className="space-y-4">

@@ -34,10 +34,12 @@ import {
   Clapperboard,
   Download,
   Loader2,
+  Upload,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportMovieCollection } from "@/lib/exportUtils";
 import { searchMoviesOnline, MovieSearchResult } from "@/lib/tmdbClient";
+import { compressImageClient } from "@/lib/uploadUtils";
 
 interface MovieItem {
   id: string;
@@ -274,6 +276,7 @@ export default function MovieContainerPage() {
   const [manualDirector, setManualDirector] = useState("");
   const [manualRating, setManualRating] = useState("");
   const [manualOverview, setManualOverview] = useState("");
+  const [manualPosterUrl, setManualPosterUrl] = useState("");
 
   // Hızlı Geri Al (Undo Toast)
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -377,7 +380,9 @@ export default function MovieContainerPage() {
       director: manualDirector.trim() || "Bilinmiyor",
       rating: parseFloat(manualRating) || 8.0,
       genres: ["Kişisel Kayıt"],
-      posterUrl: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80",
+      posterUrl:
+        manualPosterUrl.trim() ||
+        "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80",
       duration: "2s",
       cast: [],
       overview: manualOverview.trim() || "Kullanıcı tarafından manuel eklendi.",
@@ -391,6 +396,7 @@ export default function MovieContainerPage() {
     setManualDirector("");
     setManualRating("");
     setManualOverview("");
+    setManualPosterUrl("");
     setIsManualModalOpen(false);
   };
 
@@ -868,6 +874,46 @@ export default function MovieContainerPage() {
                   rows={3}
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-purple-500 resize-none"
                 />
+
+                {/* Film Afişi Seçimi (Cihazdan Yükleme) */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Özel Afiş Görseli
+                    </span>
+                    <label className="cursor-pointer px-3 py-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] transition-colors flex items-center gap-1.5 shadow-xs">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Cihazdan Afiş Seç</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const comp = await compressImageClient(file, 800, 0.85);
+                            setManualPosterUrl(comp.dataUrl);
+                          } catch {
+                            alert("Afiş görseli yüklenemedi.");
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {manualPosterUrl && (
+                    <div className="flex items-center gap-3 pt-1">
+                      <img
+                        src={manualPosterUrl}
+                        alt="Afiş Önizleme"
+                        className="w-12 h-16 object-cover rounded-lg shadow-xs"
+                      />
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                        ✓ Cihazdan özel afiş yüklendi
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

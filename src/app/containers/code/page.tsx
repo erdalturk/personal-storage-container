@@ -34,9 +34,11 @@ import {
   Bookmark,
   CheckCircle2,
   Download,
+  Upload,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportCodeFile } from "@/lib/exportUtils";
+import { readFileAsText, detectContainerForFile } from "@/lib/uploadUtils";
 
 // Desteklenen Yazılım Dilleri & Renk Temaları
 export type SupportedLang =
@@ -1251,6 +1253,50 @@ export default function CodeContainerPage() {
               </div>
 
               <div className="space-y-4">
+                {/* Cihazdan Kod Dosyası Yükleme (Evrensel .py, .ts, .js vb.) */}
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/80 border border-dashed border-emerald-500/40 hover:border-emerald-400 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">Cihazdan Kod Dosyası Yükle</div>
+                      <div className="text-[10px] text-slate-400">
+                        .py, .ts, .js, .sql, .rs, .go, .sh, .html, .css, .json
+                      </div>
+                    </div>
+                  </div>
+                  <label className="cursor-pointer px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs border border-emerald-500/40 transition-colors">
+                    <span>Dosya Seç</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".py,.ts,.tsx,.js,.jsx,.mjs,.cjs,.sql,.rs,.go,.sh,.bash,.html,.htm,.css,.scss,.json,.dockerfile,text/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const content = await readFileAsText(file);
+                          setEditCode(content);
+                          const detected = detectContainerForFile(file);
+                          if (detected.language && (Object.keys(LANGUAGES) as string[]).includes(detected.language)) {
+                            setEditLang(detected.language as SupportedLang);
+                          }
+                          if (!editTitle.trim()) {
+                            const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ");
+                            setEditTitle(cleanTitle);
+                          }
+                          if (!editTags.trim() && detected.language) {
+                            setEditTags(`#${detected.language}, #cihazdan`);
+                          }
+                        } catch {
+                          alert("Dosya okunamadı.");
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+
                 {/* Başlık & Dil Seçimi */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2 space-y-1">

@@ -38,9 +38,11 @@ import {
   FolderArchive,
   Layers,
   HelpCircle,
+  Upload,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportStudyNotes, exportDocumentFile, downloadTextFile } from "@/lib/exportUtils";
+import { readFileAsDataUrl, formatBytes } from "@/lib/uploadUtils";
 
 export type ExamType = "vize" | "final" | "but" | "genel";
 export type PriorityLevel = "yuksek" | "orta" | "dusuk";
@@ -70,6 +72,7 @@ export interface CourseStudyNote {
     pages: number;
     size: string;
     previewText?: string;
+    dataUrl?: string;
   };
   flashcards: Flashcard[];
   priority: PriorityLevel;
@@ -299,6 +302,8 @@ export default function StudyContainerPage() {
   const [formKeyFormulas, setFormKeyFormulas] = useState("");
   const [formPdfName, setFormPdfName] = useState("");
   const [formPdfPages, setFormPdfPages] = useState("25");
+  const [formPdfDataUrl, setFormPdfDataUrl] = useState<string | null>(null);
+  const [formPdfSize, setFormPdfSize] = useState<string>("3.5 MB");
   const [formPriority, setFormPriority] = useState<PriorityLevel>("yuksek");
   const [formStatus, setFormStatus] = useState<StudyStatus>("calisiliyor");
 
@@ -395,6 +400,8 @@ export default function StudyContainerPage() {
     setFormKeyFormulas("");
     setFormPdfName("Ders_Ozet_Slayti.pdf");
     setFormPdfPages("20");
+    setFormPdfDataUrl(null);
+    setFormPdfSize("3.5 MB");
     setFormPriority("yuksek");
     setFormStatus("calisiliyor");
     setIsEditorOpen(true);
@@ -417,6 +424,8 @@ export default function StudyContainerPage() {
     setFormKeyFormulas(note.keyFormulas || "");
     setFormPdfName(note.pdfAttachment?.name || "");
     setFormPdfPages(String(note.pdfAttachment?.pages || 20));
+    setFormPdfDataUrl(note.pdfAttachment?.dataUrl || null);
+    setFormPdfSize(note.pdfAttachment?.size || "3.5 MB");
     setFormPriority(note.priority);
     setFormStatus(note.status);
     setIsEditorOpen(true);
@@ -442,8 +451,9 @@ export default function StudyContainerPage() {
       ? {
           name: formPdfName.trim(),
           pages: Number(formPdfPages) || 20,
-          size: "3.5 MB",
+          size: formPdfSize || "3.5 MB",
           previewText: `${formTitle} için eklenmiş ders slaytı ve dökümanı...`,
+          dataUrl: formPdfDataUrl || undefined,
         }
       : undefined;
 
@@ -1349,7 +1359,19 @@ export default function StudyContainerPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      alert(`"${pdfPreviewNote.pdfAttachment?.name}" indirme bağlantısı simüle edildi.`);
+                      if (pdfPreviewNote.pdfAttachment?.dataUrl) {
+                        const link = document.createElement("a");
+                        link.href = pdfPreviewNote.pdfAttachment.dataUrl;
+                        link.download = pdfPreviewNote.pdfAttachment.name;
+                        link.click();
+                      } else {
+                        exportDocumentFile(
+                          pdfPreviewNote.pdfAttachment?.name || "ders_notu.pdf",
+                          pdfPreviewNote.summary || "Ders Özeti",
+                          "pdf"
+                        );
+                      }
+                      setToastMessage(`"${pdfPreviewNote.pdfAttachment?.name}" indirildi.`);
                     }}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white transition-colors"
                   >
@@ -1579,25 +1601,56 @@ export default function StudyContainerPage() {
                   />
                 </div>
 
-                {/* PDF Dosya Eki Bilgileri */}
-                <div className="p-3.5 rounded-2xl bg-sky-50/50 border border-sky-100 space-y-2">
-                  <span className="font-bold text-sky-900 block">PDF Dosya Eki (Opsiyonel)</span>
+                {/* PDF Dosya Eki Bilgileri (Cihazdan Yükleme Destekli) */}
+                <div className="p-3.5 rounded-2xl bg-sky-50/50 border border-sky-100 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sky-900 block text-xs">PDF Dosya Eki (Opsiyonel)</span>
+                    <label className="cursor-pointer px-3 py-1 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-[11px] transition-colors flex items-center gap-1.5 shadow-xs">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Cihazdan PDF Seç</span>
+                      <input
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const dataUrl = await readFileAsDataUrl(file);
+                            setFormPdfName(file.name);
+                            setFormPdfSize(formatBytes(file.size));
+                            setFormPdfDataUrl(dataUrl);
+                            setFormPdfPages("15");
+                          } catch {
+                            alert("PDF dosyası okunamadı.");
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input
                       type="text"
                       value={formPdfName}
                       onChange={(e) => setFormPdfName(e.target.value)}
                       placeholder="Ders_Notu_Slayt.pdf"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-sky-500 text-xs"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-sky-500 text-xs font-medium"
                     />
                     <input
                       type="number"
                       value={formPdfPages}
                       onChange={(e) => setFormPdfPages(e.target.value)}
                       placeholder="Sayfa sayısı (örn: 25)"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-sky-500 text-xs"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-sky-500 text-xs font-medium"
                     />
                   </div>
+
+                  {formPdfSize && (
+                    <div className="text-[11px] text-sky-800 font-medium">
+                      Dosya Boyutu: <b>{formPdfSize}</b> {formPdfDataUrl && "• Cihazdan yüklendi (Hazır)"}
+                    </div>
+                  )}
                 </div>
               </div>
 
