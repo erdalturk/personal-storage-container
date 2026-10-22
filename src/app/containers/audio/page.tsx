@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -29,9 +29,11 @@ import {
   FastForward,
   AlignLeft,
   Download,
+  Upload,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportAudioFile } from "@/lib/exportUtils";
+import { formatBytes } from "@/lib/uploadUtils";
 import {
   addToTrash,
   restoreFromTrash,
@@ -54,6 +56,7 @@ export interface AudioItem {
   createdAt: string;
   isFavorite: boolean;
   waveform: number[];
+  audioUrl?: string;
 }
 
 const INITIAL_FOLDERS = [
@@ -162,6 +165,33 @@ export default function AudioContainerPage() {
   const [formFormat, setFormFormat] = useState<"MP3" | "WAV" | "M4A">("MP3");
   const [formTranscript, setFormTranscript] = useState("");
   const [formTags, setFormTags] = useState("");
+  const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
+
+  const handleAudioFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const url = URL.createObjectURL(file);
+    setUploadedAudioUrl(url);
+
+    const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ");
+    setFormTitle(cleanTitle);
+
+    const ext = file.name.split(".").pop()?.toUpperCase();
+    if (ext === "WAV" || ext === "M4A" || ext === "MP3") {
+      setFormFormat(ext as any);
+    }
+
+    const tempAudio = new Audio(url);
+    tempAudio.onloadedmetadata = () => {
+      const sec = Math.round(tempAudio.duration);
+      if (sec && !isNaN(sec)) {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        setFormDuration(`${m < 10 ? "0" + m : m}:${s < 10 ? "0" + s : s}`);
+      }
+    };
+  };
 
   // Toast & Undo
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -212,14 +242,38 @@ export default function AudioContainerPage() {
     saveStoredCollection("audios", updated);
   };
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const togglePlay = (id: string) => {
-    setPlayingId((prev) => (prev === id ? null : id));
+    if (playingId === id) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      setPlayingId(null);
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      const target = audios.find((a) => a.id === id);
+      if (target?.audioUrl && typeof window !== "undefined") {
+        try {
+          audioRef.current = new Audio(target.audioUrl);
+          audioRef.current.playbackRate = playbackSpeed;
+          audioRef.current.play().catch(() => {});
+          audioRef.current.onended = () => setPlayingId(null);
+        } catch {}
+      }
+      setPlayingId(id);
+    }
   };
 
   const cycleSpeed = () => {
     const speeds = [1, 1.25, 1.5, 2];
     const nextIdx = (speeds.indexOf(playbackSpeed) + 1) % speeds.length;
     setPlaybackSpeed(speeds[nextIdx]);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speeds[nextIdx];
+    }
   };
 
   const toggleFavorite = (id: string) => {
@@ -377,6 +431,7 @@ export default function AudioContainerPage() {
         createdAt: "Az önce",
         isFavorite: false,
         waveform: [40, 65, 80, 55, 90, 75, 50, 85, 95, 60, 45, 70, 85, 65, 50, 75, 90, 60, 40, 70, 80, 55, 45, 60],
+        audioUrl: uploadedAudioUrl || undefined,
       };
       syncAudios([newAudio, ...audios]);
       showToast(`"${newAudio.title}" ses deposuna eklendi.`);
@@ -953,6 +1008,24 @@ export default function AudioContainerPage() {
             </div>
 
             <form onSubmit={handleSaveAudio} className="space-y-4">
+              {/* Cihazdan Ses Yükleme Alanı */}
+              <div className="border-2 border-dashed border-amber-300 dark:border-amber-900/60 rounded-2xl p-4 text-center hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition cursor-pointer relative bg-amber-50/20 dark:bg-slate-900">
+                <input
+                  type="file"
+                  accept="audio/*,.mp3,.wav,.m4a"
+                  onChange={handleAudioFileSelect}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <div className="flex flex-col items-center justify-center">
+                  <Upload className="w-6 h-6 text-amber-500 mb-1" />
+                  <p className="text-xs font-bold text-stone-800 dark:text-stone-200">
+                    Cihazınızdan Ses Dosyası Seçin (.mp3, .wav, .m4a)
+                  </p>
+                  <p className="text-[11px] text-stone-400 mt-0.5">
+                    {uploadedAudioUrl ? "✅ Ses dosyası seçildi ve süre algılandı" : "Süre ve format otomatik algılanır"}
+                  </p>
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
                   Kayıt Başlığı

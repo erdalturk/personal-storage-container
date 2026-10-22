@@ -26,9 +26,12 @@ import {
   Sparkles,
   Clock,
   Download,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportDocumentFile, exportImageFile } from "@/lib/exportUtils";
+import { compressImageClient } from "@/lib/uploadUtils";
 import {
   addToTrash,
   restoreFromTrash,
@@ -171,6 +174,30 @@ export default function MediaContainerPage() {
   const [formCamera, setFormCamera] = useState("Sony A7IV • 35mm f/1.4");
   const [formDescription, setFormDescription] = useState("");
   const [formTags, setFormTags] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    try {
+      const res = await compressImageClient(file);
+      setFormImageUrl(res.dataUrl);
+      setFormResolution(`${res.width} × ${res.height}`);
+      const ext = file.name.split(".").pop()?.toUpperCase() || "JPG";
+      setFormFormat(ext === "PNG" ? "PNG" : ext === "WEBP" ? "WEBP" : "JPG");
+      if (!formTitle.trim()) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ");
+        setFormTitle(cleanName);
+      }
+      setFormCamera(`Cihazdan Yüklendi • ${res.sizeStr}`);
+    } catch (err) {
+      alert("Fotoğraf okunurken bir hata oluştu.");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   // Toast & Undo
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1002,14 +1029,62 @@ export default function MediaContainerPage() {
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
-                  Hızlı Örnek Görsel Seç veya URL Gir
+                  Fotoğraf Seçimi & Yükleme
+                </label>
+
+                {/* Cihazdan Dosya Seçme / Yükleme Alanı */}
+                <div className="border-2 border-dashed border-rose-300 dark:border-rose-900/60 rounded-2xl p-4 text-center hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition cursor-pointer relative mb-3 bg-rose-50/20 dark:bg-slate-900">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInputChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  {isUploadingImage ? (
+                    <div className="flex items-center justify-center gap-2 py-2 text-rose-600">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-xs font-bold">Görsel işleniyor ve optimize ediliyor...</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center">
+                      <Upload className="w-6 h-6 text-rose-500 mb-1" />
+                      <p className="text-xs font-bold text-stone-800 dark:text-stone-200">
+                        Bilgisayarınızdan Fotoğraf Seçin veya Sürükleyin
+                      </p>
+                      <p className="text-[11px] text-stone-400 mt-0.5">
+                        PNG, JPG, WEBP • Çözünürlük ve boyut otomatik algılanır
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Küçük Resim Önizlemesi */}
+                {formImageUrl && (
+                  <div className="mb-3 flex items-center gap-3 p-2 rounded-xl bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700">
+                    <img
+                      src={formImageUrl}
+                      alt="Seçilen Görsel"
+                      className="w-12 h-12 object-cover rounded-lg border border-stone-200"
+                    />
+                    <div className="text-[11px] text-stone-500">
+                      <span className="font-bold text-stone-700 dark:text-stone-300 block">Seçili Görsel Hazır</span>
+                      <span>Format: {formFormat} • {formResolution}</span>
+                    </div>
+                  </div>
+                )}
+
+                <label className="block text-[11px] font-semibold text-stone-400 mb-1">
+                  Veya Hazır İlham Örneklerinden Seçin:
                 </label>
                 <div className="grid grid-cols-4 gap-2 mb-2">
                   {PRESET_IMAGES.map((p) => (
                     <button
                       type="button"
                       key={p.label}
-                      onClick={() => setFormImageUrl(p.url)}
+                      onClick={() => {
+                        setFormImageUrl(p.url);
+                        setFormResolution("3840 × 2160");
+                      }}
                       className={`p-1 rounded-xl border text-[10px] font-medium overflow-hidden transition cursor-pointer ${
                         formImageUrl === p.url
                           ? "border-rose-600 ring-2 ring-rose-500/20"
@@ -1025,13 +1100,6 @@ export default function MediaContainerPage() {
                     </button>
                   ))}
                 </div>
-                <input
-                  type="url"
-                  value={formImageUrl}
-                  onChange={(e) => setFormImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full px-4 py-2 rounded-xl border border-stone-200 text-xs focus:outline-none focus:border-rose-500"
-                />
               </div>
 
               <div className="grid grid-cols-3 gap-3">

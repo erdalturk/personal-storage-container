@@ -25,9 +25,11 @@ import {
   HardDrive,
   ShieldCheck,
   Clock,
+  Upload,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportDocumentFile } from "@/lib/exportUtils";
+import { formatBytes, getFileExtension } from "@/lib/uploadUtils";
 import {
   addToTrash,
   restoreFromTrash,
@@ -170,6 +172,21 @@ export default function FilesContainerPage() {
   const [formSummary, setFormSummary] = useState("");
   const [formPreview, setFormPreview] = useState("");
   const [formTags, setFormTags] = useState("");
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFormTitle(file.name);
+    const rawExt = getFileExtension(file.name);
+    const validExts: FileExtension[] = ["PDF", "ZIP", "DOCX", "XLSX", "PPTX", "JSON"];
+    const matched = validExts.find((ext) => ext === rawExt) || "PDF";
+    setFormExt(matched);
+    const sizeStr = formatBytes(file.size);
+    setFormSize(sizeStr.replace(/\s*MB/i, ""));
+    setFormSummary(`${file.name} — Cihazınızdan aktarılan orijinal arşiv kopyası (${sizeStr}).`);
+    setFormVersion("v1.0 • Orijinal Belge");
+  };
 
   // Toast & Undo
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -912,6 +929,23 @@ export default function FilesContainerPage() {
             </div>
 
             <form onSubmit={handleSaveFile} className="space-y-4">
+              {/* Cihazdan Dosya Seçme / Yükleme Alanı */}
+              <div className="border-2 border-dashed border-emerald-300 dark:border-emerald-900/60 rounded-2xl p-4 text-center hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition cursor-pointer relative bg-emerald-50/20 dark:bg-slate-900">
+                <input
+                  type="file"
+                  onChange={handleFileSelect}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <div className="flex flex-col items-center justify-center">
+                  <Upload className="w-6 h-6 text-emerald-600 dark:text-emerald-400 mb-1" />
+                  <p className="text-xs font-bold text-stone-800 dark:text-stone-200">
+                    Cihazınızdan Belge veya Dosya Seçin
+                  </p>
+                  <p className="text-[11px] text-stone-400 mt-0.5">
+                    PDF, DOCX, XLSX, PPTX, ZIP, JSON • İsim ve boyut otomatik algılanır
+                  </p>
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
                   Dosya Adı
