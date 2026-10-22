@@ -46,23 +46,59 @@ export async function GET(request: NextRequest) {
       if (tmdbRes.ok) {
         const tmdbData = await tmdbRes.json();
         if (tmdbData.results && tmdbData.results.length > 0) {
-          const results: FormattedMovie[] = tmdbData.results.slice(0, 8).map((m: any) => ({
-            id: `tmdb_${m.id}`,
-            title: m.title || m.original_title,
-            year: m.release_date ? parseInt(m.release_date.split("-")[0]) : new Date().getFullYear(),
-            director: "Yönetmen Bilgisi",
-            rating: m.vote_average ? Math.round(m.vote_average * 10) / 10 : 7.0,
-            genres: ["Sinema"],
-            posterUrl: m.poster_path
-              ? `https://image.tmdb.org/t/p/w500${m.poster_path}`
-              : "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80",
-            backdropUrl: m.backdrop_path
-              ? `https://image.tmdb.org/t/p/w1280${m.backdrop_path}`
-              : undefined,
-            duration: "2s",
-            cast: [],
-            overview: m.overview || "Konu özeti bulunmuyor.",
-          }));
+          const topMovies = tmdbData.results.slice(0, 6);
+          const detailedTmdb = await Promise.all(
+            topMovies.map(async (m: any) => {
+              try {
+                const detailRes = await fetch(
+                  `https://api.themoviedb.org/3/movie/${m.id}?api_key=${tmdbKey}&append_to_response=credits&language=tr-TR`,
+                  { next: { revalidate: 3600 } }
+                );
+                if (detailRes.ok) {
+                  return await detailRes.json();
+                }
+              } catch {}
+              return m;
+            })
+          );
+
+          const results: FormattedMovie[] = detailedTmdb.map((m: any) => {
+            const director =
+              m.credits?.crew?.find((c: any) => c.job === "Director")?.name ||
+              "Bilinmiyor";
+            const cast = m.credits?.cast
+              ? m.credits.cast.slice(0, 4).map((c: any) => c.name)
+              : [];
+            const genres =
+              m.genres && m.genres.length > 0
+                ? m.genres.map((g: any) => g.name)
+                : ["Sinema"];
+
+            const runtimeMin = m.runtime || 110;
+            const hours = Math.floor(runtimeMin / 60);
+            const mins = runtimeMin % 60;
+            const durationStr = hours > 0 ? `${hours}s ${mins}dk` : `${mins}dk`;
+
+            return {
+              id: `tmdb_${m.id}`,
+              title: m.title || m.original_title,
+              year: m.release_date
+                ? parseInt(m.release_date.split("-")[0])
+                : new Date().getFullYear(),
+              director,
+              rating: m.vote_average ? Math.round(m.vote_average * 10) / 10 : 7.0,
+              genres,
+              posterUrl: m.poster_path
+                ? `https://image.tmdb.org/t/p/w500${m.poster_path}`
+                : "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80",
+              backdropUrl: m.backdrop_path
+                ? `https://image.tmdb.org/t/p/w1280${m.backdrop_path}`
+                : undefined,
+              duration: durationStr,
+              cast,
+              overview: m.overview || "Konu özeti bulunmuyor.",
+            };
+          });
 
           searchCache.set(cacheKey, { data: results, timestamp: Date.now() });
           return NextResponse.json({ results });
