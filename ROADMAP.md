@@ -11,13 +11,13 @@
 
 | Gün / Tarih | Durum | Odak / Sprint Hedefi | Teslim Edilecek Özellikler |
 | :--- | :---: | :--- | :--- |
-| **1. Gün (21 Ekim - Bugün)** | ✅ **Tamamlandı** | **PWA Mobil Kurulumu & Dinamik PIN Güvenliği** | • PWA doğrulaması (`manifest.json`, `sw.js` offline önbellek, "Uygulamayı Yükle" banner'ı)<br>• Dinamik Depo PIN (kullanıcının kendi PIN'ini belirlemesi & brute-force kilitlenme koruması) |
-| **2. Gün (22 Ekim - Yarın)** | ⏳ **Aktif** | **Karanlık Mod & Zengin Dışa Aktarma** | • OLED uyumlu Dark Mode (Açık/Koyu tema geçişi)<br>• Şiir ve notları `.md` / `.pdf`, kodları `.py` / `.ts` olarak tekil veya ZIP indirme |
-| **3. Gün (23 Ekim - Cuma)** | 📋 Planlandı | **Bulut Veritabanı & Güvenli Kimlik Doğrulama (Supabase)** | • PostgreSQL şeması ve RLS güvenlik politikaları<br>• Supabase Auth: Güvenli e-posta ile giriş & ücretsiz/yasal şifre sıfırlama (KVKK uyumlu)<br>• `localStorage` ile hibrit çalışan kesintisiz bulut senkronizasyonu |
-| **4. Gün (24 Ekim - Cumartesi)** | 📋 Planlandı | **Canlı TMDB Film/Dizi API'si** | • Film ararken The Movie Database (TMDB) API'den anında gerçek afiş, özet, yönetmen ve puan çekme |
-| **5. Gün (25 Ekim - Pazar)** | 📋 Planlandı | **Gerçek Medya Depolama (Storage)** | • Kullanıcının kendi cihazından gerçek ses dosyası (MP3/WAV), fotoğraf ve PDF dökümanı yükleyebilmesi |
-| **6. Gün (26 Ekim - Pazartesi)** | 📋 Planlandı | **Sürükle-Bırak & E2E Testler** | • Klasörlere sürükle-bırak (Drag & Drop), toplu seçim/silme ve Playwright ile tam otomatik tarayıcı testleri |
-| **7. Gün (27 Ekim - Salı)** | 🚀 **Hedef** | **MVP FINAL RELEASE (Lansman)** | • **Üretim ortamı (Vercel) canlı yayını, son güvenlik kontrolleri ve Müşteri Kabul Onayı** |
+| **1. Gün (21 Ekim)** | ✅ **Tamamlandı** | **PWA Mobil Kurulumu & Dinamik PIN Güvenliği** | • PWA doğrulaması (`manifest.json`, `sw.js` offline önbellek, "Uygulamayı Yükle" banner'ı)<br>• Dinamik Depo PIN (kullanıcının kendi PIN'ini belirlemesi & brute-force kilitlenme koruması) |
+| **2. Gün (22 Ekim)** | ✅ **Tamamlandı** | **Karanlık Mod & Zengin Dışa Aktarma & UX Suite** | • OLED uyumlu Dark Mode (Açık/Koyu tema geçişi)<br>• 8 depoda çalışan gerçek ikili (binary) fotoğraf/ses/PDF indirme ve dinamik paylaşım yönlendirmesi |
+| **3. Gün (23 Ekim)** | ✅ **Tamamlandı** | **Bulut Veritabanı & Güvenli Kimlik Doğrulama (Supabase)** | • PostgreSQL şeması ve RLS güvenlik politikaları (`supabase/schema.sql`)<br>• Hibrit çalışan kesintisiz bulut senkronizasyonu (`syncService.ts`) ve profil rozeti |
+| **4. Gün (24 Ekim)** | ✅ **Tamamlandı** | **Canlı TMDB Film/Dizi API'si** | • Canlı TMDB API entegrasyonu (`/api/movies/search`) ile tek tıkla Türkçe afiş, yönetmen, puan ve konu özeti çekme |
+| **5. Gün (25 Ekim)** | ✅ **Tamamlandı** | **Gerçek Cihazdan Medya & Dosya Depolama** | • Kullanıcının kendi bilgisayarından/telefonundan gerçek fotoğraf (PNG/JPG/WEBP), PDF belgesi ve MP3/WAV ses dosyası yükleyebilmesi |
+| **6. Gün (26 Ekim)** | ⏳ **Sıradaki Sprint** | **Sürükle-Bırak & Son Arşiv Cilaları** | • Klasörlere sürükle-bırak (Drag & Drop), toplu seçim/silme ve arşiv organizasyon kontrolleri |
+| **7. Gün (27 Ekim)** | 🚀 **Hedef** | **MVP FINAL RELEASE (Lansman)** | • **Üretim ortamı (Vercel) canlı yayını, son güvenlik kontrolleri ve Müşteri Kabul Onayı** |
 
 ---
 
