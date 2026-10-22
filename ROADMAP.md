@@ -9,15 +9,15 @@
 
 ## 📅 Gün Gün Yeniden Düzenlenmiş MVP Teslimat Takvimi
 
-| Gün / Tarih | Durum | Odak / Sprint Hedefi | Teslim Edilecek Özellikler |
+| Gün / Tarih | Durum | Odak / Sprint Hedefi | Teslim Edilen & Edilecek Özellikler |
 | :--- | :---: | :--- | :--- |
-| **1. Gün (21 Ekim)** | ✅ **Tamamlandı** | **PWA Mobil Kurulumu & Dinamik PIN Güvenliği** | • PWA doğrulaması (`manifest.json`, `sw.js` offline önbellek, "Uygulamayı Yükle" banner'ı)<br>• Dinamik Depo PIN (kullanıcının kendi PIN'ini belirlemesi & brute-force kilitlenme koruması) |
+| **1. Gün (21 Ekim)** | ✅ **Tamamlandı** | **PWA Mobil Kurulumu & Dinamik PIN Güvenliği** | • PWA doğrulaması (`manifest.json`, `sw.js` offline önbellek, "Uygulamayı Yükle" banner'ı)<br>• Dinamik Master PIN (brute-force kilitlenme koruması, profil PIN yönetimi) |
 | **2. Gün (22 Ekim)** | ✅ **Tamamlandı** | **Karanlık Mod & Zengin Dışa Aktarma & UX Suite** | • OLED uyumlu Dark Mode (Açık/Koyu tema geçişi)<br>• 8 depoda çalışan gerçek ikili (binary) fotoğraf/ses/PDF indirme ve dinamik paylaşım yönlendirmesi |
-| **3. Gün (23 Ekim)** | ✅ **Tamamlandı** | **Bulut Veritabanı & Güvenli Kimlik Doğrulama (Supabase)** | • PostgreSQL şeması ve RLS güvenlik politikaları (`supabase/schema.sql`)<br>• Hibrit çalışan kesintisiz bulut senkronizasyonu (`syncService.ts`) ve profil rozeti |
-| **4. Gün (24 Ekim)** | ✅ **Tamamlandı** | **Canlı TMDB Film/Dizi API'si** | • Canlı TMDB API entegrasyonu (`/api/movies/search`) ile tek tıkla Türkçe afiş, yönetmen, puan ve konu özeti çekme |
-| **5. Gün (25 Ekim)** | ✅ **Tamamlandı** | **Gerçek Cihazdan Medya & Dosya Depolama** | • Kullanıcının kendi bilgisayarından/telefonundan gerçek fotoğraf (PNG/JPG/WEBP), PDF belgesi ve MP3/WAV ses dosyası yükleyebilmesi |
-| **6. Gün (26 Ekim)** | ⏳ **Sıradaki Sprint** | **Sürükle-Bırak & Son Arşiv Cilaları** | • Klasörlere sürükle-bırak (Drag & Drop), toplu seçim/silme ve arşiv organizasyon kontrolleri |
-| **7. Gün (27 Ekim)** | 🚀 **Hedef** | **MVP FINAL RELEASE (Lansman)** | • **Üretim ortamı (Vercel) canlı yayını, son güvenlik kontrolleri ve Müşteri Kabul Onayı** |
+| **3. Gün (23 Ekim)** | ✅ **Tamamlandı (Erken)** | **Bulut Veritabanı & Güvenli Kimlik Doğrulama (Supabase)** | • PostgreSQL şeması ve RLS güvenlik politikaları (`supabase/schema.sql`)<br>• Hibrit çalışan kesintisiz bulut senkronizasyonu (`syncService.ts`) ve profil rozeti |
+| **4. Gün (24 Ekim)** | ✅ **Tamamlandı (Erken)** | **Canlı TMDB Film/Dizi API'si** | • Canlı TMDB API entegrasyonu (`/api/movies/search`) ile tek tıkla Türkçe afiş, yönetmen, puan ve konu özeti çekme |
+| **5. Gün (25 Ekim)** | ✅ **Tamamlandı (Erken)** | **Evrensel Dosya & Medya Yükleme (Universal Upload)** | • Tüm 8 depoda ve ana sayfa Dropzone'unda cihazdan gerçek dosya yükleme (`.py, .md, .txt, .mp3, .wav, .pdf, .docx, .pptx, .jpg, .png, .mp4`) |
+| **6. Gün (26 Ekim)** | 🔄 **Sıradaki Sprint** | **Detaylı İnce Ayar (Fine-Tuning), Rötuş & E2E Kontroller** | • Kullanıcı gözüyle tüm detayların incelenmesi, UI/UX düzeltmeleri, klasör organizasyonu |
+| **7. Gün (27 Ekim)** | 🚀 **HEDEF (DEADLINE)** | **MVP FINAL RELEASE (Lansman)** | • **Üretim ortamı (Vercel) canlı yayını, son güvenlik kontrolleri ve Müşteri Kabul Onayı** |
 
 ---
 
