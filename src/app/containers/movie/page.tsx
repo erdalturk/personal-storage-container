@@ -7,6 +7,7 @@ import {
   addToTrash,
   getStoredCollection,
   saveStoredCollection,
+  createOrGetShareTokenForRecord,
 } from "@/lib/appStore";
 import {
   ArrowLeft,
@@ -890,7 +891,14 @@ export default function MovieContainerPage() {
                     <span>İndir (.json)</span>
                   </button>
                   <button
-                    onClick={() => window.open("/share/inception-arsiv", "_blank")}
+                    onClick={() => {
+                      const token = createOrGetShareTokenForRecord(
+                        selectedMovie,
+                        "movie",
+                        "Sinema Kulübü & Başyapıtlar"
+                      );
+                      window.open(`/share/${token}`, "_blank");
+                    }}
                     title="Bu Filmi Salt Okunur Paylaş (Tekil İçerik)"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 hover:bg-purple-600 text-white text-xs font-bold backdrop-blur-md border border-white/20 transition-all shadow-md"
                   >

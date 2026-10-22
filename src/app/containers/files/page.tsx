@@ -33,6 +33,7 @@ import {
   restoreFromTrash,
   getStoredCollection,
   saveStoredCollection,
+  createOrGetShareTokenForRecord,
 } from "@/lib/appStore";
 
 export type FileExtension = "PDF" | "ZIP" | "DOCX" | "XLSX" | "PPTX" | "JSON";
@@ -694,11 +695,16 @@ export default function FilesContainerPage() {
                         />
                       </button>
                       <button
-                        onClick={() =>
-                          window.open("/share/proje-sozlesme-taslagi", "_blank")
-                        }
+                        onClick={() => {
+                          const token = createOrGetShareTokenForRecord(
+                            item,
+                            "file",
+                            "Sözleşmeler, Faturalar & Belgelerim"
+                          );
+                          window.open(`/share/${token}`, "_blank");
+                        }}
                         className="p-2 rounded-xl text-stone-400 hover:bg-emerald-50 hover:text-emerald-700 transition cursor-pointer"
-                        title="Paylaşım Kartını Aç"
+                        title="Bu Belgeyi Paylaş"
                       >
                         <Share2 className="w-4 h-4" />
                       </button>
@@ -812,9 +818,14 @@ export default function FilesContainerPage() {
 
             <div className="flex items-center justify-between pt-4 border-t border-stone-100">
               <button
-                onClick={() =>
-                  window.open("/share/proje-sozlesme-taslagi", "_blank")
-                }
+                onClick={() => {
+                  const token = createOrGetShareTokenForRecord(
+                    previewFile,
+                    "file",
+                    "Sözleşmeler, Faturalar & Belgelerim"
+                  );
+                  window.open(`/share/${token}`, "_blank");
+                }}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold transition cursor-pointer"
               >
                 <Share2 className="w-4 h-4 text-emerald-700" />

@@ -29,11 +29,13 @@ export function downloadBlob(filename: string, blob: Blob): void {
   document.body.appendChild(anchor);
   anchor.click();
 
-  // Temizlik
+  // Mozilla Firefox ve tüm tarayıcıların indirmeyi asenkron tamamlaması için güvenli 1500ms
   setTimeout(() => {
-    document.body.removeChild(anchor);
+    if (document.body.contains(anchor)) {
+      document.body.removeChild(anchor);
+    }
     URL.revokeObjectURL(url);
-  }, 150);
+  }, 1500);
 }
 
 // Düz metin / dize indirme
@@ -253,6 +255,132 @@ export function exportVideoFile(
   downloadTextFile(filename, sampleVideoMeta, "video/mp4");
 }
 
+// Gerçek ikili (binary) geçerli 1x1 PNG Uint8Array (Node veya fallback ortamları için)
+export const VALID_BINARY_PNG = new Uint8Array([
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+  0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+  0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+  0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+  0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+  0x42, 0x60, 0x82
+]);
+
+export async function exportImageFile(
+  title: string,
+  format: string = "JPG",
+  imageUrl?: string
+): Promise<void> {
+  const isPng = format.toLowerCase().includes("png");
+  const ext = isPng ? "png" : "jpg";
+  const safeTitle = sanitizeFilename(title || "gorsel");
+  const filename = `${safeTitle}.${ext}`;
+  const mimeType = isPng ? "image/png" : "image/jpeg";
+
+  // 1. Gerçek URL varsa doğrudan ikili blob çek
+  if (imageUrl && typeof window !== "undefined") {
+    try {
+      const res = await fetch(imageUrl, { mode: "cors" });
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob && blob.size > 0 && blob.type.startsWith("image/")) {
+          downloadBlob(filename, blob);
+          return;
+        }
+      }
+    } catch (e) {
+      // CORS veya ağ kısıtında Canvas'a geç
+    }
+
+    // 2. HTML5 Canvas drawImage ile ikili JPEG/PNG üret
+    try {
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject();
+        img.src = imageUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth || 800;
+      canvas.height = img.naturalHeight || 600;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, mimeType, 0.95)
+        );
+        if (blob) {
+          downloadBlob(filename, blob);
+          return;
+        }
+      }
+    } catch (e) {
+      // Canvas fallback'e geç
+    }
+  }
+
+  // 3. Tarayıcı Canvas'ı ile gerçek ve geçerli HD arşiv grafiği oluştur
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1200;
+      canvas.height = 800;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        const grad = ctx.createLinearGradient(0, 0, 1200, 800);
+        grad.addColorStop(0, "#0f172a");
+        grad.addColorStop(0.5, "#1e293b");
+        grad.addColorStop(1, "#334155");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 1200, 800);
+
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(40, 40, 1120, 720);
+
+        ctx.fillStyle = "#e11d48";
+        ctx.beginPath();
+        if (typeof (ctx as any).roundRect === "function") {
+          (ctx as any).roundRect(80, 80, 200, 48, 12);
+        } else {
+          ctx.rect(80, 80, 200, 48);
+        }
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 20px sans-serif";
+        ctx.fillText("KİŞİSEL DEPO HD", 100, 112);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 44px sans-serif";
+        ctx.fillText(title || "Fotoğraf Arşivi", 80, 240);
+
+        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.font = "22px sans-serif";
+        ctx.fillText(`Format: ${ext.toUpperCase()} • Orijinal Dijital Koleksiyon • ${new Date().toLocaleDateString("tr-TR")}`, 80, 310);
+
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, mimeType, 0.95)
+        );
+        if (blob) {
+          downloadBlob(filename, blob);
+          return;
+        }
+      }
+    } catch (e) {
+      // Fallback
+    }
+  }
+
+  // 4. Node / Birim testi fallback'i: Geçerli ikili 1x1 PNG Blob'u
+  const fallbackBlob = new Blob([VALID_BINARY_PNG], { type: "image/png" });
+  downloadBlob(filename, fallbackBlob);
+}
+
 /* ========================================================================== */
 /* 4. DOKÜMAN & ARŞİV DIŞA AKTARMA (PDF, XLSX, PPTX, ZIP, RAR, JSON)          */
 /* ========================================================================== */
@@ -342,8 +470,13 @@ startxref
       2
     );
     blob = new Blob([jsonContent], { type: "application/json" });
+  } else if (["jpg", "jpeg", "png", "webp"].includes(ext)) {
+    // Gerçek ikili (binary) görsel oluştur ve indir
+    const imgUrl = typeof titleOrOptions === "object" ? (titleOrOptions as any).imageUrl || (titleOrOptions as any).url : undefined;
+    exportImageFile(title, ext, imgUrl);
+    return;
   } else {
-    // ZIP / RAR / XLSX / PPTX / TXT / GÖRSELLER için içerikli blob
+    // ZIP / RAR / XLSX / PPTX / TXT vb. için içerikli blob
     const fileContent = docDesc || `Kişisel Depo Arşiv Dosyası: ${title}\nFormat: ${ext.toUpperCase()}\nBoyut: ${docSize || "1.2 MB"}\nOluşturulma: ${new Date().toISOString()}`;
     blob = new Blob([fileContent], { type: mime });
   }

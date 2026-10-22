@@ -7,6 +7,7 @@ import {
   addToTrash,
   getStoredCollection,
   saveStoredCollection,
+  createOrGetShareTokenForRecord,
 } from "@/lib/appStore";
 import {
   ArrowLeft,
@@ -627,6 +628,17 @@ export default function TextContainerPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          const token = createOrGetShareTokenForRecord(item, "text", "Gece Düşünceleri & Şiirlerim");
+                          window.open(`/share/${token}`, "_blank");
+                        }}
+                        className="p-1 rounded-md text-slate-300 hover:text-indigo-600 transition-colors"
+                        title="Bu Metni Paylaş"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           exportMarkdownFile(item.title, item.content);
                         }}
                         className="p-1 rounded-md text-slate-300 hover:text-indigo-600 transition-colors"
@@ -768,7 +780,18 @@ export default function TextContainerPage() {
                     )}
                   </button>
                   <button
-                    onClick={() => window.open("/share/mavi-aksamustu", "_blank")}
+                    onClick={() => {
+                      const token = createOrGetShareTokenForRecord(
+                        editingItem || {
+                          id: `text-${Date.now()}`,
+                          title: editTitle || "Taslak Metin",
+                          content: editContent,
+                        },
+                        "text",
+                        "Gece Düşünceleri & Şiirlerim"
+                      );
+                      window.open(`/share/${token}`, "_blank");
+                    }}
                     className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
                     title="Salt Okunur Önizleme Bağlantısını Aç"
                   >

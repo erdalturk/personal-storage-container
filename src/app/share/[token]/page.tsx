@@ -40,7 +40,7 @@ import {
   Camera,
   Video,
 } from "lucide-react";
-import { isTokenDeleted, getSharedLinks } from "@/lib/appStore";
+import { isTokenDeleted, getSharedLinks, getCustomSharedRecord } from "@/lib/appStore";
 import ThemeToggle from "@/components/ThemeToggle";
 import {
   exportMarkdownFile,
@@ -48,6 +48,7 @@ import {
   exportAudioFile,
   exportVideoFile,
   exportDocumentFile,
+  exportImageFile,
   exportTravelGuide,
   exportStudyNotes,
   exportMovieCollection,
@@ -69,6 +70,7 @@ interface SharedRecord {
   wordCount?: number;
   lineCount?: number;
   posterUrl?: string;
+  imageUrl?: string;
   director?: string;
   year?: number;
   rating?: number;
@@ -712,7 +714,18 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 function ShareContent() {
   const params = useParams();
   const token = params?.token as string;
-  const item = SHARED_DATA[token];
+  const [dynamicItem, setDynamicItem] = useState<SharedRecord | null>(null);
+
+  useEffect(() => {
+    if (token) {
+      const custom = getCustomSharedRecord(token);
+      if (custom) {
+        setDynamicItem(custom);
+      }
+    }
+  }, [token]);
+
+  const item = dynamicItem || SHARED_DATA[token];
 
   const [copied, setCopied] = useState(false);
   const [selectedMoviePreview, setSelectedMoviePreview] = useState<any>(null);
@@ -1429,7 +1442,7 @@ function ShareContent() {
                               exportVideoFile(img.title, img.format);
                               showToast(`"${img.title}.mp4" video indirildi.`);
                             } else {
-                              exportDocumentFile(img.title, img.format || "png", "4.2 MB", img.overview);
+                              exportImageFile(img.title, img.format || "png", img.posterUrl || img.imageUrl);
                               showToast(`"${img.title}.${(img.format || "png").toLowerCase()}" indirildi.`);
                             }
                           }}
@@ -1959,12 +1972,12 @@ function ShareContent() {
                       <span className="text-xs text-slate-400">{item.size}</span>
                       <button
                         onClick={() => {
-                          exportDocumentFile({
-                            name: `${item.title}.jpg`,
-                            size: item.size || "4.2 MB",
-                            format: "JPG",
-                          });
-                          triggerToast(`Görsel "${item.title}.jpg" indirildi.`);
+                          exportImageFile(
+                            item.title,
+                            item.format || "JPG",
+                            item.posterUrl || item.imageUrl
+                          );
+                          triggerToast(`Görsel "${item.title}" başarıyla indirildi.`);
                         }}
                         className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
                       >
@@ -2420,12 +2433,12 @@ function ShareContent() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
-                    exportDocumentFile({
-                      name: `${selectedImageModal.title}.jpg`,
-                      size: selectedImageModal.size || "4.5 MB",
-                      format: "JPG",
-                    });
-                    triggerToast(`"${selectedImageModal.title}.jpg" indirildi.`);
+                    exportImageFile(
+                      selectedImageModal.title,
+                      "JPG",
+                      selectedImageModal.url
+                    );
+                    triggerToast(`"${selectedImageModal.title}" başarıyla indirildi.`);
                   }}
                   className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
                 >

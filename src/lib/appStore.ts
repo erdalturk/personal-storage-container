@@ -41,6 +41,7 @@ const STORAGE_KEYS = {
   AUDIOS: "psc_audio_items",
   MEDIA: "psc_media_items",
   FILES: "psc_file_items",
+  CUSTOM_SHARED_RECORDS: "psc_custom_shared_records_v1",
 };
 
 // 1. Çöp Kutusu Başlangıç Verileri
@@ -384,6 +385,142 @@ export function isTokenDeleted(token: string): boolean {
   return deleted.includes(token);
 }
 
+// Slug oluşturucu (Türkçe karakterleri güvenli slug'a çevirir)
+export function slugify(text: string): string {
+  if (!text) return "icerik";
+  const trMap: Record<string, string> = {
+    ç: "c", Ç: "c", ğ: "g", Ğ: "g", ı: "i", İ: "i",
+    ö: "o", Ö: "o", ş: "s", Ş: "s", ü: "u", Ü: "u",
+  };
+  return text
+    .split("")
+    .map((c) => trMap[c] || c)
+    .join("")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 45) || "icerik";
+}
+
+// Dinamik paylaşılan içerik kayıtlarını getirme
+export function getCustomSharedRecords(): Record<string, any> {
+  return safeGet<Record<string, any>>(STORAGE_KEYS.CUSTOM_SHARED_RECORDS, {});
+}
+
+// Token ile dinamik paylaşılan içeriği bulma
+export function getCustomSharedRecord(token: string): any {
+  const records = getCustomSharedRecords();
+  return records[token] || null;
+}
+
+// Herhangi bir depo öğesi için benzersiz ve dinamik paylaşım token'ı oluşturma
+export function createOrGetShareTokenForRecord(
+  item: any,
+  type: "text" | "movie" | "code" | "travel" | "study" | "audio" | "image" | "file",
+  originContainer: string
+): string {
+  const cleanTitle = item.title || "Adsız İçerik";
+  const baseSlug = slugify(cleanTitle);
+  const suffix = item.id
+    ? `-${String(item.id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 10)}`
+    : `-${Date.now().toString(36)}`;
+  const token = `${baseSlug}${suffix}`;
+
+  const customRecord = {
+    id: item.id || token,
+    title: cleanTitle,
+    author: "Erdal Türk",
+    authorAvatar: "ET",
+    scope: "item",
+    type: type,
+    createdAt: item.createdAt || "Bugün",
+    isActive: true,
+    // Metin ve İçerik
+    content: item.content || item.overview || item.transcript,
+    wordCount: item.wordCount,
+    lineCount: item.lineCount,
+    // Medya ve Görseller
+    posterUrl: item.posterUrl || item.imageUrl || item.coverPhoto,
+    imageUrl: item.imageUrl || item.posterUrl || item.coverPhoto,
+    // Film alanları
+    director: item.director,
+    year: item.year,
+    rating: item.rating,
+    genres: item.genres,
+    // Açıklama ve Notlar
+    overview: item.overview || item.summary || item.description || item.experiencesNote,
+    userNote: item.userNote || item.userNotes || item.topRecommendations || item.keyFormulas,
+    // Seyahat alanları
+    destination: item.destination,
+    country: item.country,
+    durationDays: item.durationDays,
+    highlightPlaces: item.highlightPlaces,
+    // Kod alanları
+    code: item.code,
+    language: item.language,
+    tags: item.tags,
+    // Ders alanları
+    courseCode: item.courseCode,
+    term: item.term,
+    instructor: item.instructor,
+    targetExam: item.targetExam,
+    daysLeft: item.daysLeft,
+    topics: item.topics,
+    pdfName: item.pdfName || item.pdfAttachment?.name,
+    pdfSize: item.pdfSize || item.pdfAttachment?.size,
+    pdfPages: item.pdfPages || item.pdfAttachment?.pages,
+    flashcards: item.flashcards,
+    // Ses, Dosya ve Görsel
+    durationLabel: item.durationLabel,
+    format: item.format || item.extension,
+    size: item.size || item.sizeLabel,
+    transcript: item.transcript,
+    resolution: item.resolution,
+    cameraInfo: item.cameraInfo,
+    version: item.version,
+  };
+
+  // 1. Dinamik paylaşımlar tablosuna ekle
+  const records = getCustomSharedRecords();
+  records[token] = customRecord;
+  safeSet(STORAGE_KEYS.CUSTOM_SHARED_RECORDS, records);
+
+  // 2. Silinmiş tokenlar listesinden çıkar (varsa)
+  const currentDeleted = getDeletedTokens();
+  if (currentDeleted.includes(token)) {
+    safeSet(
+      STORAGE_KEYS.DELETED_TOKENS,
+      currentDeleted.filter((t) => t !== token)
+    );
+  }
+
+  // 3. Shared links listesine ekle (profil ve merkezi yönetim için)
+  const currentShares = getSharedLinks();
+  const exists = currentShares.some((s) => s.token === token);
+  if (!exists) {
+    const newSharedLink: SharedLink = {
+      id: `share-${token}`,
+      token,
+      itemTitle: cleanTitle,
+      containerName: originContainer,
+      type: type,
+      scope: "item",
+      createdAt: "Bugün",
+      views: 1,
+      isActive: true,
+    };
+    safeSet(STORAGE_KEYS.SHARED, [newSharedLink, ...currentShares]);
+  } else {
+    safeSet(
+      STORAGE_KEYS.SHARED,
+      currentShares.map((s) => (s.token === token ? { ...s, isActive: true } : s))
+    );
+  }
+
+  notifyStoreUpdate();
+  return token;
+}
+
 // Kullanıcı mevcut (silinmemiş) bir depo veya içerikte "Paylaş" butonuna bastığında bağlantıyı aktif eder
 export function activateShareToken(token: string): void {
   const currentDeleted = getDeletedTokens();
@@ -416,7 +553,8 @@ export function restoreSharesForItem(itemTitle: string, isContainerRestore: bool
   const currentShares = getSharedLinks();
   const currentDeleted = getDeletedTokens();
 
-  const matchingTemplates = INITIAL_SHARED.filter((share) => {
+  const pool = [...INITIAL_SHARED, ...currentShares];
+  const matchingTemplates = pool.filter((share) => {
     const shareTitleLower = share.itemTitle.toLowerCase().trim();
     const shareContainerLower = share.containerName.toLowerCase().trim();
     if (isContainerRestore) {

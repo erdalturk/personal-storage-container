@@ -28,12 +28,13 @@ import {
   Download,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import { exportDocumentFile } from "@/lib/exportUtils";
+import { exportDocumentFile, exportImageFile } from "@/lib/exportUtils";
 import {
   addToTrash,
   restoreFromTrash,
   getStoredCollection,
   saveStoredCollection,
+  createOrGetShareTokenForRecord,
 } from "@/lib/appStore";
 
 export interface MediaItem {
@@ -708,9 +709,14 @@ export default function MediaContainerPage() {
 
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() =>
-                          window.open("/share/minimalist-mimari-cekim", "_blank")
-                        }
+                        onClick={() => {
+                          const token = createOrGetShareTokenForRecord(
+                            item,
+                            "image",
+                            "Tasarım İlhamları & Fotoğraf Arşivi"
+                          );
+                          window.open(`/share/${token}`, "_blank");
+                        }}
                         className="p-1.5 rounded-lg text-stone-400 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
                         title="Paylaşım Kartını Aç"
                       >
@@ -786,9 +792,10 @@ export default function MediaContainerPage() {
                     />
                   </button>
                   <button
-                    onClick={() =>
-                      window.open("/share/minimalist-mimari-cekim", "_blank")
-                    }
+                    onClick={() => {
+                      const token = createOrGetShareTokenForRecord(item, "image", "Tasarım İlhamları & Fotoğraf Arşivi");
+                      window.open(`/share/${token}`, "_blank");
+                    }}
                     className="p-2 rounded-xl text-stone-400 hover:text-rose-600 cursor-pointer"
                     title="Paylaş"
                   >
@@ -882,11 +889,11 @@ export default function MediaContainerPage() {
               <div className="flex items-center gap-2 pt-4 border-t border-stone-800">
                 <button
                   onClick={() =>
-                    exportDocumentFile({
-                      name: `${lightboxItem.title}.${lightboxItem.format.toLowerCase()}`,
-                      size: lightboxItem.size,
-                      format: lightboxItem.format,
-                    })
+                    exportImageFile(
+                      lightboxItem.title,
+                      lightboxItem.format,
+                      lightboxItem.imageUrl
+                    )
                   }
                   className="py-2.5 px-4 rounded-xl bg-stone-800 hover:bg-stone-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
@@ -894,9 +901,14 @@ export default function MediaContainerPage() {
                   İndir
                 </button>
                 <button
-                  onClick={() =>
-                    window.open("/share/minimalist-mimari-cekim", "_blank")
-                  }
+                  onClick={() => {
+                    const token = createOrGetShareTokenForRecord(
+                      lightboxItem,
+                      "image",
+                      "Tasarım İlhamları & Fotoğraf Arşivi"
+                    );
+                    window.open(`/share/${token}`, "_blank");
+                  }}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
                 >
                   <Share2 className="w-4 h-4" />

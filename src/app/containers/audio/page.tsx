@@ -37,6 +37,7 @@ import {
   restoreFromTrash,
   getStoredCollection,
   saveStoredCollection,
+  createOrGetShareTokenForRecord,
 } from "@/lib/appStore";
 
 export interface AudioItem {
@@ -744,11 +745,16 @@ export default function AudioContainerPage() {
                         />
                       </button>
                       <button
-                        onClick={() =>
-                          window.open("/share/podcast-bolum-taslagi", "_blank")
-                        }
+                        onClick={() => {
+                          const token = createOrGetShareTokenForRecord(
+                            item,
+                            "audio",
+                            "Sesli Notlar & Podcast Fikirleri"
+                          );
+                          window.open(`/share/${token}`, "_blank");
+                        }}
                         className="p-2 rounded-xl text-stone-400 hover:bg-amber-50 hover:text-amber-700 transition cursor-pointer"
-                        title="Paylaşım Kartını Aç"
+                        title="Bu Ses Kaydını Paylaş"
                       >
                         <Share2 className="w-4 h-4" />
                       </button>

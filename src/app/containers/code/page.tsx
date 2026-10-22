@@ -7,6 +7,7 @@ import {
   addToTrash,
   getStoredCollection,
   saveStoredCollection,
+  createOrGetShareTokenForRecord,
 } from "@/lib/appStore";
 import {
   ArrowLeft,
@@ -627,13 +628,13 @@ export default function CodeContainerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-200">
       {/* 1. ÜST HEADER */}
-      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 h-16 flex items-center justify-between px-4 sm:px-8">
+      <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 h-16 flex items-center justify-between px-4 sm:px-8 shadow-xs">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition-colors"
+            className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
             title="Ana Sayfaya Dön"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -641,10 +642,10 @@ export default function CodeContainerPage() {
 
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-extrabold text-base sm:text-lg text-white">
+              <h1 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">
                 Frontend & Fullstack Snippet'lar
               </h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
                 Akıllı Depo
               </span>
             </div>
@@ -945,7 +946,12 @@ export default function CodeContainerPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open("/share/snippet-jwt-auth", "_blank");
+                            const token = createOrGetShareTokenForRecord(
+                              snippet,
+                              "code",
+                              "Frontend & Fullstack Snippet'lar"
+                            );
+                            window.open(`/share/${token}`, "_blank");
                           }}
                           className="p-1 rounded-md text-slate-400 hover:text-emerald-400 transition-colors"
                           title="Bu Kodu Salt Okunur Paylaş (Tekil İçerik)"
@@ -1106,6 +1112,22 @@ export default function CodeContainerPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const token = createOrGetShareTokenForRecord(
+                        detailSnippet,
+                        "code",
+                        "Frontend & Fullstack Snippet'lar"
+                      );
+                      window.open(`/share/${token}`, "_blank");
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700"
+                    title="Bu Kodu Paylaş"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Paylaş</span>
+                  </button>
+
                   <button
                     onClick={() => {
                       exportCodeFile(detailSnippet.title, detailSnippet.code, detailSnippet.language);

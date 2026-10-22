@@ -7,6 +7,7 @@ import {
   addToTrash,
   getStoredCollection,
   saveStoredCollection,
+  createOrGetShareTokenForRecord,
 } from "@/lib/appStore";
 import {
   ArrowLeft,
@@ -551,9 +552,19 @@ export default function StudyContainerPage() {
   };
 
   // Paylaşım Bağlantısını Salt Okunur Kart / Vitrin Olarak Yeni Sekmede Aç
-  const handleShareStudy = (tokenSlug: string = "yapay-zeka-ders-notlari", e?: React.MouseEvent) => {
+  const handleShareStudy = (itemOrSlug?: CourseStudyNote | string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    window.open(`/share/${tokenSlug}`, "_blank");
+    if (typeof itemOrSlug === "object" && itemOrSlug !== null) {
+      const token = createOrGetShareTokenForRecord(
+        itemOrSlug,
+        "study",
+        "Yapay Zekâ & Algoritmalar Dersi"
+      );
+      window.open(`/share/${token}`, "_blank");
+    } else {
+      const slug = typeof itemOrSlug === "string" ? itemOrSlug : "yapay-zeka-ve-algoritmalar-deposu";
+      window.open(`/share/${slug}`, "_blank");
+    }
   };
 
   // Flashcards (Ezber Kartları) Modunu Başlat
@@ -929,7 +940,7 @@ export default function StudyContainerPage() {
                       <SlidersHorizontal className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={(e) => handleShareStudy("yapay-zeka-ders-notlari", e)}
+                      onClick={(e) => handleShareStudy(note, e)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
                       title="Bu Notu Salt Okunur Paylaş"
                     >
@@ -1155,7 +1166,7 @@ export default function StudyContainerPage() {
                     Düzenle
                   </button>
                   <button
-                    onClick={() => handleShareStudy("yapay-zeka-ders-notlari")}
+                    onClick={() => handleShareStudy(selectedNote)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-colors shadow-sm"
                     title="Bu Notu Salt Okunur Kart Olarak Paylaş"
                   >
