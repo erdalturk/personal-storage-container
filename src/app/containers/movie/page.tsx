@@ -33,9 +33,11 @@ import {
   Check,
   Clapperboard,
   Download,
+  Loader2,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportMovieCollection } from "@/lib/exportUtils";
+import { searchMoviesOnline, MovieSearchResult } from "@/lib/tmdbClient";
 
 interface MovieItem {
   id: string;
@@ -242,9 +244,28 @@ export default function MovieContainerPage() {
   // Detay Modalı
   const [selectedMovie, setSelectedMovie] = useState<MovieItem | null>(null);
 
-  // Arama & Ekleme Açılır Menüsü (Section 7.3)
+  // Arama & Ekleme Açılır Menüsü (Section 7.3 - Canlı TMDB / OMDb API)
   const [addSearchInput, setAddSearchInput] = useState("");
   const [isAddSearchOpen, setIsAddSearchOpen] = useState(false);
+  const [onlineSearchResults, setOnlineSearchResults] = useState<MovieSearchResult[]>([]);
+  const [isSearchingOnline, setIsSearchingOnline] = useState(false);
+
+  useEffect(() => {
+    if (!addSearchInput.trim() || addSearchInput.trim().length < 2) {
+      setOnlineSearchResults([]);
+      setIsSearchingOnline(false);
+      return;
+    }
+
+    setIsSearchingOnline(true);
+    const timer = setTimeout(async () => {
+      const results = await searchMoviesOnline(addSearchInput);
+      setOnlineSearchResults(results);
+      setIsSearchingOnline(false);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [addSearchInput]);
 
   // Manuel Film Ekleme Modalı (Section 7.5)
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
@@ -316,8 +337,8 @@ export default function MovieContainerPage() {
     }
   };
 
-  // Aramadan Film Ekle (TMDB Entegrasyonu Simülasyonu)
-  const handleAddMovieFromSearch = (item: (typeof SEARCH_DATABASE)[0]) => {
+  // Aramadan Film Ekle (Canlı TMDB / OMDb Entegrasyonu)
+  const handleAddMovieFromSearch = (item: MovieSearchResult | (typeof SEARCH_DATABASE)[0]) => {
     const newMovie: MovieItem = {
       id: "m_" + Date.now(),
       title: item.title,
@@ -326,6 +347,7 @@ export default function MovieContainerPage() {
       rating: item.rating,
       genres: item.genres,
       posterUrl: item.posterUrl,
+      backdropUrl: (item as any).backdropUrl || item.posterUrl,
       duration: item.duration,
       cast: item.cast,
       overview: item.overview,
@@ -333,9 +355,13 @@ export default function MovieContainerPage() {
       isWatchlist: true,
       isFavorite: false,
     };
-    setMovies([newMovie, ...movies]);
+    const updated = [newMovie, ...movies];
+    setMovies(updated);
+    saveStoredCollection("movies", updated);
     setAddSearchInput("");
     setIsAddSearchOpen(false);
+    setToastMessage(`"${item.title}" filmi deponuza eklendi.`);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   // Manuel Film Kaydet
@@ -723,44 +749,53 @@ export default function MovieContainerPage() {
 
               {/* Arama Sonuçları */}
               <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                {SEARCH_DATABASE.filter((s) =>
-                  s.title.toLowerCase().includes(addSearchInput.toLowerCase())
-                ).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 bg-slate-50 dark:bg-slate-950/60 hover:bg-purple-50/50 dark:hover:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={item.posterUrl}
-                        alt={item.title}
-                        className="w-12 h-16 object-cover rounded-xl shrink-0"
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-sm text-slate-900 dark:text-white">{item.title}</h4>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">({item.year})</span>
-                          <span className="flex items-center gap-1 text-[11px] text-amber-500 dark:text-amber-400 font-bold ml-1">
-                            <Star className="w-3 h-3 fill-amber-500 dark:fill-amber-400" /> {item.rating}
-                          </span>
-                        </div>
-                        <p className="text-xs text-purple-700 dark:text-purple-300 font-medium mt-0.5">
-                          Yönetmen: {item.director}
-                        </p>
-                        <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
-                          {item.overview}
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleAddMovieFromSearch(item)}
-                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shrink-0 transition-colors shadow-xs"
-                    >
-                      + Depoya Ekle
-                    </button>
+                {isSearchingOnline ? (
+                  <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-400">
+                    <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                    <span className="text-xs font-semibold">Canlı film veritabanında aranıyor...</span>
                   </div>
-                ))}
+                ) : (addSearchInput.trim().length >= 2 ? onlineSearchResults : SEARCH_DATABASE).length === 0 ? (
+                  <div className="py-10 text-center text-xs text-slate-500">
+                    Aradığınız isimde bir film bulunamadı. Aşağıdan manuel ekleyebilirsiniz.
+                  </div>
+                ) : (
+                  (addSearchInput.trim().length >= 2 ? onlineSearchResults : SEARCH_DATABASE).map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-slate-50 dark:bg-slate-950/60 hover:bg-purple-50/50 dark:hover:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <img
+                          src={item.posterUrl}
+                          alt={item.title}
+                          className="w-12 h-16 object-cover rounded-xl shrink-0 shadow-xs"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">{item.title}</h4>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">({item.year})</span>
+                            <span className="flex items-center gap-1 text-[11px] text-amber-500 dark:text-amber-400 font-bold ml-1">
+                              <Star className="w-3 h-3 fill-amber-500 dark:fill-amber-400" /> {item.rating}
+                            </span>
+                          </div>
+                          <p className="text-xs text-purple-700 dark:text-purple-300 font-medium mt-0.5 truncate">
+                            Yönetmen: {item.director}
+                          </p>
+                          <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                            {item.overview}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleAddMovieFromSearch(item)}
+                        className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shrink-0 transition-colors shadow-xs cursor-pointer"
+                      >
+                        + Depoya Ekle
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
 
               {/* Alt Buton: Manuel Film Ekle */}
