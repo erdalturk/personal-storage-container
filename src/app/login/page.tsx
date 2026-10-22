@@ -17,6 +17,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { loginUser } from "@/lib/appStore";
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export default function LoginPage() {
@@ -29,7 +30,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleAuthSubmit = (e: React.FormEvent) => {
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -47,6 +48,42 @@ export default function LoginPage() {
     }
 
     setIsLoading(true);
+
+    if (isSupabaseConfigured()) {
+      const supabase = getSupabase();
+      if (supabase) {
+        try {
+          if (mode === "register") {
+            const { data, error } = await supabase.auth.signUp({
+              email: email.trim(),
+              password: password,
+              options: {
+                data: { full_name: name.trim() },
+              },
+            });
+            if (error) throw error;
+            loginUser(email, name);
+            router.push("/");
+            return;
+          } else {
+            const { data, error } = await supabase.auth.signInWithPassword({
+              email: email.trim(),
+              password: password,
+            });
+            if (error) throw error;
+            loginUser(email, data.user?.user_metadata?.full_name);
+            router.push("/");
+            return;
+          }
+        } catch (err: any) {
+          setIsLoading(false);
+          setErrorMsg(err.message || "Giriş işlemi sırasında hata oluştu.");
+          return;
+        }
+      }
+    }
+
+    // Yerel Mod Fallback (Supabase yapılandırılmamışsa kesintisiz yerel oturum)
     setTimeout(() => {
       loginUser(email, mode === "register" ? name : undefined);
       router.push("/");

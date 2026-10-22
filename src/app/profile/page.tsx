@@ -36,12 +36,16 @@ import {
   Upload,
   LogOut,
   Database,
+  Cloud,
+  RefreshCw,
+  CheckCircle2,
   Sun,
   Moon,
   Monitor,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
+import { syncLocalDataToCloud, getSyncStatus } from "@/lib/syncService";
 import {
   getSharedLinks,
   toggleShareLinkActive,
@@ -93,6 +97,10 @@ export default function ProfilePage() {
   const [confirmPinInput, setConfirmPinInput] = useState("");
   const [pinFeedback, setPinFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [isPinFormOpen, setIsPinFormOpen] = useState(false);
+
+  // Bulut Senkronizasyon State'leri
+  const [syncStatus, setSyncStatus] = useState(() => getSyncStatus());
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     const syncAll = () => {
@@ -176,6 +184,16 @@ export default function ProfilePage() {
   const handleLogout = () => {
     logoutUser();
     router.push("/login");
+  };
+
+  // Bulut Senkronizasyonu Tetikle (Local -> Cloud)
+  const handleCloudSync = async () => {
+    setIsSyncing(true);
+    const res = await syncLocalDataToCloud();
+    setIsSyncing(false);
+    setSyncStatus(getSyncStatus());
+    setToastMessage(res.message);
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   // Tam Arşiv Yedeği İndir (.json)
@@ -530,6 +548,50 @@ export default function ProfilePage() {
               </motion.div>
             )}
           </AnimatePresence>
+        </section>
+
+        {/* 1.4 BULUT VERİTABANI & HİBRİT SENKRONİZASYON (SUPABASE POSTGRESQL) */}
+        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-800/60">
+                <Cloud className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                    Bulut Veritabanı & Senkronizasyon (Supabase)
+                  </h3>
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                      syncStatus.isConfigured
+                        ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
+                        : "bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/60"
+                    }`}
+                  >
+                    {syncStatus.isConfigured ? "🟢 Bulut Bağlantısı Aktif" : "🟡 Yerel Mod (Offline / PWA)"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {syncStatus.lastSyncedAt
+                    ? `Son eşitleme: ${syncStatus.lastSyncedAt}`
+                    : "Verileriniz tarayıcınızda güvende. Dilediğiniz an tek tıkla bulut veritabanına aktarabilirsiniz."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={handleCloudSync}
+                disabled={isSyncing}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                <span>{isSyncing ? "Eşitleniyor..." : "Buluta Şimdi Eşitle"}</span>
+              </button>
+            </div>
+          </div>
         </section>
 
         {/* 1.5 TAM ARŞİV YEDEKLEME VE GERİ YÜKLEME (.JSON) KARTI */}
