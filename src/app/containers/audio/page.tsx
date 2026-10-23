@@ -155,6 +155,8 @@ export default function AudioContainerPage() {
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
+  const [folderToRename, setFolderToRename] = useState<string | null>(null);
+  const [renameFolderName, setRenameFolderName] = useState("");
 
   // Add/Edit Audio Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -317,6 +319,24 @@ export default function AudioContainerPage() {
     setNewFolderName("");
     setIsNewFolderOpen(false);
     showToast(`"${trimmed}" klasörü oluşturuldu.`);
+  };
+
+  const handleRenameFolder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!folderToRename || !renameFolderName.trim()) return;
+    const newName = renameFolderName.trim();
+    if (newName === folderToRename) {
+      setFolderToRename(null);
+      return;
+    }
+    const updatedFolders = folders.map((f) => (f === folderToRename ? newName : f));
+    setFolders(updatedFolders);
+    const updatedAudios = audios.map((a) => (a.folder === folderToRename ? { ...a, folder: newName } : a));
+    syncAudios(updatedAudios);
+    if (selectedFolder === folderToRename) setSelectedFolder(newName);
+    setFolderToRename(null);
+    setRenameFolderName("");
+    showToast(`Klasör adı "${newName}" olarak güncellendi.`);
   };
 
   const handleDeleteFolderKeepItems = (folderName: string) => {
@@ -671,18 +691,33 @@ export default function AudioContainerPage() {
                     <Folder className="w-3.5 h-3.5" />
                     {folder} ({count})
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setFolderToDelete(folder);
-                    }}
-                    className={`pr-2.5 pl-1 py-2 opacity-60 hover:opacity-100 transition cursor-pointer ${
-                      isSelected ? "text-white" : "text-stone-400 hover:text-rose-600"
-                    }`}
-                    title="Klasörü Sil"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFolderToRename(folder);
+                        setRenameFolderName(folder);
+                      }}
+                      className={`px-1 py-2 opacity-60 hover:opacity-100 transition cursor-pointer ${
+                        isSelected ? "text-white" : "text-stone-400 hover:text-amber-600"
+                      }`}
+                      title="Klasörü Yeniden Adlandır"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFolderToDelete(folder);
+                      }}
+                      className={`pr-2.5 pl-1 py-2 opacity-60 hover:opacity-100 transition cursor-pointer ${
+                        isSelected ? "text-white" : "text-stone-400 hover:text-rose-600"
+                      }`}
+                      title="Klasörü Sil"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -987,6 +1022,45 @@ export default function AudioContainerPage() {
             >
               Vazgeç
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Folder Rename Modal */}
+      {folderToRename && (
+        <div className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 border border-stone-200 shadow-xl space-y-4">
+            <h3 className="text-base font-bold text-stone-900">
+              Klasörü Yeniden Adlandır
+            </h3>
+            <p className="text-xs text-stone-500">
+              &ldquo;{folderToRename}&rdquo; klasörü için yeni bir isim belirleyin.
+            </p>
+            <form onSubmit={handleRenameFolder} className="space-y-4">
+              <input
+                type="text"
+                value={renameFolderName}
+                onChange={(e) => setRenameFolderName(e.target.value)}
+                placeholder="Klasör Adı"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs font-semibold outline-none focus:border-amber-500"
+                autoFocus
+              />
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setFolderToRename(null)}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 cursor-pointer"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 text-white shadow-md hover:bg-amber-700 cursor-pointer"
+                >
+                  Kaydet
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

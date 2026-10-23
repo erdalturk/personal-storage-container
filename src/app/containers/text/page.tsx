@@ -35,6 +35,7 @@ import {
   X,
   AlertCircle,
   Upload,
+  Edit3,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { exportMarkdownFile, downloadTextFile } from "@/lib/exportUtils";
@@ -137,10 +138,12 @@ export default function TextContainerPage() {
   const [editFormatType, setEditFormatType] = useState<"poem" | "note" | "plain">("poem");
   const [editFolderId, setEditFolderId] = useState<string | null>(null);
 
-  // Klasör Oluşturma / Silme Modalı (Bölüm 10.7 Kuralı)
+  // Klasör Oluşturma / Silme / Yeniden Adlandırma Modalı (Bölüm 10.4 & 10.7 Kuralı)
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [folderToDelete, setFolderToDelete] = useState<FolderItem | null>(null);
+  const [folderToRename, setFolderToRename] = useState<FolderItem | null>(null);
+  const [renameFolderName, setRenameFolderName] = useState("");
 
   // Hızlı Geri Al (Undo Toast - Bölüm 12.1)
   const [deletedItemBackup, setDeletedItemBackup] = useState<TextItem | null>(null);
@@ -283,6 +286,20 @@ export default function TextContainerPage() {
     setFolders([...folders, newFolder]);
     setNewFolderName("");
     setIsNewFolderModalOpen(false);
+  };
+
+  // Klasör Yeniden Adlandır (Bölüm 10.4 Kuralı)
+  const handleRenameFolder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!folderToRename || !renameFolderName.trim()) return;
+    const newName = renameFolderName.trim();
+    setFolders((prev) =>
+      prev.map((f) => (f.id === folderToRename.id ? { ...f, name: newName } : f))
+    );
+    setFolderToRename(null);
+    setRenameFolderName("");
+    setToastMessage(`Klasör adı "${newName}" olarak güncellendi.`);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   // Klasör Silme — Bölüm 10.7 Seçenekleri:
@@ -509,6 +526,18 @@ export default function TextContainerPage() {
                         <span className="text-[11px] opacity-75 group-hover:hidden">
                           {count}
                         </span>
+                        {/* Klasör Yeniden Adlandır Butonu */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFolderToRename(folder);
+                            setRenameFolderName(folder.name);
+                          }}
+                          className="hidden group-hover:block p-1 rounded-md text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Klasörü Yeniden Adlandır"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
                         {/* Klasör Sil Butonu */}
                         <button
                           onClick={(e) => {
@@ -1018,6 +1047,49 @@ export default function TextContainerPage() {
                   Vazgeç
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 5.1. KLASÖR YENİDEN ADLANDIRMA MODALI (BÖLÜM 10.4 KURALI) */}
+      <AnimatePresence>
+        {folderToRename && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              onClick={() => setFolderToRename(null)}
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"
+            />
+            <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 z-10 space-y-4">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white">Klasörü Yeniden Adlandır</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                "{folderToRename.name}" klasörü için yeni bir isim belirleyin.
+              </p>
+              <form onSubmit={handleRenameFolder} className="space-y-4">
+                <input
+                  type="text"
+                  value={renameFolderName}
+                  onChange={(e) => setRenameFolderName(e.target.value)}
+                  placeholder="Klasör Adı"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold outline-none focus:border-indigo-500"
+                  autoFocus
+                />
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setFolderToRename(null)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-md hover:bg-indigo-700"
+                  >
+                    Kaydet
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
