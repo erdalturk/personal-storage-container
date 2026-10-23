@@ -29,11 +29,16 @@ import {
   permanentDeleteFromTrash,
   emptyTrash,
   TrashItem,
+  TrashRetentionDays,
+  getTrashRetentionDays,
+  setTrashRetentionDays,
+  purgeExpiredTrashItems,
 } from "@/lib/appStore";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export default function TrashPage() {
   const [items, setItems] = useState<TrashItem[]>([]);
+  const [retentionDays, setRetentionDaysState] = useState<TrashRetentionDays>(30);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<
     "all" | "container" | "text" | "movie" | "code" | "travel" | "study" | "audio" | "image" | "file"
@@ -43,15 +48,32 @@ export default function TrashPage() {
 
   // Merkezi depodan canlı yükleme ve olay dinleyici
   useEffect(() => {
+    const savedRetention = getTrashRetentionDays();
+    setRetentionDaysState(savedRetention);
+    purgeExpiredTrashItems(savedRetention);
     setItems(getTrashItems());
 
     const handleUpdate = () => {
+      setRetentionDaysState(getTrashRetentionDays());
       setItems(getTrashItems());
     };
 
     window.addEventListener("psc-store-updated", handleUpdate);
     return () => window.removeEventListener("psc-store-updated", handleUpdate);
   }, []);
+
+  const handleRetentionChange = (days: TrashRetentionDays) => {
+    setTrashRetentionDays(days);
+    setRetentionDaysState(days);
+    const { purgedCount } = purgeExpiredTrashItems(days);
+    setItems(getTrashItems());
+    if (purgedCount > 0) {
+      setToastMessage(`Saklama süresi ${days} gün olarak ayarlandı. Süresi dolan ${purgedCount} içerik otomatik temizlendi.`);
+    } else {
+      setToastMessage(`Çöp kutusu saklama süresi ${days} gün olarak güncellendi.`);
+    }
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   // Geri Yükle
   const handleRestore = (item: TrashItem) => {
@@ -137,11 +159,35 @@ export default function TrashPage() {
 
       {/* ANA İÇERİK ALANI */}
       <main className="max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 flex-1">
-        {/* Bilgi Kutusu (Section 12.3 Açıklaması) */}
-        <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-start gap-3 text-xs text-indigo-900 dark:text-indigo-200">
-          <Info className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold">Otomatik Silme Kuralı:</span> Silinen içerikler ve depolar varsayılan olarak 30 gün boyunca burada saklanır. Bir içerik silindiğinde ona ait dış paylaşımlar otomatik olarak sonlandırılır. Dilediğiniz içeriği süresi dolmadan geri yükleyebilirsiniz.
+        {/* Bilgi Kutusu & Saklama Süresi Ayarı (Section 12.3 & 13.1) */}
+        <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3 text-xs text-indigo-900 dark:text-indigo-200">
+            <Info className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold">Otomatik Silme Kuralı:</span> Silinen içerikler ve depolar belirlediğiniz <b>{retentionDays} gün</b> boyunca burada saklanır. Bir içerik silindiğinde dış paylaşımları otomatik sonlandırılır. Süresi dolanlar otomatik kalıcı silinir; son 5 günde kırmızı uyarı verilir.
+            </div>
+          </div>
+
+          {/* Saklama Süresi Seçici (Retention Selector) */}
+          <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-indigo-200/60 dark:border-indigo-800/60 shrink-0 self-start md:self-auto shadow-xs">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 px-2 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              Saklama:
+            </span>
+            {([15, 30, 60] as TrashRetentionDays[]).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => handleRetentionChange(d)}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  retentionDays === d
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                {d} Gün {d === 30 && <span className="opacity-75 text-[10px]">(Varsayılan)</span>}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -340,9 +386,15 @@ export default function TrashPage() {
                     <div className="flex items-center gap-3 mt-2 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
                       <span>Silindi: {item.deletedAt}</span>
                       <span>•</span>
-                      <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold">
+                      <span
+                        className={`flex items-center gap-1 font-bold ${
+                          item.daysRemaining <= 5
+                            ? "text-rose-600 dark:text-rose-400"
+                            : "text-amber-600 dark:text-amber-400"
+                        }`}
+                      >
                         <Clock className="w-3 h-3" />
-                        {item.daysRemaining} gün kaldı
+                        {item.daysRemaining} gün kaldı {item.daysRemaining <= 5 && "(Son Günler)"}
                       </span>
                     </div>
                   </div>

@@ -11,6 +11,7 @@ export interface TrashItem {
   type: "container" | "text" | "movie" | "code" | "travel" | "study" | "audio" | "image" | "file";
   deletedAt: string;
   daysRemaining: number;
+  deletedTimestamp?: number; // Silinme epoch ms damgası
   contentPreview?: string;
   posterUrl?: string;
   originalData?: any; // Geri yükleme (Restore) için orijinal veri yedeği
@@ -42,6 +43,7 @@ const STORAGE_KEYS = {
   MEDIA: "psc_media_items",
   FILES: "psc_file_items",
   CUSTOM_SHARED_RECORDS: "psc_custom_shared_records_v1",
+  TRASH_RETENTION: "psc_trash_retention_days",
 };
 
 // 1. Çöp Kutusu Başlangıç Verileri
@@ -281,20 +283,96 @@ function safeSet<T>(key: string, value: T): void {
 }
 
 /* ========================================================================== */
-/* ÇÖP KUTUSU (TRASH) YÖNETİMİ                                                */
+/* ÇÖP KUTUSU (TRASH) YÖNETİMİ & SAKLAMA SÜRESİ AYARLARI                      */
 /* ========================================================================== */
 
+export type TrashRetentionDays = 15 | 30 | 60;
+
+export function getTrashRetentionDays(): TrashRetentionDays {
+  if (typeof window === "undefined") return 30;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.TRASH_RETENTION);
+    if (saved === "15" || saved === "30" || saved === "60") {
+      return parseInt(saved, 10) as TrashRetentionDays;
+    }
+  } catch {}
+  return 30;
+}
+
+export function calculateDaysRemaining(item: TrashItem, retentionDays: TrashRetentionDays): number {
+  if (item.deletedTimestamp) {
+    const elapsedDays = Math.floor((Date.now() - item.deletedTimestamp) / (1000 * 60 * 60 * 24));
+    return retentionDays - elapsedDays;
+  }
+  const text = (item.deletedAt || "").toLowerCase();
+  let elapsed = 0;
+  if (text.includes("az önce") || text.includes("şimdi") || text.includes("dakika") || text.includes("saat")) {
+    elapsed = 0;
+  } else if (text.includes("dün")) {
+    elapsed = 1;
+  } else if (text.includes("gün")) {
+    const match = text.match(/\d+/);
+    elapsed = match ? parseInt(match[0], 10) : 2;
+  } else if (text.includes("hafta")) {
+    const match = text.match(/\d+/);
+    elapsed = (match ? parseInt(match[0], 10) : 1) * 7;
+  }
+  return retentionDays - elapsed;
+}
+
+export function purgeExpiredTrashItems(retentionDays?: TrashRetentionDays): { remaining: TrashItem[]; purgedCount: number } {
+  const days = retentionDays || getTrashRetentionDays();
+  const current = safeGet<TrashItem[]>(STORAGE_KEYS.TRASH, INITIAL_TRASH);
+  const remaining: TrashItem[] = [];
+  let purgedCount = 0;
+
+  for (const item of current) {
+    const rem = calculateDaysRemaining(item, days);
+    if (rem > 0) {
+      remaining.push({
+        ...item,
+        daysRemaining: rem,
+      });
+    } else {
+      purgedCount++;
+    }
+  }
+
+  if (purgedCount > 0) {
+    safeSet(STORAGE_KEYS.TRASH, remaining);
+    notifyStoreUpdate();
+  }
+  return { remaining, purgedCount };
+}
+
+export function setTrashRetentionDays(days: TrashRetentionDays): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.TRASH_RETENTION, days.toString());
+    purgeExpiredTrashItems(days);
+    notifyStoreUpdate();
+  } catch {}
+}
+
 export function getTrashItems(): TrashItem[] {
-  return safeGet<TrashItem[]>(STORAGE_KEYS.TRASH, INITIAL_TRASH);
+  const items = safeGet<TrashItem[]>(STORAGE_KEYS.TRASH, INITIAL_TRASH);
+  const retention = getTrashRetentionDays();
+  return items.map((item) => ({
+    ...item,
+    daysRemaining: calculateDaysRemaining(item, retention),
+  }));
 }
 
 export function addToTrash(item: Omit<TrashItem, "id" | "deletedAt" | "daysRemaining"> & { id?: string }): TrashItem {
   const current = getTrashItems();
+  const retention = getTrashRetentionDays();
+  const now = Date.now();
   const newItem: TrashItem = {
     ...item,
-    id: item.id || `tr-${Date.now()}`,
+    id: item.id || `tr-${now}`,
     deletedAt: "Az önce",
-    daysRemaining: 30,
+    daysRemaining: retention,
+    deletedTimestamp: now,
   };
 
   const updated = [newItem, ...current];
