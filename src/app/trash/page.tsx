@@ -33,11 +33,15 @@ import {
   getTrashRetentionDays,
   setTrashRetentionDays,
   purgeExpiredTrashItems,
+  restoreBatchFromTrash,
+  permanentDeleteBatchFromTrash,
 } from "@/lib/appStore";
 import ThemeToggle from "@/components/ThemeToggle";
+import BatchActionBar from "@/components/BatchActionBar";
 
 export default function TrashPage() {
   const [items, setItems] = useState<TrashItem[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [retentionDays, setRetentionDaysState] = useState<TrashRetentionDays>(30);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<
@@ -73,6 +77,39 @@ export default function TrashPage() {
       setToastMessage(`Çöp kutusu saklama süresi ${days} gün olarak güncellendi.`);
     }
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleToggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds(filteredItems.map((i) => i.id));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+  };
+
+  const handleBatchRestore = () => {
+    if (selectedIds.length === 0) return;
+    const restored = restoreBatchFromTrash(selectedIds);
+    setToastMessage(`${restored.length} içerik başarıyla geri yüklendi.`);
+    setSelectedIds([]);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleBatchPermanentDelete = () => {
+    if (selectedIds.length === 0) return;
+    if (confirm(`Seçili ${selectedIds.length} öğe kalıcı olarak silinecektir. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) {
+      const count = permanentDeleteBatchFromTrash(selectedIds);
+      setToastMessage(`${count} içerik kalıcı olarak silindi.`);
+      setSelectedIds([]);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
   // Geri Yükle
@@ -305,9 +342,27 @@ export default function TrashPage() {
               <motion.div
                 key={item.id}
                 layout
-                className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                className={`bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                  selectedIds.includes(item.id)
+                    ? "border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/20 dark:bg-indigo-950/20"
+                    : "border-slate-200 dark:border-slate-800"
+                }`}
               >
-                <div className="flex items-start gap-3.5">
+                <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                  {/* Seçim Checkbox'ı */}
+                  <button
+                    type="button"
+                    onClick={(e) => handleToggleSelect(item.id, e)}
+                    className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer shrink-0 mt-0.5"
+                    title={selectedIds.includes(item.id) ? "Seçimi Kaldır" : "Öğeyi Seç"}
+                  >
+                    {selectedIds.includes(item.id) ? (
+                      <CheckCircle2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400 fill-indigo-100 dark:fill-indigo-950/60" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-md border-2 border-slate-300 dark:border-slate-700 hover:border-indigo-400" />
+                    )}
+                  </button>
+
                   <div
                     className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-xs ${
                       item.type === "container"
@@ -422,6 +477,19 @@ export default function TrashPage() {
             ))}
           </div>
         )}
+
+        {/* Kayan Çoklu Eylem Çubuğu */}
+        <BatchActionBar
+          selectedCount={selectedIds.length}
+          totalCount={filteredItems.length}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onRestoreBatch={handleBatchRestore}
+          onDeleteBatch={handleBatchPermanentDelete}
+          onClose={handleDeselectAll}
+          deleteLabel="Kalıcı Sil"
+          restoreLabel="Geri Yükle"
+        />
       </main>
 
       {/* KALICI SİLME ONAY MODALI */}

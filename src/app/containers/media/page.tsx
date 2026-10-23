@@ -28,13 +28,17 @@ import {
   Download,
   Upload,
   Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import BatchActionBar from "@/components/BatchActionBar";
 import { exportDocumentFile, exportImageFile } from "@/lib/exportUtils";
 import { compressImageClient, readFileAsDataUrl, formatBytes } from "@/lib/uploadUtils";
 import {
   addToTrash,
   restoreFromTrash,
+  addBatchToTrash,
+  restoreBatchFromTrash,
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
@@ -213,9 +217,11 @@ export default function MediaContainerPage() {
     }
   };
 
-  // Toast & Undo
+  // Toast & Undo & Batch
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lastTrashId, setLastTrashId] = useState<string | null>(null);
+  const [lastTrashBatchIds, setLastTrashBatchIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const stored = getStoredCollection<MediaItem>("media", INITIAL_MEDIA);
@@ -234,6 +240,51 @@ export default function MediaContainerPage() {
     setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 5000);
+  };
+
+  const handleToggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds(filteredMedia.map((m) => m.id));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.length === 0) return;
+    const itemsToDelete = mediaList.filter((m) => selectedIds.includes(m.id));
+    const remaining = mediaList.filter((m) => !selectedIds.includes(m.id));
+    syncMedia(remaining);
+
+    const trashEntries = addBatchToTrash(
+      itemsToDelete.map((item) => ({
+        title: item.title,
+        originContainer: "Tasarım İlhamları & Fotoğraf Arşivi",
+        type: "image",
+        contentPreview: `${item.format} (${item.resolution}) • ${item.description.slice(0, 90)}...`,
+        originalData: item,
+      }))
+    );
+
+    const ids = trashEntries.map((t) => t.id);
+    setLastTrashBatchIds(ids);
+    setLastTrashId(null);
+    setSelectedIds([]);
+    showToast(`${itemsToDelete.length} görsel çöp kutusuna taşındı.`);
+  };
+
+  const handleBatchUndo = () => {
+    if (lastTrashBatchIds.length === 0) return;
+    restoreBatchFromTrash(lastTrashBatchIds);
+    setToastMessage(null);
+    setLastTrashBatchIds([]);
   };
 
   const syncMedia = (updated: MediaItem[]) => {
@@ -698,7 +749,11 @@ export default function MediaContainerPage() {
             {filteredMedia.map((item) => (
               <div
                 key={item.id}
-                className="group bg-white rounded-3xl border border-stone-200/80 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col"
+                className={`group bg-white rounded-3xl border overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col ${
+                  selectedIds.includes(item.id)
+                    ? "border-rose-500 ring-2 ring-rose-500/20"
+                    : "border-stone-200/80"
+                }`}
               >
                 {/* Image Container */}
                 <div className="relative h-60 overflow-hidden bg-stone-100">
@@ -709,6 +764,18 @@ export default function MediaContainerPage() {
                     onClick={() => setLightboxItem(item)}
                   />
                   <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleSelect(item.id, e)}
+                      className="p-1 rounded-lg bg-stone-900/80 backdrop-blur-md text-white hover:bg-rose-600 transition cursor-pointer"
+                      title={selectedIds.includes(item.id) ? "Seçimi Kaldır" : "Görseli Seç"}
+                    >
+                      {selectedIds.includes(item.id) ? (
+                        <CheckCircle2 className="w-4 h-4 text-rose-400 fill-white" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-md border-2 border-white/80" />
+                      )}
+                    </button>
                     <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-stone-900/80 backdrop-blur-md text-white">
                       {item.format}
                     </span>
@@ -894,6 +961,17 @@ export default function MediaContainerPage() {
             ))}
           </div>
         )}
+
+        {/* Kayan Çoklu Eylem Çubuğu */}
+        <BatchActionBar
+          selectedCount={selectedIds.length}
+          totalCount={filteredMedia.length}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onDeleteBatch={handleBatchDelete}
+          onClose={handleDeselectAll}
+          deleteLabel="Seçilenleri Sil"
+        />
       </main>
 
       {/* Lightbox Fullscreen Preview Modal */}
@@ -1290,9 +1368,9 @@ export default function MediaContainerPage() {
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-4">
           <span className="text-sm font-medium">{toastMessage}</span>
-          {lastTrashId && (
+          {(lastTrashId || lastTrashBatchIds.length > 0) && (
             <button
-              onClick={handleUndo}
+              onClick={lastTrashBatchIds.length > 0 ? handleBatchUndo : handleUndo}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-xs font-bold transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />

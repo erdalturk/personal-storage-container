@@ -441,6 +441,89 @@ export function permanentDeleteFromTrash(trashId: string): void {
   notifyStoreUpdate();
 }
 
+export function addBatchToTrash(
+  items: (Omit<TrashItem, "id" | "deletedAt" | "daysRemaining"> & { id?: string })[]
+): TrashItem[] {
+  if (items.length === 0) return [];
+  const current = getTrashItems();
+  const retention = getTrashRetentionDays();
+  const now = Date.now();
+  const newItems: TrashItem[] = items.map((item, idx) => ({
+    ...item,
+    id: item.id || `tr-${now}-${idx}`,
+    deletedAt: "Az önce",
+    daysRemaining: retention,
+    deletedTimestamp: now,
+  }));
+
+  const updated = [...newItems, ...current];
+  safeSet(STORAGE_KEYS.TRASH, updated);
+
+  for (const it of newItems) {
+    revokeSharesForDeletedItem(it.title, it.type === "container");
+  }
+
+  notifyStoreUpdate();
+  return newItems;
+}
+
+export function restoreBatchFromTrash(trashIds: string[]): TrashItem[] {
+  if (trashIds.length === 0) return [];
+  const current = getTrashItems();
+  const targets = current.filter((i) => trashIds.includes(i.id));
+  if (targets.length === 0) return [];
+
+  const updated = current.filter((i) => !trashIds.includes(i.id));
+  safeSet(STORAGE_KEYS.TRASH, updated);
+
+  for (const target of targets) {
+    if (target.originalData) {
+      if (target.type === "container") {
+        const containers = safeGet<any[]>(STORAGE_KEYS.CONTAINERS, []);
+        safeSet(STORAGE_KEYS.CONTAINERS, [target.originalData, ...containers]);
+      } else if (target.type === "movie") {
+        const movies = safeGet<any[]>(STORAGE_KEYS.MOVIES, []);
+        safeSet(STORAGE_KEYS.MOVIES, [target.originalData, ...movies]);
+      } else if (target.type === "text") {
+        const texts = safeGet<any[]>(STORAGE_KEYS.TEXTS, []);
+        safeSet(STORAGE_KEYS.TEXTS, [target.originalData, ...texts]);
+      } else if (target.type === "code") {
+        const snippets = safeGet<any[]>(STORAGE_KEYS.SNIPPETS, []);
+        safeSet(STORAGE_KEYS.SNIPPETS, [target.originalData, ...snippets]);
+      } else if (target.type === "travel") {
+        const travels = safeGet<any[]>(STORAGE_KEYS.TRAVELS, []);
+        safeSet(STORAGE_KEYS.TRAVELS, [target.originalData, ...travels]);
+      } else if (target.type === "study") {
+        const studies = safeGet<any[]>(STORAGE_KEYS.STUDY, []);
+        safeSet(STORAGE_KEYS.STUDY, [target.originalData, ...studies]);
+      } else if (target.type === "audio") {
+        const audios = safeGet<any[]>(STORAGE_KEYS.AUDIOS, []);
+        safeSet(STORAGE_KEYS.AUDIOS, [target.originalData, ...audios]);
+      } else if (target.type === "image") {
+        const media = safeGet<any[]>(STORAGE_KEYS.MEDIA, []);
+        safeSet(STORAGE_KEYS.MEDIA, [target.originalData, ...media]);
+      } else if (target.type === "file") {
+        const files = safeGet<any[]>(STORAGE_KEYS.FILES, []);
+        safeSet(STORAGE_KEYS.FILES, [target.originalData, ...files]);
+      }
+    }
+    restoreSharesForItem(target.title, target.type === "container");
+  }
+
+  notifyStoreUpdate();
+  return targets;
+}
+
+export function permanentDeleteBatchFromTrash(trashIds: string[]): number {
+  if (trashIds.length === 0) return 0;
+  const current = getTrashItems();
+  const updated = current.filter((i) => !trashIds.includes(i.id));
+  const deletedCount = current.length - updated.length;
+  safeSet(STORAGE_KEYS.TRASH, updated);
+  notifyStoreUpdate();
+  return deletedCount;
+}
+
 export function emptyTrash(): void {
   safeSet(STORAGE_KEYS.TRASH, []);
   notifyStoreUpdate();

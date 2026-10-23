@@ -5,6 +5,8 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   addToTrash,
+  addBatchToTrash,
+  restoreBatchFromTrash,
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
@@ -36,8 +38,10 @@ import {
   AlertCircle,
   Upload,
   Edit3,
+  CheckCircle2,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import BatchActionBar from "@/components/BatchActionBar";
 import { exportMarkdownFile, downloadTextFile } from "@/lib/exportUtils";
 import { readFileAsText } from "@/lib/uploadUtils";
 
@@ -145,8 +149,10 @@ export default function TextContainerPage() {
   const [folderToRename, setFolderToRename] = useState<FolderItem | null>(null);
   const [renameFolderName, setRenameFolderName] = useState("");
 
-  // Hızlı Geri Al (Undo Toast - Bölüm 12.1)
+  // Hızlı Geri Al (Undo Toast - Bölüm 12.1) & Toplu Seçim
   const [deletedItemBackup, setDeletedItemBackup] = useState<TextItem | null>(null);
+  const [lastTrashBatchIds, setLastTrashBatchIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedSuccess, setCopiedSuccess] = useState(false);
 
@@ -267,13 +273,59 @@ export default function TextContainerPage() {
 
   // Hızlı Geri Al Fonksiyonu
   const handleUndoDelete = () => {
-    if (deletedItemBackup) {
+    if (lastTrashBatchIds.length > 0) {
+      restoreBatchFromTrash(lastTrashBatchIds);
+      setLastTrashBatchIds([]);
+      setToastMessage(null);
+    } else if (deletedItemBackup) {
       const updated = [deletedItemBackup, ...texts];
       setTexts(updated);
       saveStoredCollection("texts", updated);
       setDeletedItemBackup(null);
       setToastMessage(null);
     }
+  };
+
+  const handleToggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds(filteredTexts.map((t) => t.id));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.length === 0) return;
+    const itemsToDelete = texts.filter((t) => selectedIds.includes(t.id));
+    const remaining = texts.filter((t) => !selectedIds.includes(t.id));
+    setTexts(remaining);
+    saveStoredCollection("texts", remaining);
+
+    const trashEntries = addBatchToTrash(
+      itemsToDelete.map((item) => ({
+        title: item.title,
+        originContainer: "Gece Düşünceleri & Şiirlerim",
+        type: "text",
+        contentPreview: item.content.slice(0, 100),
+        originalData: item,
+      }))
+    );
+
+    const ids = trashEntries.map((t) => t.id);
+    setLastTrashBatchIds(ids);
+    setDeletedItemBackup(null);
+    setSelectedIds([]);
+    setToastMessage(`${itemsToDelete.length} metin Çöp Kutusu'na taşındı.`);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 5000);
   };
 
   // Yeni Klasör Ekle
@@ -616,18 +668,36 @@ export default function TextContainerPage() {
                   layout
                   whileHover={{ y: -4 }}
                   onClick={() => handleOpenEditor(item)}
-                  className="bg-white rounded-2xl p-5 border-2 border-slate-200/80 shadow-xs hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+                  className={`bg-white rounded-2xl p-5 border-2 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group ${
+                    selectedIds.includes(item.id)
+                      ? "border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/20"
+                      : "border-slate-200/80 hover:border-indigo-300"
+                  }`}
                 >
                   <div>
                     {/* Üst Rozet & Format Türü */}
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                        {item.formatType === "poem"
-                          ? "Şiir"
-                          : item.formatType === "note"
-                          ? "Fikir Notu"
-                          : "Düz Metin"}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleSelect(item.id, e)}
+                          className="p-0.5 text-slate-400 hover:text-indigo-600 transition cursor-pointer"
+                          title={selectedIds.includes(item.id) ? "Seçimi Kaldır" : "Metni Seç"}
+                        >
+                          {selectedIds.includes(item.id) ? (
+                            <CheckCircle2 className="w-4 h-4 text-indigo-600 fill-indigo-100" />
+                          ) : (
+                            <div className="w-4 h-4 rounded-md border-2 border-slate-300 hover:border-indigo-500" />
+                          )}
+                        </button>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                          {item.formatType === "poem"
+                            ? "Şiir"
+                            : item.formatType === "note"
+                            ? "Fikir Notu"
+                            : "Düz Metin"}
+                        </span>
+                      </div>
                       <span className="text-[10px] text-slate-400">
                         {item.lastUpdated}
                       </span>
@@ -740,6 +810,17 @@ export default function TextContainerPage() {
               </table>
             </div>
           )}
+
+          {/* Kayan Çoklu Eylem Çubuğu */}
+          <BatchActionBar
+            selectedCount={selectedIds.length}
+            totalCount={filteredTexts.length}
+            onSelectAll={handleSelectAll}
+            onDeselectAll={handleDeselectAll}
+            onDeleteBatch={handleBatchDelete}
+            onClose={handleDeselectAll}
+            deleteLabel="Seçilenleri Sil"
+          />
         </main>
       </div>
 

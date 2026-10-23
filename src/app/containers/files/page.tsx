@@ -26,13 +26,17 @@ import {
   ShieldCheck,
   Clock,
   Upload,
+  CheckCircle2,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import BatchActionBar from "@/components/BatchActionBar";
 import { exportDocumentFile } from "@/lib/exportUtils";
 import { formatBytes, getFileExtension, readFileAsDataUrl } from "@/lib/uploadUtils";
 import {
   addToTrash,
   restoreFromTrash,
+  addBatchToTrash,
+  restoreBatchFromTrash,
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
@@ -196,9 +200,11 @@ export default function FilesContainerPage() {
     } catch {}
   };
 
-  // Toast & Undo
+  // Toast & Undo & Batch
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lastTrashId, setLastTrashId] = useState<string | null>(null);
+  const [lastTrashBatchIds, setLastTrashBatchIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const stored = getStoredCollection<FileItem>("files", INITIAL_FILES);
@@ -217,6 +223,51 @@ export default function FilesContainerPage() {
     setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 5000);
+  };
+
+  const handleToggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds(filteredFiles.map((f) => f.id));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.length === 0) return;
+    const itemsToDelete = files.filter((f) => selectedIds.includes(f.id));
+    const remaining = files.filter((f) => !selectedIds.includes(f.id));
+    syncFiles(remaining);
+
+    const trashEntries = addBatchToTrash(
+      itemsToDelete.map((item) => ({
+        title: item.title,
+        originContainer: "Sözleşmeler, Faturalar & Belgelerim",
+        type: "file",
+        contentPreview: `${item.extension} (${item.sizeLabel}) • ${item.version} • ${item.summary.slice(0, 90)}...`,
+        originalData: item,
+      }))
+    );
+
+    const ids = trashEntries.map((t) => t.id);
+    setLastTrashBatchIds(ids);
+    setLastTrashId(null);
+    setSelectedIds([]);
+    showToast(`${itemsToDelete.length} dosya çöp kutusuna taşındı.`);
+  };
+
+  const handleBatchUndo = () => {
+    if (lastTrashBatchIds.length === 0) return;
+    restoreBatchFromTrash(lastTrashBatchIds);
+    setToastMessage(null);
+    setLastTrashBatchIds([]);
   };
 
   const syncFiles = (updated: FileItem[]) => {
@@ -721,11 +772,27 @@ export default function FilesContainerPage() {
             {filteredFiles.map((item) => (
               <div
                 key={item.id}
-                className="bg-white rounded-3xl border border-stone-200/80 p-6 shadow-sm hover:shadow-md hover:border-stone-300 transition flex flex-col justify-between"
+                className={`bg-white rounded-3xl border p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between ${
+                  selectedIds.includes(item.id)
+                    ? "border-emerald-600 ring-2 ring-emerald-600/20 bg-emerald-50/20"
+                    : "border-stone-200/80 hover:border-stone-300"
+                }`}
               >
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleSelect(item.id, e)}
+                        className="p-1 text-stone-400 hover:text-emerald-700 transition cursor-pointer shrink-0"
+                        title={selectedIds.includes(item.id) ? "Seçimi Kaldır" : "Dosyayı Seç"}
+                      >
+                        {selectedIds.includes(item.id) ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-700 fill-emerald-100" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-md border-2 border-stone-300 hover:border-emerald-500" />
+                        )}
+                      </button>
                       <span
                         className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${getBadgeStyle(
                           item.extension
@@ -842,6 +909,17 @@ export default function FilesContainerPage() {
             ))}
           </div>
         )}
+
+        {/* Kayan Çoklu Eylem Çubuğu */}
+        <BatchActionBar
+          selectedCount={selectedIds.length}
+          totalCount={filteredFiles.length}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onDeleteBatch={handleBatchDelete}
+          onClose={handleDeselectAll}
+          deleteLabel="Seçilenleri Sil"
+        />
       </main>
 
       {/* Document Preview Modal */}
@@ -1167,9 +1245,9 @@ export default function FilesContainerPage() {
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-4">
           <span className="text-sm font-medium">{toastMessage}</span>
-          {lastTrashId && (
+          {(lastTrashId || lastTrashBatchIds.length > 0) && (
             <button
-              onClick={handleUndo}
+              onClick={lastTrashBatchIds.length > 0 ? handleBatchUndo : handleUndo}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 text-xs font-bold transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />

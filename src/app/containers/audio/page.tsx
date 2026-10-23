@@ -30,13 +30,17 @@ import {
   AlignLeft,
   Download,
   Upload,
+  CheckCircle2,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import BatchActionBar from "@/components/BatchActionBar";
 import { exportAudioFile } from "@/lib/exportUtils";
 import { formatBytes } from "@/lib/uploadUtils";
 import {
   addToTrash,
   restoreFromTrash,
+  addBatchToTrash,
+  restoreBatchFromTrash,
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
@@ -195,9 +199,11 @@ export default function AudioContainerPage() {
     };
   };
 
-  // Toast & Undo
+  // Toast & Undo & Batch
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lastTrashId, setLastTrashId] = useState<string | null>(null);
+  const [lastTrashBatchIds, setLastTrashBatchIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const stored = getStoredCollection<AudioItem>("audios", INITIAL_AUDIOS);
@@ -237,6 +243,51 @@ export default function AudioContainerPage() {
     setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 5000);
+  };
+
+  const handleToggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds(filteredAudios.map((a) => a.id));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.length === 0) return;
+    const itemsToDelete = audios.filter((a) => selectedIds.includes(a.id));
+    const remaining = audios.filter((a) => !selectedIds.includes(a.id));
+    syncAudios(remaining);
+
+    const trashEntries = addBatchToTrash(
+      itemsToDelete.map((item) => ({
+        title: item.title,
+        originContainer: "Sesli Notlar & Podcast Fikirleri",
+        type: "audio",
+        contentPreview: `${item.format} • ${item.durationLabel} • ${item.transcript.slice(0, 90)}...`,
+        originalData: item,
+      }))
+    );
+
+    const ids = trashEntries.map((t) => t.id);
+    setLastTrashBatchIds(ids);
+    setLastTrashId(null);
+    setSelectedIds([]);
+    showToast(`${itemsToDelete.length} ses kaydı çöp kutusuna taşındı.`);
+  };
+
+  const handleBatchUndo = () => {
+    if (lastTrashBatchIds.length === 0) return;
+    restoreBatchFromTrash(lastTrashBatchIds);
+    setToastMessage(null);
+    setLastTrashBatchIds([]);
   };
 
   const syncAudios = (updated: AudioItem[]) => {
@@ -799,7 +850,9 @@ export default function AudioContainerPage() {
                 <div
                   key={item.id}
                   className={`bg-white rounded-3xl border transition-all duration-200 p-6 shadow-sm hover:shadow-md ${
-                    isPlaying
+                    selectedIds.includes(item.id)
+                      ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/15"
+                      : isPlaying
                       ? "border-amber-400 ring-2 ring-amber-500/15"
                       : "border-stone-200/80 hover:border-stone-300"
                   }`}
@@ -807,6 +860,18 @@ export default function AudioContainerPage() {
                   {/* Top Row */}
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleSelect(item.id, e)}
+                        className="p-1 text-stone-400 hover:text-amber-600 transition cursor-pointer shrink-0"
+                        title={selectedIds.includes(item.id) ? "Seçimi Kaldır" : "Kaydı Seç"}
+                      >
+                        {selectedIds.includes(item.id) ? (
+                          <CheckCircle2 className="w-5 h-5 text-amber-600 fill-amber-100" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-md border-2 border-stone-300 hover:border-amber-500" />
+                        )}
+                      </button>
                       <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
                         {item.format}
                       </span>
@@ -982,6 +1047,17 @@ export default function AudioContainerPage() {
             })}
           </div>
         )}
+
+        {/* Kayan Çoklu Eylem Çubuğu */}
+        <BatchActionBar
+          selectedCount={selectedIds.length}
+          totalCount={filteredAudios.length}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onDeleteBatch={handleBatchDelete}
+          onClose={handleDeselectAll}
+          deleteLabel="Seçilenleri Sil"
+        />
       </main>
 
       {/* 2-Option Folder Delete Modal (Section 10 Rule) */}
@@ -1214,9 +1290,9 @@ export default function AudioContainerPage() {
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4">
           <span className="text-sm font-medium">{toastMessage}</span>
-          {lastTrashId && (
+          {(lastTrashId || lastTrashBatchIds.length > 0) && (
             <button
-              onClick={handleUndo}
+              onClick={lastTrashBatchIds.length > 0 ? handleBatchUndo : handleUndo}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
