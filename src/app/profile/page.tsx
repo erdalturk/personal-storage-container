@@ -42,6 +42,9 @@ import {
   Sun,
   Moon,
   Monitor,
+  Camera,
+  Mail,
+  Info,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
@@ -54,6 +57,9 @@ import {
   getCurrentUser,
   loginUser,
   logoutUser,
+  updateUserAvatar,
+  requestEmailChangeVerification,
+  confirmEmailChangeVerification,
   exportFullArchive,
   importFullArchive,
   hasMasterPin,
@@ -61,6 +67,7 @@ import {
   changeMasterPin,
   resetMasterPinForDemo,
 } from "@/lib/appStore";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 
 const AVATAR_PALETTES = [
   { id: "purple", name: "Mor & İndigo", gradient: "from-purple-500 to-indigo-600" },
@@ -79,11 +86,21 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState("Erdal Türk");
   const [email, setEmail] = useState("erdal.turk@kisiseldepo.com");
   const [avatarGradient, setAvatarGradient] = useState("from-purple-500 to-indigo-600");
+  const [avatarImage, setAvatarImage] = useState<string | null>(null);
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Düzenleme Modalı State'leri
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [tempDisplayName, setTempDisplayName] = useState(displayName);
   const [tempAvatarGradient, setTempAvatarGradient] = useState(avatarGradient);
+
+  // E-posta Değiştirme ve 6 Haneli Doğrulama Kodu State'leri (PM-CONTROL Satır 123)
+  const [isEmailChangeOpen, setIsEmailChangeOpen] = useState(false);
+  const [newEmailInput, setNewEmailInput] = useState("");
+  const [emailVerificationStep, setEmailVerificationStep] = useState<"input" | "code">("input");
+  const [emailCodeInput, setEmailCodeInput] = useState("");
+  const [simulatedCode, setSimulatedCode] = useState<string | null>(null);
+  const [emailFeedback, setEmailFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   // Paylaşılan Linkler (Merkezi Store ile Tam Senkronize)
   const [sharedLinks, setSharedLinks] = useState<SharedLink[]>([]);
@@ -109,12 +126,74 @@ export default function ProfilePage() {
       const currentUser = getCurrentUser();
       if (currentUser?.name) setDisplayName(currentUser.name);
       if (currentUser?.email) setEmail(currentUser.email);
+      setAvatarImage(currentUser?.avatarImage || null);
     };
     syncAll();
 
     window.addEventListener("psc-store-updated", syncAll);
     return () => window.removeEventListener("psc-store-updated", syncAll);
   }, []);
+
+  // Profil Fotoğrafı Yükleme (PM-CONTROL Satır 122)
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Lütfen geçerli bir görsel dosyası seçin (PNG, JPG, WebP).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setAvatarImage(dataUrl);
+      updateUserAvatar(dataUrl);
+      setToastMessage("Profil fotoğrafınız başarıyla güncellendi.");
+      setTimeout(() => setToastMessage(null), 3500);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  // Profil Fotoğrafı Kaldırma (Varsayılana Dönüş - PM-CONTROL Satır 122)
+  const handleRemoveAvatar = () => {
+    setAvatarImage(null);
+    updateUserAvatar(null);
+    setToastMessage("Profil fotoğrafınız kaldırıldı. Varsayılan avatar geri yüklendi.");
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // E-posta Doğrulama Kodu Talebi (PM-CONTROL Satır 123)
+  const handleRequestEmailCode = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setEmailFeedback(null);
+    const res = requestEmailChangeVerification(newEmailInput);
+    if (res.success && res.code) {
+      setSimulatedCode(res.code);
+      setEmailVerificationStep("code");
+      setEmailFeedback({ type: "success", msg: res.message });
+    } else {
+      setEmailFeedback({ type: "error", msg: res.message });
+    }
+  };
+
+  // 6 Haneli Kodu Doğrulama ve E-posta Güncelleme (PM-CONTROL Satır 123)
+  const handleConfirmEmailCode = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setEmailFeedback(null);
+    const res = confirmEmailChangeVerification(emailCodeInput);
+    if (res.success && res.user) {
+      setEmail(res.user.email);
+      setIsEmailChangeOpen(false);
+      setEmailVerificationStep("input");
+      setNewEmailInput("");
+      setEmailCodeInput("");
+      setSimulatedCode(null);
+      setToastMessage("E-posta adresiniz başarıyla güncellendi.");
+      setTimeout(() => setToastMessage(null), 3500);
+    } else {
+      setEmailFeedback({ type: "error", msg: res.message });
+    }
+  };
 
   const handleUpdateMasterPin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -299,10 +378,20 @@ export default function ProfilePage() {
         {/* 1. KULLANICI KİMLİK KARTI (Görüntüleme Modu - Sade, Temiz, Düzenle Butonlu) */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div
-              className={`w-16 h-16 rounded-2xl bg-gradient-to-tr ${avatarGradient} flex items-center justify-center text-white text-xl font-bold shadow-md shadow-indigo-100 dark:shadow-none shrink-0 transition-all`}
-            >
-              {displayName.slice(0, 2).toUpperCase() || "ET"}
+            <div className="relative group shrink-0">
+              {avatarImage ? (
+                <img
+                  src={avatarImage}
+                  alt={displayName}
+                  className="w-16 h-16 rounded-2xl object-cover shadow-md shadow-indigo-100 dark:shadow-none shrink-0 border border-slate-200/80 dark:border-slate-700"
+                />
+              ) : (
+                <div
+                  className={`w-16 h-16 rounded-2xl bg-gradient-to-tr ${avatarGradient} flex items-center justify-center text-white text-xl font-bold shadow-md shadow-indigo-100 dark:shadow-none shrink-0 transition-all`}
+                >
+                  {displayName.slice(0, 2).toUpperCase() || "ET"}
+                </div>
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -592,50 +681,66 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
-        </section>
 
-        {/* 1.5 TAM ARŞİV YEDEKLEME VE GERİ YÜKLEME (.JSON) KARTI */}
-        <section className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-lg border border-indigo-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-lg">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-[11px] font-bold">
-              <Database className="w-3.5 h-3.5 text-amber-400" />
-              <span>Taşınabilir Veri & Tam Yedekleme</span>
+          {/* Supabase & Yerel Mod Bilgilendirme Kartı (PM-CONTROL Satır 134) */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+              <Info className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span>Yerel Mod (Offline / PWA) Nedir?</span>
             </div>
-            <h3 className="text-lg font-extrabold tracking-tight">
-              Tam Arşiv Yedekleme & Geri Yükleme (.json)
-            </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Tüm 8 deponuzdaki içeriklerinizi, klasörlerinizi, paylaşım bağlantılarınızı ve çöp kutusu geçmişinizi tek bir <b>.json</b> dosyası olarak bilgisayarınıza indirebilir veya daha önce aldığınız bir yedeği geri yükleyebilirsiniz.
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Kişisel Depo, <b>Önce Yerel (Local-First)</b> mimarisiyle çalışır. Verileriniz sunucuya veya internete bağımlı olmadan, doğrudan tarayıcınızın güvenli yerel hafızasında (LocalStorage & IndexedDB) izole şekilde saklanır.
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              💡 <b>Supabase Entegrasyonu:</b> Projeye canlı Supabase anahtarları (<code>NEXT_PUBLIC_SUPABASE_URL</code> ve <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>) tanımlandığında, verileriniz tek tıkla PostgreSQL bulut veritabanı ile çift yönlü eşitlenir. Anahtarlar girilmediğinde sistem sıfır veri kaybı garantisiyle kesintisiz yerel modda çalışır.
             </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={handleExportBackup}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md transition"
-            >
-              <Download className="w-4 h-4" />
-              <span>Tüm Arşivimi İndir (.json)</span>
-            </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json,application/json"
-              onChange={handleImportBackup}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold transition"
-            >
-              <Upload className="w-4 h-4 text-amber-300" />
-              <span>Yedekten Geri Yükle</span>
-            </button>
-          </div>
         </section>
+
+        {/* 1.5 TAM ARŞİV YEDEKLEME VE GERİ YÜKLEME (.JSON) KARTI (PM-CONTROL: Özellik Kütüğü ile Kontrol Edilir) */}
+        {(isFeatureEnabled("enableFullArchiveJsonExport") || isFeatureEnabled("enableFullArchiveJsonImport")) && (
+          <section className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-lg border border-indigo-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-lg">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-[11px] font-bold">
+                <Database className="w-3.5 h-3.5 text-amber-400" />
+                <span>Taşınabilir Veri & Tam Yedekleme</span>
+              </div>
+              <h3 className="text-lg font-extrabold tracking-tight">
+                Tam Arşiv Yedekleme & Geri Yükleme (.json)
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tüm 8 deponuzdaki içeriklerinizi, klasörlerinizi, paylaşım bağlantılarınızı ve çöp kutusu geçmişinizi tek bir <b>.json</b> dosyası olarak bilgisayarınıza indirebilir veya daha önce aldığınız bir yedeği geri yükleyebilirsiniz.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={handleExportBackup}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md transition"
+              >
+                <Download className="w-4 h-4" />
+                <span>Tüm Arşivimi İndir (.json)</span>
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleImportBackup}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold transition"
+              >
+                <Upload className="w-4 h-4 text-amber-300" />
+                <span>Yedekten Geri Yükle</span>
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* 2. PAYLAŞILAN İÇERİKLER BÖLÜMÜ (Bölüm 15.2 - Kritik Yönetim Ekranı) */}
         <section className="space-y-4">
@@ -867,7 +972,57 @@ export default function ProfilePage() {
 
               {/* Form Alanları */}
               <div className="space-y-4">
-                {/* 1. Görünen Ad / Takma Ad */}
+                {/* 1. Profil Fotoğrafı (PM-CONTROL Satır 122) */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
+                    Profil Fotoğrafı
+                  </label>
+                  <div className="flex items-center gap-3">
+                    {avatarImage ? (
+                      <img
+                        src={avatarImage}
+                        alt="Önizleme"
+                        className="w-12 h-12 rounded-2xl object-cover shadow-xs border border-slate-200 dark:border-slate-700"
+                      />
+                    ) : (
+                      <div
+                        className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${tempAvatarGradient} flex items-center justify-center text-white font-bold text-sm shadow-xs`}
+                      >
+                        {tempDisplayName.slice(0, 2).toUpperCase() || "ET"}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => avatarFileInputRef.current?.click()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>{avatarImage ? "Fotoğrafı Değiştir" : "Fotoğraf Yükle"}</span>
+                      </button>
+                      {avatarImage && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveAvatar}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 text-xs font-bold transition-colors cursor-pointer"
+                          title="Varsayılan renge ve baş harfe dön"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Kaldır</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    type="file"
+                    ref={avatarFileInputRef}
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handleAvatarFileChange}
+                  />
+                </div>
+
+                {/* 2. Görünen Ad / Takma Ad */}
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
                     Görünen Ad / Takma Ad
@@ -884,10 +1039,10 @@ export default function ProfilePage() {
                   </span>
                 </div>
 
-                {/* 2. Avatar Renk Paleti */}
+                {/* 3. Avatar Renk Paleti (Fotoğraf yokken kullanılır) */}
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
-                    Avatar Rengi Seçin
+                    Avatar Rengi Seçin {!avatarImage && "(Varsayılan)"}
                   </label>
                   <div className="flex items-center gap-2.5">
                     {AVATAR_PALETTES.map((palette) => (
@@ -910,20 +1065,151 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* 3. E-posta (Salt Okunur) */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                    Giriş E-postası (Değiştirilemez)
-                  </label>
-                  <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    <span>{email}</span>
-                    <Lock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                {/* 4. Giriş E-postası & Doğrulama Kodu ile Değiştirme (PM-CONTROL Satır 123) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                        Giriş E-postası
+                      </label>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                        Güvenlik için e-posta değişikliği 6 haneli kod onayı gerektirir
+                      </span>
+                    </div>
+                    {!isEmailChangeOpen && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEmailChangeOpen(true);
+                          setEmailVerificationStep("input");
+                          setNewEmailInput("");
+                          setEmailFeedback(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Değiştir
+                      </button>
+                    )}
                   </div>
-                </div>
 
-                {/* Bölüm 13.3 Kural Hatırlatması */}
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                  💡 <b>Not:</b> Platform sosyal medya olmadığı için biyografi (bio), takipçi ve benzeri alanlar bulunmamaktadır.
+                  {!isEmailChangeOpen ? (
+                    <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-300 font-medium">
+                      <span>{email}</span>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    </div>
+                  ) : (
+                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 space-y-3">
+                      {emailVerificationStep === "input" ? (
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                              Yeni E-posta Adresi
+                            </label>
+                            <input
+                              type="email"
+                              value={newEmailInput}
+                              onChange={(e) => setNewEmailInput(e.target.value)}
+                              placeholder="yeni.eposta@ornek.com"
+                              className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          {emailFeedback && (
+                            <p
+                              className={`text-[11px] font-semibold ${
+                                emailFeedback.type === "error" ? "text-rose-500" : "text-emerald-500"
+                              }`}
+                            >
+                              {emailFeedback.msg}
+                            </p>
+                          )}
+
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsEmailChangeOpen(false);
+                                setEmailFeedback(null);
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                            >
+                              Vazgeç
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRequestEmailCode}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Doğrulama Kodu Gönder</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {simulatedCode && (
+                            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-start gap-2">
+                              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                              <div className="text-[11px] text-amber-800 dark:text-amber-300">
+                                <span className="font-bold">Güvenlik Doğrulama Kodu:</span>{" "}
+                                <span className="font-mono font-extrabold text-xs px-1.5 py-0.5 bg-amber-200/60 dark:bg-amber-900/60 rounded">
+                                  {simulatedCode}
+                                </span>
+                                <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                  {newEmailInput} adresine gönderilen 6 haneli kodu giriniz.
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                              6 Haneli Doğrulama Kodu
+                            </label>
+                            <input
+                              type="text"
+                              maxLength={6}
+                              value={emailCodeInput}
+                              onChange={(e) => setEmailCodeInput(e.target.value.replace(/\D/g, ""))}
+                              placeholder="123456"
+                              className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold tracking-widest text-center text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          {emailFeedback && (
+                            <p
+                              className={`text-[11px] font-semibold ${
+                                emailFeedback.type === "error" ? "text-rose-500" : "text-emerald-500"
+                              }`}
+                            >
+                              {emailFeedback.msg}
+                            </p>
+                          )}
+
+                          <div className="flex items-center justify-between pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEmailVerificationStep("input");
+                                setEmailFeedback(null);
+                              }}
+                              className="text-[11px] font-bold text-slate-500 hover:text-indigo-600"
+                            >
+                              ← E-postayı Düzenle
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleConfirmEmailCode}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Kodu Doğrula & Güncelle</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

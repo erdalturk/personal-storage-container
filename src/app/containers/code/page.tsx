@@ -8,6 +8,11 @@ import {
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
+  activateShareToken,
+  getContainerByFormatOrType,
+  syncContainerItemCount,
+  updateContainerDetails,
+  Container,
 } from "@/lib/appStore";
 import {
   ArrowLeft,
@@ -17,6 +22,7 @@ import {
   Check,
   Code2,
   Trash2,
+  Pencil,
   Share2,
   Sparkles,
   RotateCcw,
@@ -37,6 +43,7 @@ import {
   Upload,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import useEscKey from "@/hooks/useEscKey";
 import { exportCodeFile } from "@/lib/exportUtils";
 import { readFileAsText, detectContainerForFile } from "@/lib/uploadUtils";
 
@@ -151,6 +158,7 @@ export interface CodeSnippet {
   tags: string[];
   createdAt: string;
   isFavorite?: boolean;
+  githubUrl?: string; // PM-CONTROL Satır 53: GitHub / Gist bağlantısı
 }
 
 // Demo Başlangıç Kod Parçacıkları (Zengin, gerçekçi yazılım kütüphanesi)
@@ -163,6 +171,7 @@ const INITIAL_SNIPPETS: CodeSnippet[] = [
     description: "Kullanıcının sadece kendi depo ve dökümanlarını okuyup güncelleyebilmesini sağlayan Row Level Security (RLS) kuralı.",
     createdAt: "2 saat önce",
     isFavorite: true,
+    githubUrl: "https://github.com/supabase/supabase",
     code: `-- Kullanıcıların yalnızca kendi depolarını görmesini ve düzenlemesini sağlayan RLS kuralı
 ALTER TABLE containers ENABLE ROW LEVEL SECURITY;
 
@@ -420,17 +429,51 @@ function highlightCode(code: string, language: SupportedLang): React.ReactNode[]
 
 export default function CodeContainerPage() {
   const [snippets, setSnippets] = useState<CodeSnippet[]>([]);
+  const [currentContainer, setCurrentContainer] = useState<Container | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editContainerTitle, setEditContainerTitle] = useState("Frontend & Fullstack Snippet'lar");
+  const [editGradient, setEditGradient] = useState("from-emerald-600 via-teal-600 to-cyan-700");
 
   useEffect(() => {
-    setSnippets(getStoredCollection("snippets", INITIAL_SNIPPETS));
+    const loadData = () => {
+      const stored = getStoredCollection<CodeSnippet>("snippets", INITIAL_SNIPPETS);
+      setSnippets(stored);
 
-    const handleUpdate = () => {
-      setSnippets(getStoredCollection("snippets", INITIAL_SNIPPETS));
+      const cont = getContainerByFormatOrType("Kod Parçacıkları");
+      if (cont) {
+        setCurrentContainer(cont);
+        setEditContainerTitle(cont.title);
+        setEditGradient(cont.coverGradient || "from-emerald-600 via-teal-600 to-cyan-700");
+      } else {
+        syncContainerItemCount("Kod Parçacıkları", stored.length, "Frontend & Fullstack Snippet'lar");
+        const fresh = getContainerByFormatOrType("Kod Parçacıkları");
+        if (fresh) {
+          setCurrentContainer(fresh);
+          setEditContainerTitle(fresh.title);
+        }
+      }
     };
 
-    window.addEventListener("psc-store-updated", handleUpdate);
-    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+    loadData();
+    window.addEventListener("psc-store-updated", loadData);
+    return () => window.removeEventListener("psc-store-updated", loadData);
   }, []);
+
+  const handleSaveContainerDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editContainerTitle.trim()) return;
+    const contId = currentContainer?.id || "c4";
+    const updated = updateContainerDetails(contId, {
+      title: editContainerTitle.trim(),
+      coverGradient: editGradient,
+    });
+    if (updated) {
+      setCurrentContainer(updated);
+    }
+    setIsEditModalOpen(false);
+    setToastMessage("Depo bilgileri güncellendi.");
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLang, setSelectedLang] = useState<string>("all");
@@ -448,6 +491,7 @@ export default function CodeContainerPage() {
   const [editCode, setEditCode] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editTags, setEditTags] = useState("");
+  const [editGithubUrl, setEditGithubUrl] = useState("");
 
   // Kopyalama & Toast Bildirimleri
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -456,6 +500,18 @@ export default function CodeContainerPage() {
     item: CodeSnippet;
     index: number;
   } | null>(null);
+
+  // Değişiklik Kontrolü & ESC Kapatma Desteği (PM-CONTROL Satır 54)
+  const isEditorDirty = editingSnippet
+    ? editTitle !== editingSnippet.title ||
+      editCode !== editingSnippet.code ||
+      editDescription !== (editingSnippet.description || "") ||
+      editGithubUrl !== (editingSnippet.githubUrl || "")
+    : Boolean(editTitle.trim() || editCode.trim() || editDescription.trim() || editGithubUrl.trim());
+
+  useEscKey(Boolean(detailSnippet), () => setDetailSnippet(null));
+  useEscKey(isEditorOpen, () => setIsEditorOpen(false), isEditorDirty);
+  useEscKey(isEditModalOpen, () => setIsEditModalOpen(false));
 
   // Mevcut benzersiz etiketler
   const allTags = useMemo(() => {
@@ -504,6 +560,7 @@ export default function CodeContainerPage() {
     setEditCode("");
     setEditDescription("");
     setEditTags("#helper, #utility");
+    setEditGithubUrl("");
     setIsEditorOpen(true);
   };
 
@@ -516,6 +573,7 @@ export default function CodeContainerPage() {
     setEditCode(snippet.code);
     setEditDescription(snippet.description || "");
     setEditTags(snippet.tags.join(", "));
+    setEditGithubUrl(snippet.githubUrl || "");
     setIsEditorOpen(true);
   };
 
@@ -536,6 +594,8 @@ export default function CodeContainerPage() {
       .filter((t) => t.length > 0)
       .map((t) => (t.startsWith("#") ? t : `#${t}`));
 
+    const finalGithubUrl = editGithubUrl.trim() || undefined;
+
     if (editingSnippet) {
       // Güncelleme
       const updated = snippets.map((s) =>
@@ -547,6 +607,7 @@ export default function CodeContainerPage() {
               code: editCode,
               description: editDescription.trim(),
               tags: parsedTags.length > 0 ? parsedTags : ["#snippet"],
+              githubUrl: finalGithubUrl,
             }
           : s
       );
@@ -561,6 +622,7 @@ export default function CodeContainerPage() {
           code: editCode,
           description: editDescription.trim(),
           tags: parsedTags.length > 0 ? parsedTags : ["#snippet"],
+          githubUrl: finalGithubUrl,
         });
       }
       setToastMessage("Kod parçacığı başarıyla güncellendi.");
@@ -575,10 +637,12 @@ export default function CodeContainerPage() {
         tags: parsedTags.length > 0 ? parsedTags : ["#kod"],
         createdAt: "Az önce",
         isFavorite: false,
+        githubUrl: finalGithubUrl,
       };
       const updated = [newSnippet, ...snippets];
       setSnippets(updated);
       saveStoredCollection("snippets", updated);
+      syncContainerItemCount("Kod Parçacıkları", updated.length, currentContainer?.title);
       setToastMessage("Yeni kod parçacığı arşive eklendi.");
     }
 
@@ -596,7 +660,7 @@ export default function CodeContainerPage() {
     // 1. Çöp Kutusuna Gönder (Bu işlem varsa paylaşılan içeriklerden de anında kaldırır ve iptal eder!)
     addToTrash({
       title: target.title,
-      originContainer: "Frontend & Fullstack Snippet'lar",
+      originContainer: currentContainer?.title || "Frontend & Fullstack Snippet'lar",
       type: "code",
       contentPreview: target.description || target.code.slice(0, 80),
       originalData: target,
@@ -606,6 +670,7 @@ export default function CodeContainerPage() {
     const updated = snippets.filter((s) => s.id !== id);
     setSnippets(updated);
     saveStoredCollection("snippets", updated);
+    syncContainerItemCount("Kod Parçacıkları", updated.length, currentContainer?.title);
     if (detailSnippet && detailSnippet.id === id) {
       setDetailSnippet(null);
     }
@@ -624,6 +689,7 @@ export default function CodeContainerPage() {
     next.splice(index, 0, item);
     setSnippets(next);
     saveStoredCollection("snippets", next);
+    syncContainerItemCount("Kod Parçacıkları", next.length, currentContainer?.title);
     setDeletedSnippetCache(null);
     setToastMessage(`"${item.title}" geri yüklendi.`);
     setTimeout(() => setToastMessage(null), 2500);
@@ -645,8 +711,16 @@ export default function CodeContainerPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">
-                Frontend & Fullstack Snippet'lar
+                {currentContainer?.title || "Frontend & Fullstack Snippet'lar"}
               </h1>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(true)}
+                title="Depo Adını ve Kapağını Düzenle"
+                className="p-1 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
                 Akıllı Depo
               </span>
@@ -662,9 +736,12 @@ export default function CodeContainerPage() {
           <ThemeToggle />
 
           <button
-            onClick={() => window.open("/share/kod-parcaciklari-deposu", "_blank")}
+            onClick={() => {
+              activateShareToken("kod-parcaciklari-deposu");
+              window.open("/share/kod-parcaciklari-deposu", "_blank");
+            }}
             title="Tüm Kod Deposunu Salt Okunur Paylaş"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer"
           >
             <Share2 className="w-3.5 h-3.5" />
             <span>Depoyu Paylaş</span>
@@ -680,8 +757,8 @@ export default function CodeContainerPage() {
         </div>
       </header>
 
-      {/* 2. ARAMA, DİL VE ETİKET FİLTRE ŞERİDİ */}
-      <div className="border-b border-slate-800/80 bg-slate-900/50 backdrop-blur-xs p-4 sm:px-8 space-y-3">
+      {/* 2. ARAMA, DİL VE ETİKET FİLTRE ŞERİDİ (PM-CONTROL Satır 50 & image-3.png) */}
+      <div className="border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/50 backdrop-blur-xs p-4 sm:px-8 space-y-3">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Arama Alanı */}
           <div className="relative flex-1 max-w-md">
@@ -691,12 +768,12 @@ export default function CodeContainerPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Başlık, kod, etiket (#auth) veya açıklama ara..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 transition-colors"
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-emerald-500 transition-colors"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs"
               >
                 ✕
               </button>
@@ -705,13 +782,13 @@ export default function CodeContainerPage() {
 
           {/* Sağ Kontroller: Görünüm Değiştirici (Grid / List) */}
           <div className="flex items-center gap-2 self-end md:self-center">
-            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
               <button
                 onClick={() => setViewMode("grid")}
                 className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
                   viewMode === "grid"
-                    ? "bg-slate-800 text-white shadow-xs"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
                 Galeri
@@ -720,8 +797,8 @@ export default function CodeContainerPage() {
                 onClick={() => setViewMode("list")}
                 className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
                   viewMode === "list"
-                    ? "bg-slate-800 text-white shadow-xs"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
                 Liste
@@ -736,8 +813,8 @@ export default function CodeContainerPage() {
             onClick={() => setSelectedLang("all")}
             className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
               selectedLang === "all"
-                ? "bg-emerald-500 text-slate-950 font-extrabold shadow-sm shadow-emerald-500/20"
-                : "bg-slate-950/70 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                ? "bg-emerald-500 text-white font-extrabold shadow-sm shadow-emerald-500/20"
+                : "bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700"
             }`}
           >
             Tüm Diller ({snippets.length})
@@ -752,8 +829,8 @@ export default function CodeContainerPage() {
                 onClick={() => setSelectedLang(langKey)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
                   selectedLang === langKey
-                    ? "bg-emerald-500 text-slate-950 font-extrabold shadow-sm shadow-emerald-500/20"
-                    : "bg-slate-950/70 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                    ? "bg-emerald-500 text-white font-extrabold shadow-sm shadow-emerald-500/20"
+                    : "bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700"
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full ${meta.dotColor}`} />
@@ -767,16 +844,16 @@ export default function CodeContainerPage() {
         {/* Popüler Etiketler Şeridi */}
         {allTags.length > 0 && (
           <div className="max-w-7xl mx-auto flex items-center gap-1.5 overflow-x-auto text-[11px] pt-0.5">
-            <span className="text-slate-500 font-bold flex items-center gap-1 shrink-0">
-              <Tag className="w-3 h-3 text-slate-500" />
+            <span className="text-slate-600 dark:text-slate-400 font-bold flex items-center gap-1 shrink-0">
+              <Tag className="w-3 h-3 text-slate-500 dark:text-slate-400" />
               Etiketler:
             </span>
             <button
               onClick={() => setSelectedTag("all")}
               className={`px-2 py-0.5 rounded-lg transition-colors ${
                 selectedTag === "all"
-                  ? "bg-slate-700 text-white font-bold"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-slate-800 dark:bg-slate-700 text-white font-bold"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
               Hepsi
@@ -787,8 +864,8 @@ export default function CodeContainerPage() {
                 onClick={() => setSelectedTag(selectedTag === tag ? "all" : tag)}
                 className={`px-2 py-0.5 rounded-lg font-mono transition-colors ${
                   selectedTag === tag
-                    ? "bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-500/40"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50"
                 }`}
               >
                 {tag}
@@ -849,13 +926,26 @@ export default function CodeContainerPage() {
                       </span>
                     </div>
 
-                    {/* Dil Rozeti & 1-Tıkla Kopyala Butonu */}
+                    {/* Dil Rozeti & 1-Tıkla Kopyala Butonu & GitHub Linki */}
                     <div className="flex items-center gap-2">
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${langMeta.badgeBg} ${langMeta.badgeText}`}
                       >
                         {langMeta.name}
                       </span>
+
+                      {snippet.githubUrl && (
+                        <a
+                          href={snippet.githubUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                          title="GitHub'da İncele"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
 
                       <button
                         onClick={(e) => {
@@ -951,8 +1041,9 @@ export default function CodeContainerPage() {
                             const token = createOrGetShareTokenForRecord(
                               snippet,
                               "code",
-                              "Frontend & Fullstack Snippet'lar"
+                              snippet.title || currentContainer?.title || "Frontend & Fullstack Snippet'lar"
                             );
+                            activateShareToken(token);
                             window.open(`/share/${token}`, "_blank");
                           }}
                           className="p-1 rounded-md text-slate-400 hover:text-emerald-400 transition-colors"
@@ -1045,6 +1136,18 @@ export default function CodeContainerPage() {
                       </td>
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
+                          {snippet.githubUrl && (
+                            <a
+                              href={snippet.githubUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                              title="GitHub'da İncele"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
                           <button
                             onClick={(e) => handleCopyCode(snippet.id, snippet.code, e)}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
@@ -1119,8 +1222,9 @@ export default function CodeContainerPage() {
                       const token = createOrGetShareTokenForRecord(
                         detailSnippet,
                         "code",
-                        "Frontend & Fullstack Snippet'lar"
+                        detailSnippet.title || currentContainer?.title || "Frontend & Fullstack Snippet'lar"
                       );
+                      activateShareToken(token);
                       window.open(`/share/${token}`, "_blank");
                     }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700"
@@ -1129,6 +1233,19 @@ export default function CodeContainerPage() {
                     <Share2 className="w-3.5 h-3.5" />
                     <span>Paylaş</span>
                   </button>
+
+                  {detailSnippet.githubUrl && (
+                    <a
+                      href={detailSnippet.githubUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700"
+                      title="GitHub'da İncele"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>GitHub</span>
+                    </a>
+                  )}
 
                   <button
                     onClick={() => {
@@ -1238,15 +1355,15 @@ export default function CodeContainerPage() {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl z-10 space-y-5"
+              className="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl z-10 space-y-5"
             >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="font-extrabold text-lg text-white">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">
                   {editingSnippet ? "Kod Parçacığını Düzenle" : "Yeni Kod Parçacığı Ekle"}
                 </h3>
                 <button
                   onClick={() => setIsEditorOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1254,19 +1371,19 @@ export default function CodeContainerPage() {
 
               <div className="space-y-4">
                 {/* Cihazdan Kod Dosyası Yükleme (Evrensel .py, .ts, .js vb.) */}
-                <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/80 border border-dashed border-emerald-500/40 hover:border-emerald-400 transition-colors">
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-dashed border-emerald-500/40 hover:border-emerald-500 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Upload className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-white">Cihazdan Kod Dosyası Yükle</div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Cihazdan Kod Dosyası Yükle</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">
                         .py, .ts, .js, .sql, .rs, .go, .sh, .html, .css, .json
                       </div>
                     </div>
                   </div>
-                  <label className="cursor-pointer px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs border border-emerald-500/40 transition-colors">
+                  <label className="cursor-pointer px-3.5 py-1.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-xs border border-emerald-500/30 transition-colors">
                     <span>Dosya Seç</span>
                     <input
                       type="file"
@@ -1300,22 +1417,22 @@ export default function CodeContainerPage() {
                 {/* Başlık & Dil Seçimi */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2 space-y-1">
-                    <label className="text-xs font-bold text-slate-400">Başlık *</label>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-400">Başlık *</label>
                     <input
                       type="text"
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
                       placeholder="Örn: FastAPI JWT Bearer Middleware"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs outline-none focus:border-emerald-500 transition-colors"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs outline-none focus:border-emerald-500 transition-colors"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400">Yazılım Dili *</label>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-400">Yazılım Dili *</label>
                     <select
                       value={editLang}
                       onChange={(e) => setEditLang(e.target.value as SupportedLang)}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs outline-none focus:border-emerald-500 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs outline-none focus:border-emerald-500 transition-colors"
                     >
                       {(Object.keys(LANGUAGES) as SupportedLang[]).map((langKey) => (
                         <option key={langKey} value={langKey}>
@@ -1329,7 +1446,7 @@ export default function CodeContainerPage() {
                 {/* Kod İçeriği (Monospace Textarea) */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-400">Kod Bloğu *</label>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-400">Kod Bloğu *</label>
                     <span className="text-[11px] text-slate-500 font-mono">
                       {editCode.split("\n").length} satır
                     </span>
@@ -1345,7 +1462,7 @@ export default function CodeContainerPage() {
 
                 {/* Kişisel Kullanım Notu */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-400">
                     Kişisel Not & Açıklama (İsteğe bağlı)
                   </label>
                   <input
@@ -1353,13 +1470,27 @@ export default function CodeContainerPage() {
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                     placeholder="Bu kod parçası nerede kullanılır? Örn: Kimlik doğrulama kontrollerinde."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs outline-none focus:border-emerald-500 transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs outline-none focus:border-emerald-500 transition-colors"
+                  />
+                </div>
+
+                {/* GitHub / Gist Bağlantısı (PM-CONTROL Satır 53) */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-400">
+                    GitHub / Gist Bağlantısı (İsteğe bağlı)
+                  </label>
+                  <input
+                    type="url"
+                    value={editGithubUrl}
+                    onChange={(e) => setEditGithubUrl(e.target.value)}
+                    placeholder="https://github.com/kullanici/proje veya Gist URL"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs outline-none focus:border-emerald-500 transition-colors"
                   />
                 </div>
 
                 {/* Etiketler */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-400">
                     Etiketler (Virgülle ayırın)
                   </label>
                   <input
@@ -1367,16 +1498,16 @@ export default function CodeContainerPage() {
                     value={editTags}
                     onChange={(e) => setEditTags(e.target.value)}
                     placeholder="#auth, #api, #jwt, #security"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs outline-none focus:border-emerald-500 transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs outline-none focus:border-emerald-500 transition-colors"
                   />
                 </div>
               </div>
 
               {/* Alt Butonlar */}
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
                 <button
                   onClick={() => setIsEditorOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white text-xs font-bold transition-colors"
+                  className="px-4 py-2.5 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white text-xs font-bold transition-colors"
                 >
                   İptal
                 </button>
@@ -1412,6 +1543,97 @@ export default function CodeContainerPage() {
               </button>
             )}
           </motion.div>
+        )}
+      </AnimatePresence>
+      {/* DEPO DÜZENLEME MODALI */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl relative"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Depoyu Düzenle</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Kod deposu adını ve tema rengini özelleştirin</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveContainerDetails} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Depo Başlığı
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editContainerTitle}
+                    onChange={(e) => setEditContainerTitle(e.target.value)}
+                    placeholder="Örn: Kod Parçacıklarım"
+                    className="w-full py-2.5 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    Kapak Rengi Gradyanı
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "Zümrüt", val: "from-emerald-600 via-teal-600 to-cyan-700" },
+                      { label: "Mor Gece", val: "from-purple-600 via-indigo-600 to-blue-700" },
+                      { label: "Siber Mavi", val: "from-blue-600 via-cyan-600 to-teal-500" },
+                      { label: "Alev Turuncu", val: "from-amber-500 via-orange-600 to-rose-600" },
+                      { label: "Gül & Fuşya", val: "from-rose-500 via-pink-600 to-purple-600" },
+                      { label: "Koyu Gece", val: "from-slate-800 via-slate-900 to-zinc-950" },
+                    ].map((g) => (
+                      <button
+                        key={g.val}
+                        type="button"
+                        onClick={() => setEditGradient(g.val)}
+                        className={`h-11 rounded-xl bg-gradient-to-r ${g.val} p-1 text-[10px] font-bold text-white flex items-center justify-center transition-all ${
+                          editGradient === g.val ? "ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-slate-900 scale-102" : "opacity-80 hover:opacity-100"
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                  >
+                    Kaydet
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

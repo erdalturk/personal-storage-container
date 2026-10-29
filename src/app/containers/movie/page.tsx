@@ -8,6 +8,15 @@ import {
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
+  activateShareToken,
+  getContainerByFormatOrType,
+  syncContainerItemCount,
+  updateContainerDetails,
+  hasMasterPin,
+  verifyMasterPin,
+  setMasterPin,
+  isContainerLocked,
+  setContainerLock,
 } from "@/lib/appStore";
 import {
   ArrowLeft,
@@ -26,6 +35,7 @@ import {
   ExternalLink,
   Lock,
   Unlock,
+  KeyRound,
   RotateCcw,
   SlidersHorizontal,
   X,
@@ -35,8 +45,13 @@ import {
   Download,
   Loader2,
   Upload,
+  ArrowDown,
+  ArrowUp,
+  Pencil,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import useEscKey from "@/hooks/useEscKey";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 import { exportMovieCollection } from "@/lib/exportUtils";
 import { searchMoviesOnline, MovieSearchResult } from "@/lib/tmdbClient";
 import { compressImageClient } from "@/lib/uploadUtils";
@@ -60,6 +75,7 @@ interface MovieItem {
   isFavorite: boolean; // Favori
   userNote?: string; // Kullanıcının kişisel notu
   userRating?: number; // Kullanıcının verdiği puan (1-10)
+  evaluation?: "masterpiece" | "mid" | "waste" | null; // 3'lü Değerlendirme Sistemi (PM-CONTROL Satır 30-31)
 }
 
 // Başlangıç Film Arşivi (Zengin & Estetik Örnekler)
@@ -73,6 +89,7 @@ const INITIAL_MOVIES: MovieItem[] = [
     cast: ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page"],
     genres: ["Bilim Kurgu", "Aksiyon", "Gerilim"],
     rating: 8.8,
+    evaluation: "masterpiece",
     posterUrl: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=600&q=80",
     backdropUrl: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80",
     overview: "Çok yetenekli bir hırsız olan Dom Cobb, insanların rüyalarına girerek bilinçaltındaki en değerli sırları çalar. Kendisine verilen imkansız bir görevde ise fikir çalmak yerine zihne fikir eklemesi gerekmektedir.",
@@ -230,18 +247,172 @@ export default function MovieContainerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<"all" | "watched" | "watchlist" | "favorites">("all");
   const [sortBy, setSortBy] = useState<"rating" | "year" | "title">("rating");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [isLocked, setIsLocked] = useState(false);
 
-  useEffect(() => {
-    setMovies(getStoredCollection("movies", INITIAL_MOVIES));
+  // Dinamik Depo Başlığı & Kapak Gradyanı (Kullanıcı İzolasyonu & PM-CONTROL)
+  const [currentContainer, setCurrentContainer] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editGradient, setEditGradient] = useState("");
 
-    const handleUpdate = () => {
-      setMovies(getStoredCollection("movies", INITIAL_MOVIES));
+  useEscKey(isEditModalOpen, () => setIsEditModalOpen(false));
+
+  // 3'lü Değerlendirme Sistemi Metotları (PM-CONTROL Satır 30-31)
+  const handleCycleEvaluation = (movieId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setMovies((prev) => {
+      const updated = prev.map((m) => {
+        if (m.id === movieId) {
+          const nextEval: "masterpiece" | "mid" | "waste" | null =
+            !m.evaluation
+              ? "masterpiece"
+              : m.evaluation === "masterpiece"
+              ? "mid"
+              : m.evaluation === "mid"
+              ? "waste"
+              : null;
+          const updatedItem: MovieItem = { ...m, evaluation: nextEval };
+          if (selectedMovie && selectedMovie.id === movieId) {
+            setSelectedMovie(updatedItem);
+          }
+          return updatedItem;
+        }
+        return m;
+      });
+      saveStoredCollection("movies", updated);
+      return updated;
+    });
+  };
+
+  const handleSetEvaluation = (movieId: string, evalType: "masterpiece" | "mid" | "waste" | null) => {
+    setMovies((prev) => {
+      const updated = prev.map((m) => {
+        if (m.id === movieId) {
+          const updatedItem = { ...m, evaluation: evalType };
+          if (selectedMovie && selectedMovie.id === movieId) {
+            setSelectedMovie(updatedItem);
+          }
+          return updatedItem;
+        }
+        return m;
+      });
+      saveStoredCollection("movies", updated);
+      return updated;
+    });
+  };
+
+  // Detaylı Filtreleme Paneli State'leri (PM-CONTROL Satır 32)
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedGenre, setSelectedGenre] = useState<string>("all");
+  const [selectedEvaluation, setSelectedEvaluation] = useState<string>("all");
+  const [selectedYearRange, setSelectedYearRange] = useState<string>("all");
+
+  // Master PIN Kilit Modalı State'leri (PM-CONTROL Satır 131)
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinActionType, setPinActionType] = useState<"lock" | "unlock">("unlock");
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
+
+  useEscKey(isPinModalOpen, () => setIsPinModalOpen(false));
+
+  useEffect(() => {
+    const loadData = () => {
+      const stored = getStoredCollection<MovieItem>("movies", INITIAL_MOVIES);
+      setMovies(stored);
+      setIsLocked(isContainerLocked("c1") || isContainerLocked("Film"));
+
+      const cont = getContainerByFormatOrType("Film & Dizi");
+      if (cont) {
+        setCurrentContainer(cont);
+        setEditTitle(cont.title);
+        setEditGradient(cont.coverGradient || "from-purple-600 via-indigo-600 to-blue-700");
+      } else {
+        syncContainerItemCount("Film & Dizi", stored.length, "Film & Dizi Koleksiyonum");
+        const fresh = getContainerByFormatOrType("Film & Dizi");
+        if (fresh) {
+          setCurrentContainer(fresh);
+          setEditTitle(fresh.title);
+        }
+      }
     };
 
-    window.addEventListener("psc-store-updated", handleUpdate);
-    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+    loadData();
+    window.addEventListener("psc-store-updated", loadData);
+    return () => window.removeEventListener("psc-store-updated", loadData);
   }, []);
+
+  const handleSaveContainerDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTitle.trim()) return;
+    const contId = currentContainer?.id || "c1";
+    const updated = updateContainerDetails(contId, {
+      title: editTitle.trim(),
+      coverGradient: editGradient,
+    });
+    if (updated) {
+      setCurrentContainer(updated);
+    }
+    setIsEditModalOpen(false);
+    setToastMessage("Depo bilgileri başarıyla güncellendi.");
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Depo Kilidini Yönet (Aç/Kapa & PIN doğrula - PM-CONTROL Satır 131)
+  const handleToggleLock = () => {
+    if (isLocked) {
+      setPinActionType("unlock");
+      setPinInput("");
+      setPinError(null);
+      setIsPinModalOpen(true);
+    } else {
+      if (!hasMasterPin()) {
+        setPinActionType("lock");
+        setPinInput("");
+        setPinError(null);
+        setIsPinModalOpen(true);
+      } else {
+        setContainerLock("c1", true);
+        setIsLocked(true);
+        setToastMessage("Film Deposu kilitlendi. Master PIN koruması devrede.");
+        setTimeout(() => setToastMessage(null), 3500);
+      }
+    }
+  };
+
+  const handleConfirmPinAction = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError(null);
+    if (pinActionType === "unlock") {
+      const res = verifyMasterPin(pinInput);
+      if (res.valid) {
+        setContainerLock("c1", false);
+        setIsLocked(false);
+        setIsPinModalOpen(false);
+        setPinInput("");
+        setToastMessage("Film Deposu kilidi kaldırıldı.");
+        setTimeout(() => setToastMessage(null), 3500);
+      } else {
+        setPinError(res.message || "Hatalı PIN! Lütfen tekrar deneyin.");
+      }
+    } else {
+      if (!/^\d{4,6}$/.test(pinInput.trim())) {
+        setPinError("PIN 4 ile 6 haneli rakamlardan oluşmalıdır.");
+        return;
+      }
+      const res = setMasterPin(pinInput.trim());
+      if (res.success) {
+        setContainerLock("c1", true);
+        setIsLocked(true);
+        setIsPinModalOpen(false);
+        setPinInput("");
+        setToastMessage("Master PIN oluşturuldu ve Film Deposu kilitlendi.");
+        setTimeout(() => setToastMessage(null), 3500);
+      } else {
+        setPinError(res.message);
+      }
+    }
+  };
 
   // Detay Modalı
   const [selectedMovie, setSelectedMovie] = useState<MovieItem | null>(null);
@@ -314,7 +485,7 @@ export default function MovieContainerPage() {
     // 1. Çöp Kutusuna Gönder (Bu işlem varsa paylaşılan içeriklerden de anında kaldırır ve iptal eder!)
     addToTrash({
       title: movieToDelete.title,
-      originContainer: "Sinema Kulübü & Başyapıtlar",
+      originContainer: currentContainer?.title || "Sinema Kulübü & Başyapıtlar",
       type: "movie",
       posterUrl: movieToDelete.posterUrl,
       contentPreview: `${movieToDelete.director} • ${movieToDelete.year} • ${movieToDelete.genres.join(", ")}`,
@@ -325,6 +496,7 @@ export default function MovieContainerPage() {
     const updated = movies.filter((m) => m.id !== movieId);
     setMovies(updated);
     saveStoredCollection("movies", updated);
+    syncContainerItemCount("Film & Dizi", updated.length, currentContainer?.title);
 
     if (selectedMovie?.id === movieId) setSelectedMovie(null);
 
@@ -334,7 +506,10 @@ export default function MovieContainerPage() {
 
   const handleUndoDelete = () => {
     if (deletedMovieBackup) {
-      setMovies((prev) => [deletedMovieBackup, ...prev]);
+      const updated = [deletedMovieBackup, ...movies];
+      setMovies(updated);
+      saveStoredCollection("movies", updated);
+      syncContainerItemCount("Film & Dizi", updated.length, currentContainer?.title);
       setDeletedMovieBackup(null);
       setToastMessage(null);
     }
@@ -361,6 +536,7 @@ export default function MovieContainerPage() {
     const updated = [newMovie, ...movies];
     setMovies(updated);
     saveStoredCollection("movies", updated);
+    syncContainerItemCount("Film & Dizi", updated.length, currentContainer?.title);
     setAddSearchInput("");
     setIsAddSearchOpen(false);
     setToastMessage(`"${item.title}" filmi deponuza eklendi.`);
@@ -390,7 +566,10 @@ export default function MovieContainerPage() {
       isWatchlist: false,
       isFavorite: false,
     };
-    setMovies([newMovie, ...movies]);
+    const updated = [newMovie, ...movies];
+    setMovies(updated);
+    saveStoredCollection("movies", updated);
+    syncContainerItemCount("Film & Dizi", updated.length, currentContainer?.title);
     setManualTitle("");
     setManualYear("");
     setManualDirector("");
@@ -400,7 +579,12 @@ export default function MovieContainerPage() {
     setIsManualModalOpen(false);
   };
 
-  // Filtreleme ve Sıralama
+  useEscKey(isFilterOpen, () => setIsFilterOpen(false));
+  useEscKey(Boolean(selectedMovie), () => setSelectedMovie(null));
+  useEscKey(isAddSearchOpen, () => setIsAddSearchOpen(false));
+  useEscKey(isManualModalOpen, () => setIsManualModalOpen(false));
+
+  // Filtreleme ve Sıralama (PM-CONTROL Satır 32)
   const filteredMovies = movies
     .filter((m) => {
       const matchSearch =
@@ -412,12 +596,29 @@ export default function MovieContainerPage() {
       if (activeFilter === "watched") return m.isWatched;
       if (activeFilter === "watchlist") return m.isWatchlist;
       if (activeFilter === "favorites") return m.isFavorite;
+
+      if (selectedGenre !== "all" && !m.genres.includes(selectedGenre)) return false;
+      if (selectedEvaluation !== "all") {
+        if (selectedEvaluation === "unrated") {
+          if (m.evaluation) return false;
+        } else if (m.evaluation !== selectedEvaluation) {
+          return false;
+        }
+      }
+      if (selectedYearRange !== "all") {
+        if (selectedYearRange === "2020+" && m.year < 2020) return false;
+        if (selectedYearRange === "2010-2019" && (m.year < 2010 || m.year > 2019)) return false;
+        if (selectedYearRange === "pre-2010" && m.year >= 2010) return false;
+      }
+
       return true;
     })
     .sort((a, b) => {
-      if (sortBy === "rating") return b.rating - a.rating;
-      if (sortBy === "year") return b.year - a.year;
-      return a.title.localeCompare(b.title);
+      let comp = 0;
+      if (sortBy === "rating") comp = a.rating - b.rating;
+      else if (sortBy === "year") comp = a.year - b.year;
+      else comp = a.title.localeCompare(b.title, "tr");
+      return sortDirection === "asc" ? comp : -comp;
     });
 
   // İstatistikler
@@ -445,8 +646,16 @@ export default function MovieContainerPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
-                  Sinema Kulübü & Başyapıtlar
+                  {currentContainer?.title || "Sinema Kulübü & Başyapıtlar"}
                 </h1>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  title="Depo Adını ve Kapağını Düzenle"
+                  className="p-1 rounded-lg text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30">
                   Akıllı Depo
                 </span>
@@ -458,13 +667,27 @@ export default function MovieContainerPage() {
           </div>
         </div>
 
-        {/* Sağ Eylemler: Tema Değiştirici, Kilit Switch'i & Film Ekle */}
+        {/* Sağ Eylemler: Tema Değiştirici, Kilit Switch'i, Depoyu Paylaş & Film Ekle */}
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
 
+          {/* Depoyu Paylaş Butonu (PM-CONTROL Satır 45) */}
+          <button
+            type="button"
+            onClick={() => {
+              activateShareToken("sinema-kulubu-deposu");
+              window.open("/share/sinema-kulubu-deposu", "_blank");
+            }}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-2xs cursor-pointer"
+            title="Tüm Film Deposunu Salt Okunur Paylaş"
+          >
+            <Share2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            <span>Depoyu Paylaş</span>
+          </button>
+
           {/* Depo Kilidi Switch'i */}
           <button
-            onClick={() => setIsLocked(!isLocked)}
+            onClick={handleToggleLock}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
               isLocked
                 ? "bg-rose-50 dark:bg-rose-500/20 border-rose-200 dark:border-rose-500/50 text-rose-700 dark:text-rose-300"
@@ -485,28 +708,30 @@ export default function MovieContainerPage() {
             )}
           </button>
 
-          {/* Koleksiyon Dışa Aktar (JSON) */}
-          <button
-            onClick={() => {
-              exportMovieCollection(movies, "Film_Koleksiyonu_Yedek");
-              setToastMessage(`${movies.length} adet film JSON olarak dışa aktarıldı.`);
-            }}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
-            title="Film Arşivini JSON Olarak İndir"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Arşivi İndir</span>
-          </button>
+          {/* Koleksiyon Dışa Aktar (JSON) - PM-CONTROL Satır 43 */}
+          {isFeatureEnabled("enableMovieArchiveExport") && (
+            <button
+              onClick={() => {
+                exportMovieCollection(movies, "Film_Koleksiyonu_Yedek");
+                setToastMessage(`${movies.length} adet film JSON olarak dışa aktarıldı.`);
+              }}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+              title="Film Arşivini JSON Olarak İndir"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Arşivi İndir</span>
+            </button>
+          )}
 
           {/* Film Ekle Butonu */}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setIsAddSearchOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-purple-900/30 transition-all"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-purple-900/30 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Film / Dizi Ekle</span>
+            <span>Yeni Film Ekle</span>
           </motion.button>
         </div>
       </header>
@@ -561,9 +786,9 @@ export default function MovieContainerPage() {
             </button>
           </div>
 
-          {/* Sağ: Yerel Arama & Sıralama */}
-          <div className="flex items-center gap-2.5">
-            <div className="relative flex-1 md:w-64">
+          {/* Sağ: Yerel Arama, Filtre Paneli & Sıralama */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 md:w-56">
               <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -574,17 +799,121 @@ export default function MovieContainerPage() {
               />
             </div>
 
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-semibold shrink-0">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+            {/* Filtreleme Butonu ve Açılır Panel (PM-CONTROL Satır 32) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs cursor-pointer ${
+                  selectedGenre !== "all" || selectedEvaluation !== "all" || selectedYearRange !== "all"
+                    ? "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700"
+                    : "bg-white dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
+                title="Detaylı Filtreleme"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <span className="hidden sm:inline">Filtre</span>
+                {(selectedGenre !== "all" || selectedEvaluation !== "all" || selectedYearRange !== "all") && (
+                  <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {isFilterOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                    className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-4 z-40 space-y-3"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <span className="text-xs font-extrabold text-slate-900 dark:text-white">Filtreleme</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedGenre("all");
+                          setSelectedEvaluation("all");
+                          setSelectedYearRange("all");
+                        }}
+                        className="text-[10px] text-purple-600 dark:text-purple-400 font-bold hover:underline cursor-pointer"
+                      >
+                        Sıfırla
+                      </button>
+                    </div>
+
+                    {/* Tür Seçimi */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Film Türü</label>
+                      <select
+                        value={selectedGenre}
+                        onChange={(e) => setSelectedGenre(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white outline-none cursor-pointer"
+                      >
+                        <option value="all">Tüm Türler</option>
+                        {Array.from(new Set(movies.flatMap((m) => m.genres || []))).map((g) => (
+                          <option key={g} value={g}>{g}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Değerlendirme Filtresi */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Değerlendirme</label>
+                      <select
+                        value={selectedEvaluation}
+                        onChange={(e) => setSelectedEvaluation(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white outline-none cursor-pointer"
+                      >
+                        <option value="all">Tüm Değerlendirmeler</option>
+                        <option value="masterpiece">🏆 Başyapıt</option>
+                        <option value="mid">🍿 Mid</option>
+                        <option value="waste">🥱 Zaman Kaybı</option>
+                        <option value="unrated">○ Değerlendirilmedi</option>
+                      </select>
+                    </div>
+
+                    {/* Yıl Aralığı */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Yıl Aralığı</label>
+                      <select
+                        value={selectedYearRange}
+                        onChange={(e) => setSelectedYearRange(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white outline-none cursor-pointer"
+                      >
+                        <option value="all">Tüm Yıllar</option>
+                        <option value="2020+">2020 ve Sonrası</option>
+                        <option value="2010-2019">2010 - 2019</option>
+                        <option value="pre-2010">2010 Öncesi</option>
+                      </select>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-semibold shrink-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 font-bold outline-none focus:border-purple-500 shadow-2xs cursor-pointer"
+                className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl px-2 py-1.5 text-xs text-slate-700 dark:text-slate-300 font-bold outline-none focus:border-purple-500 shadow-2xs cursor-pointer"
               >
-                <option value="rating">Puana Göre</option>
-                <option value="year">Yıla Göre</option>
-                <option value="title">İsme Göre (A-Z)</option>
+                <option value="rating">Puan</option>
+                <option value="year">Yıl</option>
+                <option value="title">A-Z</option>
               </select>
+
+              <button
+                type="button"
+                onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
+                className="p-1.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 transition shadow-2xs cursor-pointer"
+                title={sortDirection === "asc" ? "Sıralama: Artan (A-Z / Düşük-Yüksek)" : "Sıralama: Azalan (Z-A / Yüksek-Düşük)"}
+              >
+                {sortDirection === "asc" ? (
+                  <ArrowUp className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                ) : (
+                  <ArrowDown className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -659,7 +988,7 @@ export default function MovieContainerPage() {
                   </div>
                 </div>
 
-                {/* KART ALTI: 3 İKONLU KONTROL (Section 7.4) */}
+                {/* KART ALTI: 4 İKONLU KONTROL (Section 7.4 & PM-CONTROL Satır 31) */}
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-around gap-1">
                   {/* 1. İzlenecek Butonu */}
                   <button
@@ -702,6 +1031,39 @@ export default function MovieContainerPage() {
                     <Heart
                       className={`w-4 h-4 ${movie.isFavorite ? "fill-rose-500 dark:fill-rose-400" : ""}`}
                     />
+                  </button>
+
+                  {/* 4. Değerlendirme Döngüsü Butonu (🏆 / 🍿 / 🥱 / ○) */}
+                  <button
+                    onClick={(e) => handleCycleEvaluation(movie.id, e)}
+                    title={`Değerlendirme: ${
+                      movie.evaluation === "masterpiece"
+                        ? "🏆 Başyapıt"
+                        : movie.evaluation === "mid"
+                        ? "🍿 Mid"
+                        : movie.evaluation === "waste"
+                        ? "🥱 Zaman Kaybı"
+                        : "Değerlendirilmedi (Değiştirmek için tıkla)"
+                    }`}
+                    className={`p-2 rounded-xl transition-all flex items-center justify-center text-xs font-bold ${
+                      movie.evaluation === "masterpiece"
+                        ? "bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/40 shadow-xs"
+                        : movie.evaluation === "mid"
+                        ? "bg-sky-50 dark:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-500/40 shadow-xs"
+                        : movie.evaluation === "waste"
+                        ? "bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/40 shadow-xs"
+                        : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {movie.evaluation === "masterpiece" ? (
+                      <span>🏆</span>
+                    ) : movie.evaluation === "mid" ? (
+                      <span>🍿</span>
+                    ) : movie.evaluation === "waste" ? (
+                      <span>🥱</span>
+                    ) : (
+                      <span className="text-[11px] font-bold">○</span>
+                    )}
                   </button>
                 </div>
               </motion.div>
@@ -1011,10 +1373,10 @@ export default function MovieContainerPage() {
 
               {/* Detay Gövdesi */}
               <div className="p-6 overflow-y-auto space-y-6">
-                {/* 3 İkonlu Durum Butonları (Modal İçi) */}
-                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Durum:</span>
+                {/* 3 İkonlu Durum Butonları & Değerlendirme (Modal İçi - PM-CONTROL Satır 31-33) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Durum:</span>
                     <button
                       onClick={() => toggleMovieStatus(selectedMovie.id, "isWatchlist")}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
@@ -1049,6 +1411,56 @@ export default function MovieContainerPage() {
                       <span>Favori</span>
                     </button>
                   </div>
+
+                  {/* 3'lü Değerlendirme Seçimi (PM-CONTROL Satır 30 & 33) */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Kategori:</span>
+                    <button
+                      onClick={() => handleSetEvaluation(selectedMovie.id, selectedMovie.evaluation === "masterpiece" ? null : "masterpiece")}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        selectedMovie.evaluation === "masterpiece"
+                          ? "bg-amber-500 text-white shadow-xs"
+                          : "bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      🏆 Başyapıt
+                    </button>
+                    <button
+                      onClick={() => handleSetEvaluation(selectedMovie.id, selectedMovie.evaluation === "mid" ? null : "mid")}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        selectedMovie.evaluation === "mid"
+                          ? "bg-sky-500 text-white shadow-xs"
+                          : "bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      🍿 Mid
+                    </button>
+                    <button
+                      onClick={() => handleSetEvaluation(selectedMovie.id, selectedMovie.evaluation === "waste" ? null : "waste")}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        selectedMovie.evaluation === "waste"
+                          ? "bg-rose-500 text-white shadow-xs"
+                          : "bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      🥱 Zaman Kaybı
+                    </button>
+                  </div>
+                </div>
+
+                {/* Fragmanı İzle (PM-CONTROL Satır 35: Pasif Buton & Tooltip) */}
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Play className="w-4 h-4 text-slate-400" />
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Sinematik Fragman</span>
+                  </div>
+                  <button
+                    disabled
+                    title="Fragman oynatma özelliği bir sonraki güncellemede eklenecektir."
+                    className="px-3 py-1.5 rounded-xl bg-slate-200/80 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-xs font-bold flex items-center gap-1.5 cursor-not-allowed opacity-75"
+                  >
+                    <span>Fragmanı İzle (Yakında)</span>
+                  </button>
                 </div>
 
                 {/* Özet & Bilgiler */}
@@ -1092,6 +1504,178 @@ export default function MovieContainerPage() {
                   </p>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MASTER PIN KİLİT MODALI (PM-CONTROL Satır 131) */}
+      <AnimatePresence>
+        {isPinModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsPinModalOpen(false)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 z-10 space-y-5"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                    <KeyRound className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                      {pinActionType === "unlock" ? "Depo Kilidini Kaldır" : "Master PIN Belirle & Kilitle"}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {pinActionType === "unlock"
+                        ? "Korumayı kaldırmak için Master PIN'inizi girin"
+                        : "4-6 haneli güvenli bir Master PIN belirleyin"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsPinModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmPinAction} className="space-y-4">
+                <div>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    autoFocus
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+                    placeholder="••••••"
+                    className="w-full text-center tracking-widest text-lg font-mono font-bold py-2.5 px-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:border-purple-500"
+                  />
+                  {pinError && (
+                    <p className="text-xs font-semibold text-rose-500 mt-1.5 text-center">
+                      {pinError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPinModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs"
+                  >
+                    {pinActionType === "unlock" ? "Kilidi Aç" : "Kaydet ve Kilitle"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* DEPO DÜZENLEME MODALI */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl relative"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Depoyu Düzenle</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Film deposu adını ve tema rengini özelleştirin</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveContainerDetails} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Depo Başlığı
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="Örn: Sinema Kulübüm"
+                    className="w-full py-2.5 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    Kapak Rengi Gradyanı
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "Mor Gece", val: "from-purple-600 via-indigo-600 to-blue-700" },
+                      { label: "Siber Mavi", val: "from-blue-600 via-cyan-600 to-teal-500" },
+                      { label: "Zümrüt", val: "from-emerald-600 via-teal-600 to-cyan-700" },
+                      { label: "Alev Turuncu", val: "from-amber-500 via-orange-600 to-rose-600" },
+                      { label: "Gül & Fuşya", val: "from-rose-500 via-pink-600 to-purple-600" },
+                      { label: "Koyu Gece", val: "from-slate-800 via-slate-900 to-zinc-950" },
+                    ].map((g) => (
+                      <button
+                        key={g.val}
+                        type="button"
+                        onClick={() => setEditGradient(g.val)}
+                        className={`h-11 rounded-xl bg-gradient-to-r ${g.val} p-1 text-[10px] font-bold text-white flex items-center justify-center transition-all ${
+                          editGradient === g.val ? "ring-2 ring-purple-500 ring-offset-2 dark:ring-offset-slate-900 scale-102" : "opacity-80 hover:opacity-100"
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs"
+                  >
+                    Kaydet
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

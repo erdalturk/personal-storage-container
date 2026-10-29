@@ -12,6 +12,7 @@ import {
   Heart,
   Share2,
   Trash2,
+  Pencil,
   Edit3,
   Maximize2,
   Camera,
@@ -42,6 +43,11 @@ import {
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
+  activateShareToken,
+  getContainerByFormatOrType,
+  syncContainerItemCount,
+  updateContainerDetails,
+  Container,
 } from "@/lib/appStore";
 
 export interface MediaItem {
@@ -50,6 +56,8 @@ export interface MediaItem {
   folder: string | null;
   imageUrl: string;
   resolution: string;
+  aspectRatio?: string; // PM-CONTROL Satır 114: En-boy oranı (16:9, 3:2, 1:1 vb.)
+  colorPalette?: string[]; // PM-CONTROL Satır 114: Görsel renk paleti swatch'ları
   format: "JPG" | "PNG" | "RAW" | "WEBP";
   size: string;
   cameraInfo: string;
@@ -93,6 +101,8 @@ const INITIAL_MEDIA: MediaItem[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85",
     resolution: "3840 × 2160",
+    aspectRatio: "16:9",
+    colorPalette: ["#1E293B", "#B45309", "#E2E8F0", "#334155"],
     format: "RAW",
     size: "18.4 MB",
     cameraInfo: "Sony A7IV • 35mm f/1.4 • ISO 100",
@@ -109,6 +119,8 @@ const INITIAL_MEDIA: MediaItem[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1200&q=85",
     resolution: "2560 × 1440",
+    aspectRatio: "16:9",
+    colorPalette: ["#F5F5F4", "#44403C", "#A8A29E", "#E7E5E4"],
     format: "PNG",
     size: "4.2 MB",
     cameraInfo: "Figma Export • DCI-P3",
@@ -125,6 +137,8 @@ const INITIAL_MEDIA: MediaItem[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=85",
     resolution: "4096 × 2730",
+    aspectRatio: "3:2",
+    colorPalette: ["#1E3A8A", "#065F46", "#0F172A", "#64748B"],
     format: "JPG",
     size: "8.7 MB",
     cameraInfo: "Fujifilm X-T5 • 23mm f/2 • ISO 160",
@@ -141,6 +155,8 @@ const INITIAL_MEDIA: MediaItem[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=85",
     resolution: "3200 × 2400",
+    aspectRatio: "4:3",
+    colorPalette: ["#18181B", "#71717A", "#E4E4E7", "#27272A"],
     format: "WEBP",
     size: "3.1 MB",
     cameraInfo: "Leica Q3 • 28mm f/1.7",
@@ -223,16 +239,51 @@ export default function MediaContainerPage() {
   const [lastTrashBatchIds, setLastTrashBatchIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    const stored = getStoredCollection<MediaItem>("media", INITIAL_MEDIA);
-    setMediaList(stored);
+  // Depo Özelleştirme
+  const [currentContainer, setCurrentContainer] = useState<Container | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editContainerTitle, setEditContainerTitle] = useState("Tasarım İlhamları & Fotoğraf Arşivi");
+  const [editGradient, setEditGradient] = useState("from-rose-500 via-pink-600 to-purple-600");
 
-    const handleSync = () => {
-      setMediaList(getStoredCollection<MediaItem>("media", INITIAL_MEDIA));
+  useEffect(() => {
+    const loadData = () => {
+      const stored = getStoredCollection<MediaItem>("media", INITIAL_MEDIA);
+      setMediaList(stored);
+
+      const cont = getContainerByFormatOrType("Görüntü");
+      if (cont) {
+        setCurrentContainer(cont);
+        setEditContainerTitle(cont.title);
+        setEditGradient(cont.coverGradient || "from-rose-500 via-pink-600 to-purple-600");
+      } else {
+        syncContainerItemCount("Görüntü", stored.length, "Tasarım İlhamları & Fotoğraf Arşivi");
+        const fresh = getContainerByFormatOrType("Görüntü");
+        if (fresh) {
+          setCurrentContainer(fresh);
+          setEditContainerTitle(fresh.title);
+        }
+      }
     };
-    window.addEventListener("psc-store-updated", handleSync);
-    return () => window.removeEventListener("psc-store-updated", handleSync);
+
+    loadData();
+    window.addEventListener("psc-store-updated", loadData);
+    return () => window.removeEventListener("psc-store-updated", loadData);
   }, []);
+
+  const handleSaveContainerDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editContainerTitle.trim()) return;
+    const contId = currentContainer?.id || "c7";
+    const updated = updateContainerDetails(contId, {
+      title: editContainerTitle.trim(),
+      coverGradient: editGradient,
+    });
+    if (updated) {
+      setCurrentContainer(updated);
+    }
+    setIsEditModalOpen(false);
+    showToast("Depo bilgileri güncellendi.");
+  };
 
   const showToast = (msg: string, trashId?: string) => {
     setToastMessage(msg);
@@ -290,6 +341,7 @@ export default function MediaContainerPage() {
   const syncMedia = (updated: MediaItem[]) => {
     setMediaList(updated);
     saveStoredCollection("media", updated);
+    syncContainerItemCount("Görüntü", updated.length, currentContainer?.title);
   };
 
   const toggleFavorite = (id: string) => {
@@ -523,9 +575,19 @@ export default function MediaContainerPage() {
                 </span>
                 <span className="text-xs text-stone-400 dark:text-slate-500">1-Seviye Klasör & Galeri</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight mt-0.5">
-                Tasarım İlhamları & Fotoğraf Arşivi
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight mt-0.5">
+                  {currentContainer?.title || "Tasarım İlhamları & Fotoğraf Arşivi"}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  title="Depo Adını ve Kapağını Düzenle"
+                  className="p-1 rounded-lg text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-stone-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -533,9 +595,10 @@ export default function MediaContainerPage() {
             <ThemeToggle />
 
             <button
-              onClick={() =>
-                window.open("/share/gorsel-koleksiyon-deposu", "_blank")
-              }
+              onClick={() => {
+                activateShareToken("gorsel-koleksiyon-deposu");
+                window.open("/share/gorsel-koleksiyon-deposu", "_blank");
+              }}
               className="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-200 text-sm font-medium hover:bg-stone-50 dark:hover:bg-slate-700 transition shadow-sm cursor-pointer"
             >
               <Share2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
@@ -782,6 +845,11 @@ export default function MediaContainerPage() {
                     <span className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/90 backdrop-blur-md text-stone-800">
                       {item.resolution}
                     </span>
+                    {item.aspectRatio && (
+                      <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-stone-900/70 backdrop-blur-md text-amber-300">
+                        {item.aspectRatio}
+                      </span>
+                    )}
                   </div>
 
                   <div className="absolute top-3 right-3 flex items-center gap-1.5">
@@ -830,10 +898,27 @@ export default function MediaContainerPage() {
                       {item.description}
                     </p>
 
-                    <div className="flex items-center gap-1.5 text-[11px] text-stone-400 mb-3">
+                    <div className="flex items-center gap-1.5 text-[11px] text-stone-400 mb-2">
                       <Camera className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                       <span className="truncate">{item.cameraInfo}</span>
                     </div>
+
+                    {/* Renk Paleti Swatch'ları (PM-CONTROL Satır 114) */}
+                    {item.colorPalette && item.colorPalette.length > 0 && (
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <span className="text-[10px] text-stone-400 font-semibold">Palet:</span>
+                        <div className="flex items-center gap-1">
+                          {item.colorPalette.map((color, idx) => (
+                            <span
+                              key={idx}
+                              style={{ backgroundColor: color }}
+                              className="w-3.5 h-3.5 rounded-full border border-black/15 shadow-2xs inline-block"
+                              title={color}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-3 border-t border-stone-100 flex items-center justify-between">
@@ -854,8 +939,9 @@ export default function MediaContainerPage() {
                           const token = createOrGetShareTokenForRecord(
                             item,
                             "image",
-                            "Tasarım İlhamları & Fotoğraf Arşivi"
+                            item.title || currentContainer?.title || "Tasarım İlhamları & Fotoğraf Arşivi"
                           );
+                          activateShareToken(token);
                           window.open(`/share/${token}`, "_blank");
                         }}
                         className="p-1.5 rounded-lg text-stone-400 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
@@ -934,7 +1020,12 @@ export default function MediaContainerPage() {
                   </button>
                   <button
                     onClick={() => {
-                      const token = createOrGetShareTokenForRecord(item, "image", "Tasarım İlhamları & Fotoğraf Arşivi");
+                      const token = createOrGetShareTokenForRecord(
+                        item,
+                        "image",
+                        item.title || currentContainer?.title || "Tasarım İlhamları & Fotoğraf Arşivi"
+                      );
+                      activateShareToken(token);
                       window.open(`/share/${token}`, "_blank");
                     }}
                     className="p-2 rounded-xl text-stone-400 hover:text-rose-600 cursor-pointer"
@@ -1032,6 +1123,25 @@ export default function MediaContainerPage() {
                     <span className="font-semibold">{lightboxItem.cameraInfo}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-stone-400">En-Boy Oranı:</span>
+                    <span className="font-semibold">{lightboxItem.aspectRatio || "16:9"}</span>
+                  </div>
+                  {lightboxItem.colorPalette && lightboxItem.colorPalette.length > 0 && (
+                    <div className="flex justify-between items-center pt-1 border-t border-stone-700/60">
+                      <span className="text-stone-400">Renk Paleti:</span>
+                      <div className="flex items-center gap-1.5">
+                        {lightboxItem.colorPalette.map((color, idx) => (
+                          <span
+                            key={idx}
+                            style={{ backgroundColor: color }}
+                            className="w-4 h-4 rounded-full border border-white/20 shadow-xs inline-block"
+                            title={color}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
                     <span className="text-stone-400">Eklenme:</span>
                     <span>{lightboxItem.createdAt}</span>
                   </div>
@@ -1057,8 +1167,9 @@ export default function MediaContainerPage() {
                     const token = createOrGetShareTokenForRecord(
                       lightboxItem,
                       "image",
-                      "Tasarım İlhamları & Fotoğraf Arşivi"
+                      lightboxItem.title || currentContainer?.title || "Tasarım İlhamları & Fotoğraf Arşivi"
                     );
+                    activateShareToken(token);
                     window.open(`/share/${token}`, "_blank");
                   }}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
@@ -1377,6 +1488,90 @@ export default function MediaContainerPage() {
               Geri Al
             </button>
           )}
+        </div>
+      )}
+      {/* DEPO DÜZENLEME MODALI */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Depoyu Düzenle</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Görsel deposu adını ve tema rengini özelleştirin</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveContainerDetails} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Depo Başlığı
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editContainerTitle}
+                  onChange={(e) => setEditContainerTitle(e.target.value)}
+                  placeholder="Örn: Fotoğraf Arşivim"
+                  className="w-full py-2.5 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  Kapak Rengi Gradyanı
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Gül & Fuşya", val: "from-rose-500 via-pink-600 to-purple-600" },
+                    { label: "Alev Turuncu", val: "from-amber-500 via-orange-600 to-rose-600" },
+                    { label: "Mor Gece", val: "from-purple-600 via-indigo-600 to-blue-700" },
+                    { label: "Siber Mavi", val: "from-blue-600 via-cyan-600 to-teal-500" },
+                    { label: "Zümrüt", val: "from-emerald-600 via-teal-600 to-cyan-700" },
+                    { label: "Koyu Gece", val: "from-slate-800 via-slate-900 to-zinc-950" },
+                  ].map((g) => (
+                    <button
+                      key={g.val}
+                      type="button"
+                      onClick={() => setEditGradient(g.val)}
+                      className={`h-11 rounded-xl bg-gradient-to-r ${g.val} p-1 text-[10px] font-bold text-white flex items-center justify-center transition-all ${
+                        editGradient === g.val ? "ring-2 ring-rose-500 ring-offset-2 dark:ring-offset-slate-900 scale-102" : "opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer"
+                >
+                  Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

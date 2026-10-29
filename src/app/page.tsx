@@ -20,6 +20,12 @@ import {
   Image as ImageIcon,
   FolderArchive,
   ArrowUpDown,
+  ArrowDown,
+  ArrowUp,
+  SlidersHorizontal,
+  Check,
+  AlertCircle,
+  ArrowRight,
   Sparkles,
   Share2,
   MoreVertical,
@@ -45,14 +51,41 @@ import {
   setMasterPin,
   verifyMasterPin,
   resetMasterPinForDemo,
+  syncContainerItemCount,
+  getDefaultContainerTitle,
+  getDefaultContainerDesc,
+  getNormalizedFormatTitle,
+  getDefaultGradient,
+  isSmartType,
 } from "@/lib/appStore";
-import { autoIngestFile } from "@/lib/uploadUtils";
+import {
+  autoIngestFile,
+  detectContainerForFile,
+  formatBytes,
+  TargetContainer,
+} from "@/lib/uploadUtils";
 import {
   SortOption,
+  SortCriterion,
+  SortDirection,
   sortContainers,
+  sortContainersWithDirection,
   moveContainerInOrder,
 } from "@/lib/containerSortUtils";
 import ThemeToggle from "@/components/ThemeToggle";
+import ProfilePopover from "@/components/ProfilePopover";
+import useEscKey from "@/hooks/useEscKey";
+
+const GRADIENT_PRESETS = [
+  { label: "Mor & İndigo", value: "from-purple-600 via-indigo-600 to-blue-700" },
+  { label: "Zümrüt & Camgöbeği", value: "from-emerald-600 via-teal-600 to-cyan-700" },
+  { label: "Kehribar & Turuncu", value: "from-amber-500 via-orange-500 to-red-600" },
+  { label: "Gök Mavisi & İndigo", value: "from-sky-500 via-blue-600 to-indigo-700" },
+  { label: "Koyu Grafit", value: "from-slate-700 via-zinc-800 to-neutral-900" },
+  { label: "Gül & Pembe", value: "from-rose-600 via-pink-600 to-rose-800" },
+  { label: "Turuncu & Kahve", value: "from-amber-600 via-orange-600 to-amber-800" },
+  { label: "Orman & Teal", value: "from-emerald-700 via-teal-700 to-slate-800" },
+];
 
 // Akıllı Depo Tanımları (Vitrindeki 4 Sabit Kart)
 const SMART_CONTAINERS = [
@@ -268,6 +301,8 @@ const INITIAL_CONTAINERS: ContainerItem[] = [
 export default function HomePage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortCriterion, setSortCriterion] = useState<SortCriterion>("updated");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [sortBy, setSortBy] = useState<SortOption>("updated");
   const [manualOrder, setManualOrder] = useState<string[]>([]);
   const [containers, setContainers] = useState<ContainerItem[]>([]);
@@ -278,11 +313,19 @@ export default function HomePage() {
   // Global Arama & Komut Paleti (Ctrl + K) State'leri
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [globalQuery, setGlobalQuery] = useState("");
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<
+    "all" | "movie" | "code" | "travel" | "study" | "text" | "audio" | "image" | "file"
+  >("all");
   const [userName, setUserName] = useState("Erdal Türk");
   const [userAvatar, setUserAvatar] = useState("ET");
 
-  // Evrensel Dosya Yükleyici State'leri
+  // Evrensel Dosya Yükleyici State'leri (PM-CONTROL Satır 5-6)
   const [isIngestingFile, setIsIngestingFile] = useState(false);
+  const [pendingUploadFile, setPendingUploadFile] = useState<{
+    file: File;
+    detected: ReturnType<typeof detectContainerForFile>;
+    selectedTarget: TargetContainer;
+  } | null>(null);
   const [ingestSuccess, setIngestSuccess] = useState<{
     title: string;
     containerName: string;
@@ -290,10 +333,95 @@ export default function HomePage() {
   } | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-  const handleUniversalUpload = async (file: File) => {
+  // Depo Düzenleme Modalı State'leri (PM-CONTROL Satır 10-15)
+  const [editingContainer, setEditingContainer] = useState<ContainerItem | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editGradient, setEditGradient] = useState("");
+
+  // Yeni Depo Kurulum Sihirbazı State'leri (PM-CONTROL Satır 9-10 & Kullanıcı İsteği)
+  const [setupWizardTarget, setSetupWizardTarget] = useState<{
+    id: string;
+    type: "smart" | "standard";
+    formatTitle: string;
+    route: string;
+    defaultTitle: string;
+    defaultDesc: string;
+    defaultGradient: string;
+  } | null>(null);
+  const [setupTitle, setSetupTitle] = useState("");
+  const [setupDesc, setSetupDesc] = useState("");
+  const [setupGradient, setSetupGradient] = useState("");
+
+  // Evrensel Yükleme Modalı Klavye Gezinme Dinleyicisi (ArrowUp / ArrowDown / Enter)
+  useEffect(() => {
+    if (!pendingUploadFile) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const targets: TargetContainer[] = ["files", "code", "text", "audio", "media"];
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setPendingUploadFile((prev) => {
+          if (!prev) return null;
+          const currentIndex = targets.indexOf(prev.selectedTarget);
+          const nextIndex = (currentIndex + 1) % targets.length;
+          return { ...prev, selectedTarget: targets[nextIndex] };
+        });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setPendingUploadFile((prev) => {
+          if (!prev) return null;
+          const currentIndex = targets.indexOf(prev.selectedTarget);
+          const prevIndex = (currentIndex - 1 + targets.length) % targets.length;
+          return { ...prev, selectedTarget: targets[prevIndex] };
+        });
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        handleConfirmUpload();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pendingUploadFile]);
+
+  const handleCompleteSetup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!setupWizardTarget || !setupTitle.trim()) return;
+
+    const newContainer: ContainerItem = {
+      id: `c_${Date.now()}`,
+      title: setupTitle.trim(),
+      type: setupWizardTarget.type,
+      formatTitle: setupWizardTarget.formatTitle,
+      itemCount: 0,
+      lastUpdated: "Az önce",
+      isLocked: false,
+      coverGradient: setupGradient || setupWizardTarget.defaultGradient,
+    };
+
+    const updated = [newContainer, ...containers];
+    setContainers(updated);
+    saveStoredCollection("containers", updated);
+    const targetRoute = setupWizardTarget.route;
+    setSetupWizardTarget(null);
+    showToast(`"${setupTitle.trim()}" deposu başarıyla kuruldu.`);
+    router.push(targetRoute);
+  };
+
+  const handleFilePickedForUpload = (file: File) => {
+    const detected = detectContainerForFile(file);
+    setPendingUploadFile({
+      file,
+      detected,
+      selectedTarget: detected.container,
+    });
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!pendingUploadFile) return;
+    const { file, selectedTarget } = pendingUploadFile;
+    setPendingUploadFile(null);
     setIsIngestingFile(true);
     try {
-      const res = await autoIngestFile(file);
+      const res = await autoIngestFile(file, selectedTarget);
       setIngestSuccess({
         title: res.title,
         containerName: res.containerName,
@@ -309,13 +437,47 @@ export default function HomePage() {
     }
   };
 
-  const handleSortChange = (newSort: SortOption) => {
-    setSortBy(newSort);
+  const handleSortCriterionChange = (criterion: SortCriterion) => {
+    setSortCriterion(criterion);
+    const defaultDir: SortDirection = criterion === "alpha" ? "asc" : "desc";
+    setSortDirection(defaultDir);
     try {
-      localStorage.setItem("psc-containers-sort", newSort);
+      localStorage.setItem("psc-containers-sort", criterion);
+      localStorage.setItem("psc-containers-dir", defaultDir);
     } catch {
       // ignore
     }
+  };
+
+  const toggleSortDirection = () => {
+    const nextDir: SortDirection = sortDirection === "asc" ? "desc" : "asc";
+    setSortDirection(nextDir);
+    try {
+      localStorage.setItem("psc-containers-dir", nextDir);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleOpenEdit = (item: ContainerItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingContainer(item);
+    setEditTitle(item.title);
+    setEditGradient(item.coverGradient);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingContainer || !editTitle.trim()) return;
+    const updated = containers.map((c) =>
+      c.id === editingContainer.id
+        ? { ...c, title: editTitle.trim(), coverGradient: editGradient || c.coverGradient }
+        : c
+    );
+    setContainers(updated);
+    saveStoredCollection("containers", updated);
+    setEditingContainer(null);
+    showToast(`"${editTitle.trim()}" deposu başarıyla güncellendi.`);
   };
 
   const handleMoveContainer = (id: string, direction: "left" | "right", e: React.MouseEvent) => {
@@ -332,27 +494,38 @@ export default function HomePage() {
 
   useEffect(() => {
     const loadAndMerge = () => {
-      const stored = getStoredCollection("containers", INITIAL_CONTAINERS);
-      const existingIds = new Set(stored.map((c) => c.id));
-      const missingNewDefaults = INITIAL_CONTAINERS.filter(
-        (init) =>
-          (init.id === "c6" || init.id === "c7" || init.id === "c8") &&
-          !existingIds.has(init.id)
-      );
-      if (missingNewDefaults.length > 0) {
-        const merged = [...stored, ...missingNewDefaults];
-        saveStoredCollection("containers", merged);
-        setContainers(merged);
+      const u = getCurrentUser();
+      const isDemo = !u || !u.isAuthenticated || u.id === "erdal_turk" || u.email === "erdal.turk@kisiseldepo.com";
+      const stored = getStoredCollection("containers", isDemo ? INITIAL_CONTAINERS : []);
+      if (isDemo) {
+        const existingIds = new Set(stored.map((c) => c.id));
+        const missingNewDefaults = INITIAL_CONTAINERS.filter(
+          (init) =>
+            (init.id === "c6" || init.id === "c7" || init.id === "c8") &&
+            !existingIds.has(init.id)
+        );
+        if (missingNewDefaults.length > 0) {
+          const merged = [...stored, ...missingNewDefaults];
+          saveStoredCollection("containers", merged);
+          setContainers(merged);
+        } else {
+          setContainers(stored);
+        }
       } else {
         setContainers(stored);
       }
-      const u = getCurrentUser();
       if (u?.name) setUserName(u.name);
       if (u?.avatar) setUserAvatar(u.avatar);
 
-      // Sıralama tercihi ve manuel dizilim yükleme
-      const savedSort = localStorage.getItem("psc-containers-sort") as SortOption | null;
-      if (savedSort) setSortBy(savedSort);
+      // Sıralama tercihi ve yön yükleme
+      const savedSort = localStorage.getItem("psc-containers-sort") as SortCriterion | null;
+      if (savedSort && (savedSort === "updated" || savedSort === "alpha" || savedSort === "count")) {
+        setSortCriterion(savedSort);
+      }
+      const savedDir = localStorage.getItem("psc-containers-dir") as SortDirection | null;
+      if (savedDir && (savedDir === "asc" || savedDir === "desc")) {
+        setSortDirection(savedDir);
+      }
 
       try {
         const savedOrder = localStorage.getItem("psc-containers-order");
@@ -438,6 +611,17 @@ export default function HomePage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [lockoutTimer]);
+
+  // Evrensel ESC Tuşu Desteği (PM-CONTROL Satır 22)
+  useEscKey(!!pinModalTarget, () => {
+    if (lockoutTimer <= 0) setPinModalTarget(null);
+  });
+  useEscKey(!!firstTimePinTarget, () => setFirstTimePinTarget(null));
+  useEscKey(isCreateModalOpen, () => setIsCreateModalOpen(false));
+  useEscKey(isGlobalSearchOpen, () => setIsGlobalSearchOpen(false));
+  useEscKey(!!editingContainer, () => setEditingContainer(null));
+  useEscKey(!!pendingUploadFile, () => setPendingUploadFile(null));
+  useEscKey(!!setupWizardTarget, () => setSetupWizardTarget(null));
 
   const navigateToContainer = (target: ContainerItem) => {
     if (target.formatTitle === "Metin" || target.id === "c5") {
@@ -550,7 +734,7 @@ export default function HomePage() {
     }
   };
 
-  // Depo filtreleme ve sıralama motoru (Section 4.6 & Sprint 6 Step 2)
+  // Depo filtreleme ve sıralama motoru (PM-CONTROL Satır 7-9: Kriter ve Yön Desteği)
   const filteredAndSortedContainers = React.useMemo(() => {
     const filtered = containers.filter((c) => {
       const matchesSearch =
@@ -562,15 +746,15 @@ export default function HomePage() {
       return true;
     });
 
-    return sortContainers(filtered, sortBy, manualOrder);
-  }, [containers, searchQuery, activeTab, sortBy, manualOrder]);
+    return sortContainersWithDirection(filtered, sortCriterion, sortDirection);
+  }, [containers, searchQuery, activeTab, sortCriterion, sortDirection]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
       {/* 1. ÜST HEADER / NAVBAR */}
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          {/* Logo & Başlık */}
+          {/* Logo & Başlık (PM-CONTROL Satır 3: "Container" etiketi kaldırıldı) */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-200 dark:shadow-none">
               <Layers className="w-5 h-5" />
@@ -580,9 +764,6 @@ export default function HomePage() {
                 <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 dark:from-white dark:via-indigo-200 dark:to-slate-200 bg-clip-text text-transparent">
                   Kişisel Depo
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
-                  Container
-                </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
                 Kişisel Dijital Arşiv Sistemi
@@ -590,12 +771,13 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Sağ Eylemler: Tema Değiştirici, Global Arama, Çöp Kutusu & Profil */}
+          {/* Sağ Eylemler: Tema Değiştirici, Global Arama, Çöp Kutusu & Profil Popover (PM-CONTROL Satır 20-21) */}
           <div className="flex items-center gap-2 sm:gap-2.5">
             <button
               type="button"
               onClick={() => {
                 setGlobalQuery("");
+                setActiveCategoryFilter("all");
                 setIsGlobalSearchOpen(true);
               }}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-slate-600 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-300 border border-slate-200/80 dark:border-slate-700/80 transition text-xs font-semibold"
@@ -611,27 +793,17 @@ export default function HomePage() {
             {/* Tema Geçiş Butonu (Açık / Koyu / Sistem) */}
             <ThemeToggle />
 
+            {/* PM-CONTROL Satır 4: Çöp kutusu kırmızı noktası kaldırıldı */}
             <Link
               href="/trash"
               title="Çöp Kutusu (30 gün saklanır)"
               className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors relative border border-slate-200/60 dark:border-slate-700/60"
             >
               <Trash2 className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"></span>
             </Link>
 
-            <Link
-              href="/profile"
-              title="Hesap, Yedekleme ve Paylaşım Yönetimi"
-              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 transition-colors border border-slate-200/60 dark:border-slate-700/60"
-            >
-              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shadow-xs">
-                {userAvatar}
-              </div>
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 hidden sm:inline">
-                {userName}
-              </span>
-            </Link>
+            {/* Profil Popover Menüsü */}
+            <ProfilePopover userName={userName} userAvatar={userAvatar} />
           </div>
         </div>
       </header>
@@ -646,8 +818,8 @@ export default function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 text-xs font-medium"
           >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
             <span>Dağınık dosyalar yok, tek bir akıllı merkez var.</span>
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
           </motion.div>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
@@ -731,7 +903,7 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* 2.5 EVRENSEL HIZLI DOSYA & MEDYA YÜKLEYİCİ (Universal Dropzone) */}
+        {/* 2.5 EVRENSEL HIZLI DOSYA & MEDYA YÜKLEYİCİ (Universal Dropzone - PM-CONTROL Satır 5-6) */}
         <section
           onDragOver={(e) => {
             e.preventDefault();
@@ -742,7 +914,7 @@ export default function HomePage() {
             e.preventDefault();
             setIsDraggingOver(false);
             const file = e.dataTransfer.files?.[0];
-            if (file) handleUniversalUpload(file);
+            if (file) handleFilePickedForUpload(file);
           }}
           className={`relative overflow-hidden rounded-3xl p-5 sm:p-6 border-2 transition-all duration-300 ${
             isDraggingOver
@@ -765,28 +937,12 @@ export default function HomePage() {
                     Evrensel Dosya & Medya Yükleyici
                   </h3>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
-                    Oto-Yönlendirme
+                    Akıllı Öneri
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-xl">
-                  Dosyayı buraya sürükleyin veya cihazınızdan seçin. Sistem türü otomatik algılayıp ilgili depoya depolar.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
+                  Belgeler, kodlar, notlar, ses ve video dosyalarınızı sürükleyip bırakın veya cihazınızdan seçin. Sistem otomatik depolama önerisi sunar.
                 </p>
-                <div className="flex flex-wrap items-center gap-1.5 mt-2 justify-center sm:justify-start">
-                  {[
-                    { tag: ".py / .ts / .js", desc: "Kod" },
-                    { tag: ".txt / .md", desc: "Metin" },
-                    { tag: ".mp3 / .wav", desc: "Ses" },
-                    { tag: ".jpg / .png / .mp4", desc: "Medya" },
-                    { tag: ".pdf / .docx / .pptx", desc: "Belge" },
-                  ].map((item, idx) => (
-                    <span
-                      key={idx}
-                      className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-                    >
-                      <b>{item.tag}</b> ({item.desc})
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
 
@@ -799,7 +955,7 @@ export default function HomePage() {
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) handleUniversalUpload(file);
+                  if (file) handleFilePickedForUpload(file);
                 }}
               />
             </label>
@@ -864,14 +1020,111 @@ export default function HomePage() {
                   transition={{ type: "spring", stiffness: 400, damping: 25 }}
                   className={`relative group bg-white dark:bg-slate-900 rounded-3xl p-5 border-2 border-slate-200/90 dark:border-slate-800 shadow-sm hover:border-indigo-400 dark:hover:border-indigo-500 ${card.shadow} transition-all cursor-pointer flex flex-col justify-between overflow-hidden`}
                   onClick={() => {
+                    let targetContainer: ContainerItem | undefined;
                     if (card.id === "movie") {
-                      router.push("/containers/movie");
+                      targetContainer = containers.find(
+                        (c) => c.formatTitle === "Film & Dizi" || c.id === "c1" || c.title.toLowerCase().includes("film")
+                      );
+                      if (targetContainer) {
+                        if (targetContainer.isLocked) {
+                          setPinModalTarget(targetContainer);
+                          setEnteredPin("");
+                          setPinErrorMsg(null);
+                          return;
+                        }
+                        router.push("/containers/movie");
+                      } else {
+                        setSetupWizardTarget({
+                          id: "movie",
+                          type: "smart",
+                          formatTitle: "Film & Dizi",
+                          route: "/containers/movie",
+                          defaultTitle: "Film & Dizi Koleksiyonum",
+                          defaultDesc: "İzlediğim ve izleyeceğim filmler, puanlarım ve incelemelerim.",
+                          defaultGradient: "from-purple-600 via-indigo-600 to-blue-700",
+                        });
+                        setSetupTitle("Film & Dizi Koleksiyonum");
+                        setSetupDesc("İzlediğim ve izleyeceğim filmler, puanlarım ve incelemelerim.");
+                        setSetupGradient("from-purple-600 via-indigo-600 to-blue-700");
+                      }
                     } else if (card.id === "code") {
-                      router.push("/containers/code");
+                      targetContainer = containers.find(
+                        (c) => c.formatTitle === "Kod Parçacıkları" || c.id === "c2" || c.title.toLowerCase().includes("kod")
+                      );
+                      if (targetContainer) {
+                        if (targetContainer.isLocked) {
+                          setPinModalTarget(targetContainer);
+                          setEnteredPin("");
+                          setPinErrorMsg(null);
+                          return;
+                        }
+                        router.push("/containers/code");
+                      } else {
+                        setSetupWizardTarget({
+                          id: "code",
+                          type: "smart",
+                          formatTitle: "Kod Parçacıkları",
+                          route: "/containers/code",
+                          defaultTitle: "Kod Parçacıkları & Snippet'lar",
+                          defaultDesc: "Sık kullandığım frontend, backend ve fullstack kod blokları.",
+                          defaultGradient: "from-emerald-600 via-teal-600 to-cyan-700",
+                        });
+                        setSetupTitle("Kod Parçacıkları & Snippet'lar");
+                        setSetupDesc("Sık kullandığım frontend, backend ve fullstack kod blokları.");
+                        setSetupGradient("from-emerald-600 via-teal-600 to-cyan-700");
+                      }
                     } else if (card.id === "travel") {
-                      router.push("/containers/travel");
+                      targetContainer = containers.find(
+                        (c) => c.formatTitle === "Gezi & Seyahat" || c.id === "c3" || c.title.toLowerCase().includes("gezi")
+                      );
+                      if (targetContainer) {
+                        if (targetContainer.isLocked) {
+                          setPinModalTarget(targetContainer);
+                          setEnteredPin("");
+                          setPinErrorMsg(null);
+                          return;
+                        }
+                        router.push("/containers/travel");
+                      } else {
+                        setSetupWizardTarget({
+                          id: "travel",
+                          type: "smart",
+                          formatTitle: "Gezi & Seyahat",
+                          route: "/containers/travel",
+                          defaultTitle: "Gezi & Seyahat Rotalarım",
+                          defaultDesc: "Ziyaret ettiğim şehirler, seyahat planları ve gezi notları.",
+                          defaultGradient: "from-amber-500 via-orange-500 to-red-600",
+                        });
+                        setSetupTitle("Gezi & Seyahat Rotalarım");
+                        setSetupDesc("Ziyaret ettiğim şehirler, seyahat planları ve gezi notları.");
+                        setSetupGradient("from-amber-500 via-orange-500 to-red-600");
+                      }
                     } else if (card.id === "study") {
-                      router.push("/containers/study");
+                      targetContainer = containers.find(
+                        (c) => c.formatTitle === "Ders & Notlar" || c.id === "c4" || c.title.toLowerCase().includes("ders")
+                      );
+                      if (targetContainer) {
+                        if (targetContainer.isLocked) {
+                          setPinModalTarget(targetContainer);
+                          setEnteredPin("");
+                          setPinErrorMsg(null);
+                          return;
+                        }
+                        router.push("/containers/study");
+                      } else {
+                        setSetupWizardTarget({
+                          id: "study",
+                          type: "smart",
+                          formatTitle: "Ders & Notlar",
+                          route: "/containers/study",
+                          defaultTitle: "Ders & Çalışma Notlarım",
+                          defaultDesc: "Ders özetleri, vize/final hazırlıkları ve çalışma kartları.",
+                          defaultGradient: "from-sky-500 via-blue-600 to-indigo-700",
+                        });
+                        setSetupTitle("Ders & Çalışma Notlarım");
+                        setSetupDesc("Ders özetleri, vize/final hazırlıkları ve çalışma kartları.");
+                        setSetupGradient("from-sky-500 via-blue-600 to-indigo-700");
+                      }
                     } else {
                       alert(`"${card.title}" oluşturma sihirbazı başlatılıyor.`);
                     }
@@ -903,9 +1156,9 @@ export default function HomePage() {
                     </p>
                   </div>
 
-                  {/* Etiketler ve Tıklama İpucu */}
+                  {/* Etiketler ve Tıklama İpucu (PM-CONTROL Satır 10: "Depoya Git") */}
                   <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
-                    <span className="text-[11px] text-slate-400 dark:text-slate-500">Hemen Oluştur</span>
+                    <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">Depoya Git</span>
                     <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </motion.div>
@@ -980,21 +1233,51 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Sağ Sıralama Seçenekleri (Section 4.6 & Sprint 6 Step 2) */}
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
-              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-              <span>Sırala:</span>
+            {/* Sağ Sıralama Seçenekleri & Yön Butonu (PM-CONTROL Satır 7-9) */}
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+              <span className="hidden sm:inline">Sırala:</span>
               <select
-                value={sortBy}
-                onChange={(e) => handleSortChange(e.target.value as SortOption)}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
+                value={sortCriterion}
+                onChange={(e) => handleSortCriterionChange(e.target.value as SortCriterion)}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
               >
-                <option value="updated">Son Güncellenen</option>
-                <option value="alpha">Alfabetik (A-Z)</option>
-                <option value="alpha-desc">Alfabetik (Z-A)</option>
-                <option value="count">İçerik Sayısı (Çoktan Aza)</option>
-                <option value="manual">Manuel Sıralama</option>
+                <option value="updated">Son Güncelleme</option>
+                <option value="alpha">İsim (Alfabetik)</option>
+                <option value="count">İçerik Sayısı</option>
               </select>
+
+              {/* Yön Değiştirme Butonu (Artan / Azalan) */}
+              <button
+                type="button"
+                onClick={toggleSortDirection}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition shadow-xs cursor-pointer"
+                title={
+                  sortCriterion === "alpha"
+                    ? sortDirection === "asc"
+                      ? "A'dan Z'ye (Artan) — Tıkla ve Z'den A'ya yap"
+                      : "Z'den A'ya (Azalan) — Tıkla ve A'dan Z'ye yap"
+                    : sortCriterion === "count"
+                    ? sortDirection === "desc"
+                      ? "Çoktan Aza — Tıkla ve Azdan Çoğa yap"
+                      : "Azdan Çoğa — Tıkla ve Çoktan Aza yap"
+                    : sortDirection === "desc"
+                    ? "En Yeni İlk — Tıkla ve En Eski İlk yap"
+                    : "En Eski İlk — Tıkla ve En Yeni İlk yap"
+                }
+              >
+                {sortDirection === "asc" ? (
+                  <ArrowUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                ) : (
+                  <ArrowDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                )}
+                <span className="text-[11px] font-bold">
+                  {sortCriterion === "alpha"
+                    ? sortDirection === "asc" ? "A-Z" : "Z-A"
+                    : sortCriterion === "count"
+                    ? sortDirection === "desc" ? "Çok" : "Az"
+                    : sortDirection === "desc" ? "Yeni" : "Eski"}
+                </span>
+              </button>
             </div>
           </div>
 
@@ -1002,11 +1285,15 @@ export default function HomePage() {
           {filteredAndSortedContainers.length === 0 ? (
             <div className="bg-white dark:bg-slate-900 rounded-3xl p-12 text-center border-2 border-slate-200 dark:border-slate-800 space-y-3">
               <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto">
-                <Search className="w-6 h-6" />
+                {containers.length === 0 ? <Layers className="w-6 h-6 text-indigo-500" /> : <Search className="w-6 h-6" />}
               </div>
-              <h3 className="font-bold text-slate-800 dark:text-slate-200">Aramana uygun depo bulunamadı</h3>
+              <h3 className="font-bold text-slate-800 dark:text-slate-200">
+                {containers.length === 0 ? "Henüz bir depo oluşturmadınız" : "Aramana uygun depo bulunamadı"}
+              </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                Farklı bir kelime deneyebilir veya yukarıdaki vitrinden yeni bir depo oluşturabilirsin.
+                {containers.length === 0
+                  ? "Kişisel dijital arşivinizi oluşturmak için aşağıdaki 'Yeni Depo Başlat' alanından ilk deponuzu kurabilirsiniz."
+                  : "Farklı bir kelime deneyebilir veya yukarıdaki vitrinden yeni bir depo oluşturabilirsin."}
               </p>
             </div>
           ) : (
@@ -1121,6 +1408,13 @@ export default function HomePage() {
                         </div>
 
                         <div className="flex items-center gap-1">
+                          <button
+                            title="Depoyu Düzenle (Ad ve Kapak)"
+                            onClick={(e) => handleOpenEdit(item, e)}
+                            className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                          >
+                            <SlidersHorizontal className="w-4 h-4" />
+                          </button>
                           <button
                             title="Tüm Depoyu Salt Okunur Paylaş"
                             onClick={(e) => {
@@ -1268,13 +1562,77 @@ export default function HomePage() {
                   onClick={() => {
                     setIsCreateModalOpen(false);
                     if (selectedFormat === "text") {
-                      router.push("/containers/text");
+                      const existing = containers.find((c) => c.formatTitle === "Metin" || c.id === "c5");
+                      if (existing) {
+                        router.push("/containers/text");
+                      } else {
+                        setSetupWizardTarget({
+                          id: "text",
+                          type: "standard",
+                          formatTitle: "Metin",
+                          route: "/containers/text",
+                          defaultTitle: "Kişisel Notlarım & Yazılarım",
+                          defaultDesc: "Şiirler, edebi metinler ve serbest düşünce notları.",
+                          defaultGradient: "from-slate-700 via-zinc-800 to-neutral-900",
+                        });
+                        setSetupTitle("Kişisel Notlarım & Yazılarım");
+                        setSetupDesc("Şiirler, edebi metinler ve serbest düşünce notları.");
+                        setSetupGradient("from-slate-700 via-zinc-800 to-neutral-900");
+                      }
                     } else if (selectedFormat === "audio") {
-                      router.push("/containers/audio");
+                      const existing = containers.find((c) => c.formatTitle === "Ses" || c.id === "c6");
+                      if (existing) {
+                        router.push("/containers/audio");
+                      } else {
+                        setSetupWizardTarget({
+                          id: "audio",
+                          type: "standard",
+                          formatTitle: "Ses",
+                          route: "/containers/audio",
+                          defaultTitle: "Sesli Notlarım & Kayıtlarım",
+                          defaultDesc: "Toplantı ses kayıtları, podcast fikirleri ve sesli notlar.",
+                          defaultGradient: "from-amber-600 via-orange-600 to-amber-800",
+                        });
+                        setSetupTitle("Sesli Notlarım & Kayıtlarım");
+                        setSetupDesc("Toplantı ses kayıtları, podcast fikirleri ve sesli notlar.");
+                        setSetupGradient("from-amber-600 via-orange-600 to-amber-800");
+                      }
                     } else if (selectedFormat === "image") {
-                      router.push("/containers/media");
+                      const existing = containers.find((c) => c.formatTitle === "Görüntü" || c.id === "c7");
+                      if (existing) {
+                        router.push("/containers/media");
+                      } else {
+                        setSetupWizardTarget({
+                          id: "media",
+                          type: "standard",
+                          formatTitle: "Görüntü",
+                          route: "/containers/media",
+                          defaultTitle: "Fotoğraf & Tasarım Arşivim",
+                          defaultDesc: "Tasarım ilhamları, yüksek çözünürlüklü fotoğraflar ve grafikler.",
+                          defaultGradient: "from-rose-600 via-pink-600 to-rose-800",
+                        });
+                        setSetupTitle("Fotoğraf & Tasarım Arşivim");
+                        setSetupDesc("Tasarım ilhamları, yüksek çözünürlüklü fotoğraflar ve grafikler.");
+                        setSetupGradient("from-rose-600 via-pink-600 to-rose-800");
+                      }
                     } else if (selectedFormat === "file") {
-                      router.push("/containers/files");
+                      const existing = containers.find((c) => c.formatTitle === "Dosya & Belge" || c.id === "c8");
+                      if (existing) {
+                        router.push("/containers/files");
+                      } else {
+                        setSetupWizardTarget({
+                          id: "files",
+                          type: "standard",
+                          formatTitle: "Dosya & Belge",
+                          route: "/containers/files",
+                          defaultTitle: "Sözleşmeler & Belgelerim",
+                          defaultDesc: "PDF dokümanları, resmi sözleşmeler ve tablolar.",
+                          defaultGradient: "from-emerald-700 via-teal-700 to-slate-800",
+                        });
+                        setSetupTitle("Sözleşmeler & Belgelerim");
+                        setSetupDesc("PDF dokümanları, resmi sözleşmeler ve tablolar.");
+                        setSetupGradient("from-emerald-700 via-teal-700 to-slate-800");
+                      }
                     }
                   }}
                   className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md ${
@@ -1562,26 +1920,26 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* Hızlı Kategori Filtre Çipleri */}
+              {/* 8 Kesin Depo Filtre Çipleri (PM-CONTROL Satır 16-19) */}
               <div className="px-5 py-2.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto">
                 {[
-                  { label: "Tümü", q: "" },
-                  { label: "🎬 Filmler", q: "film" },
-                  { label: "📝 Şiir & Metin", q: "şiir" },
-                  { label: "💻 Kod", q: "python" },
-                  { label: "✈️ Gezi", q: "gezi" },
-                  { label: "🎓 Ders Notu", q: "ceng" },
-                  { label: "🎙️ Ses & Podcast", q: "podcast" },
-                  { label: "🖼️ Görsel", q: "mimari" },
-                  { label: "📄 Sözleşme & PDF", q: "pdf" },
+                  { label: "Tümü", key: "all" },
+                  { label: "🎬 Film", key: "movie" },
+                  { label: "💻 Kod", key: "code" },
+                  { label: "✈️ Gezi", key: "travel" },
+                  { label: "🎓 Ders", key: "study" },
+                  { label: "📝 Metin", key: "text" },
+                  { label: "🎙️ Ses", key: "audio" },
+                  { label: "🖼️ Görsel", key: "image" },
+                  { label: "📄 Belge", key: "file" },
                 ].map((chip) => (
                   <button
-                    key={chip.label}
+                    key={chip.key}
                     type="button"
-                    onClick={() => setGlobalQuery(chip.q)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition ${
-                      globalQuery.toLowerCase() === chip.q && chip.q !== ""
-                        ? "bg-indigo-600 text-white"
+                    onClick={() => setActiveCategoryFilter(chip.key as any)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition cursor-pointer ${
+                      activeCategoryFilter === chip.key
+                        ? "bg-indigo-600 text-white shadow-xs font-bold"
                         : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700/70 text-slate-600 dark:text-slate-300"
                     }`}
                   >
@@ -1590,20 +1948,26 @@ export default function HomePage() {
                 ))}
               </div>
 
-              {/* Sonuç Listesi */}
+              {/* Sonuç Listesi (Türe ve Sorguya Göre Filtrelenmiş) */}
               <div className="max-h-96 overflow-y-auto p-3 divide-y divide-slate-100 dark:divide-slate-800">
-                {globalResults.length === 0 ? (
-                  <div className="py-12 text-center space-y-2">
-                    <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                      "{globalQuery}" ile eşleşen içerik bulunamadı
-                    </p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                      Farklı bir anahtar kelime (örn. Inception, FastAPI, Kaş, A*, Podcast, PDF) deneyin.
-                    </p>
-                  </div>
-                ) : (
-                  globalResults.map((res) => (
+                {(() => {
+                  const filteredList = globalResults.filter(
+                    (r) => activeCategoryFilter === "all" || r.type === activeCategoryFilter
+                  );
+                  if (filteredList.length === 0) {
+                    return (
+                      <div className="py-12 text-center space-y-2">
+                        <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                          {globalQuery ? `"${globalQuery}" ile eşleşen içerik bulunamadı` : "Bu kategoride içerik bulunamadı"}
+                        </p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">
+                          Farklı bir kategori seçin veya arama terimini değiştirin.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return filteredList.map((res) => (
                     <button
                       key={res.id}
                       type="button"
@@ -1655,14 +2019,14 @@ export default function HomePage() {
                         <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-indigo-600 dark:group-hover:text-indigo-400" />
                       </div>
                     </button>
-                  ))
-                )}
+                  ));
+                })()}
               </div>
 
               {/* Alt Bilgi Çubuğu */}
               <div className="px-5 py-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                 <span>
-                  Toplam <b>{globalResults.length}</b> sonuç listeleniyor
+                  Toplam <b>{globalResults.filter((r) => activeCategoryFilter === "all" || r.type === activeCategoryFilter).length}</b> sonuç listeleniyor
                 </span>
                 <div className="flex items-center gap-3">
                   <span>
@@ -1679,6 +2043,380 @@ export default function HomePage() {
                   </span>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 8. EVRENSEL YÜKLEYİCİ ONAY VE DEPO SEÇİMİ MODALI (PM-CONTROL Satır 6) */}
+      <AnimatePresence>
+        {pendingUploadFile && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPendingUploadFile(null)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 z-10 space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                      Dosya Yükleme Önerisi
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Sistem dosyanız için en uygun depoyu tespit etti
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPendingUploadFile(null)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Dosya Bilgisi Kartı */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                    {pendingUploadFile.file.name}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {formatBytes(pendingUploadFile.file.size)} • {pendingUploadFile.detected.ext.toUpperCase()} Dosyası
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                  .{pendingUploadFile.detected.ext.toLowerCase()}
+                </span>
+              </div>
+
+              {/* Hedef Depo Seçimi */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Hedef Depo (Tavsiye Edilen: {pendingUploadFile.detected.categoryLabel})
+                  </label>
+                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold hidden sm:inline">
+                    ↑ / ↓ Gezin • Enter Yükle
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {[
+                    { id: "files", label: "Dosya & Belge Deposu", icon: FolderArchive, hint: "PDF, Office, Zip" },
+                    { id: "code", label: "Kod Parçacıkları Deposu", icon: Code2, hint: "Kod, Script" },
+                    { id: "text", label: "Metin Deposu", icon: FileText, hint: "Notlar, Şiirler" },
+                    { id: "audio", label: "Ses Deposu", icon: Music, hint: "Ses Kayıtları, Müzik" },
+                    { id: "media", label: "Görüntü Deposu", icon: ImageIcon, hint: "Fotoğraflar, Görseller" },
+                  ].map((target) => {
+                    const isSelected = pendingUploadFile.selectedTarget === target.id;
+                    const isRecommended = pendingUploadFile.detected.container === target.id;
+                    const IconC = target.icon;
+                    return (
+                      <button
+                        key={target.id}
+                        type="button"
+                        onClick={() =>
+                          setPendingUploadFile((prev) =>
+                            prev ? { ...prev, selectedTarget: target.id as TargetContainer } : null
+                          )
+                        }
+                        className={`w-full p-2.5 rounded-2xl border text-left flex items-center justify-between transition cursor-pointer ${
+                          isSelected
+                            ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20"
+                            : "bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <IconC className="w-4 h-4 text-indigo-500" />
+                          <div>
+                            <span className="text-xs font-bold block">{target.label}</span>
+                            <span className="text-[10px] text-slate-400">{target.hint}</span>
+                          </div>
+                        </div>
+                        {isRecommended && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                            Önerilen
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Butonlar */}
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPendingUploadFile(null)}
+                  className="w-1/2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  İptal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmUpload}
+                  className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Depoya Yükle</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 9. DEPO DÜZENLEME MODALI (PM-CONTROL Satır 10-15) */}
+      <AnimatePresence>
+        {editingContainer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingContainer(null)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 z-10 space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                    <SlidersHorizontal className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                      Depoyu Düzenle
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Deponuzun adını ve kapak stilini güncelleyin
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingContainer(null)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Depo Başlığı
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="Depo başlığı yazın..."
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Kapak Gradyanı / Rengi
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {GRADIENT_PRESETS.map((g, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setEditGradient(g.value)}
+                        className={`h-10 rounded-xl bg-gradient-to-r ${g.value} relative transition-all cursor-pointer ${
+                          editGradient === g.value
+                            ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900 scale-105"
+                            : "opacity-80 hover:opacity-100"
+                        }`}
+                        title={g.label}
+                      >
+                        {editGradient === g.value && (
+                          <Check className="w-4 h-4 text-white mx-auto drop-shadow-md" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Önizleme */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                    Kapak Önizlemesi
+                  </span>
+                  <div className={`h-16 rounded-xl bg-gradient-to-r ${editGradient || editingContainer.coverGradient} p-3 flex items-center justify-between text-white font-bold text-xs shadow-inner`}>
+                    <span className="truncate">{editTitle || "Depo Başlığı"}</span>
+                    <span className="text-[10px] bg-black/30 px-2 py-0.5 rounded-full">{editingContainer.formatTitle}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingContainer(null)}
+                    className="w-1/2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition cursor-pointer"
+                  >
+                    Kaydet
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 10. YENİ DEPO KURULUM SİHİRBAZI MODALI (PM-CONTROL Satır 9-10) */}
+      <AnimatePresence>
+        {setupWizardTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSetupWizardTarget(null)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 z-10 space-y-5"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${setupGradient || setupWizardTarget.defaultGradient} text-white flex items-center justify-center font-bold shadow-md`}>
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                      Depo Kurulumu: {setupWizardTarget.formatTitle}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Deponuzun adını, amacını ve kapak temasını belirleyin
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSetupWizardTarget(null)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Canlı Kart Önizlemesi */}
+              <div className={`p-4 rounded-2xl bg-gradient-to-br ${setupGradient || setupWizardTarget.defaultGradient} text-white shadow-lg space-y-2`}>
+                <div className="flex items-center justify-between text-xs opacity-80">
+                  <span className="font-bold uppercase tracking-wider text-[10px]">
+                    {setupWizardTarget.type === "smart" ? "Akıllı Depo" : "Standart Depo"} • {setupWizardTarget.formatTitle}
+                  </span>
+                  <span>0 Öğe</span>
+                </div>
+                <h4 className="text-lg font-black tracking-tight truncate">
+                  {setupTitle || "Depo Başlığı"}
+                </h4>
+                <p className="text-xs text-white/80 line-clamp-2 leading-relaxed">
+                  {setupDesc || "Depo açıklaması..."}
+                </p>
+              </div>
+
+              <form onSubmit={handleCompleteSetup} className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Depo Adı / Başlığı *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={setupTitle}
+                    onChange={(e) => setSetupTitle(e.target.value)}
+                    placeholder={setupWizardTarget.defaultTitle}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Depo Açıklaması
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={setupDesc}
+                    onChange={(e) => setSetupDesc(e.target.value)}
+                    placeholder={setupWizardTarget.defaultDesc}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
+                    Kapak Teması / Gradyanı
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {GRADIENT_PRESETS.map((g, idx) => {
+                      const isSel = (setupGradient || setupWizardTarget.defaultGradient) === g.value;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setSetupGradient(g.value)}
+                          className={`h-9 rounded-xl bg-gradient-to-r ${g.value} flex items-center justify-center transition-all cursor-pointer ${
+                            isSel ? "ring-3 ring-indigo-500 scale-105 shadow-md" : "opacity-75 hover:opacity-100"
+                          }`}
+                          title={g.label}
+                        >
+                          {isSel && <Check className="w-4 h-4 text-white drop-shadow" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setSetupWizardTarget(null)}
+                    className="w-1/2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-1/2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Depoyu Kur ve Başla →</span>
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

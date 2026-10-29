@@ -41,6 +41,7 @@ import {
   Video,
 } from "lucide-react";
 import { isTokenDeleted, getSharedLinks, getCustomSharedRecord } from "@/lib/appStore";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 import ThemeToggle from "@/components/ThemeToggle";
 import {
   exportMarkdownFile,
@@ -714,9 +715,16 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 function ShareContent() {
   const params = useParams();
   const token = params?.token as string;
-  const [dynamicItem, setDynamicItem] = useState<SharedRecord | null>(null);
+  const [dynamicItem, setDynamicItem] = useState<SharedRecord | null>(() => {
+    if (typeof window !== "undefined" && token) {
+      return getCustomSharedRecord(token);
+    }
+    return null;
+  });
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     if (token) {
       const custom = getCustomSharedRecord(token);
       if (custom) {
@@ -817,6 +825,18 @@ function ShareContent() {
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  // 0. Yükleme ve Senkronizasyon Durumu (Hydration tamamlanana kadar hata/iptal flaşlanması önlenir)
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+        <div className="animate-pulse flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+          <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+      </div>
+    );
+  }
 
   // 1. Durum: İçerik Silindiği İçin Otomatik İptal Edilmiş Bağlantı (Merkezi Store ile Tam Senkronize!)
   if (deletedState || (item && item.isDeleted)) {
@@ -1682,16 +1702,18 @@ function ShareContent() {
                         Sınava {item.daysLeft} Gün Kaldı
                       </span>
                     )}
-                    <button
-                      onClick={() => {
-                        exportStudyNotes(item);
-                        triggerToast(`"${item.title}" çalışma notları indirildi.`);
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Notları İndir (.md)</span>
-                    </button>
+                    {isFeatureEnabled("enableMarkdownExportStudy") && (
+                      <button
+                        onClick={() => {
+                          exportStudyNotes(item);
+                          triggerToast(`"${item.title}" çalışma notları indirildi.`);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Notları İndir (.md)</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1747,19 +1769,21 @@ function ShareContent() {
                         <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                         Etkileşimli Sınav Kartları ({activeFlashcardIndex + 1} / {item.flashcards.length})
                       </h4>
-                      <button
-                        onClick={() => {
-                          const fcs = item.flashcards || [];
-                          const exportText = `# Sınav Kartları: ${item.title}\n\n` +
-                            fcs.map((fc: any, i: number) => `### Kart ${i+1}\n**Soru:** ${fc.question}\n**Cevap:** ${fc.answer}\n`).join("\n");
-                          downloadTextFile(exportText, `${item.courseCode || 'ders'}-flashcards.md`);
-                          triggerToast("Sınav kartları Markdown olarak indirildi.");
-                        }}
-                        className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1"
-                      >
-                        <Download className="w-3 h-3" />
-                        <span>Kartları İndir</span>
-                      </button>
+                      {isFeatureEnabled("enableFlashcardsDownload") && (
+                        <button
+                          onClick={() => {
+                            const fcs = item.flashcards || [];
+                            const exportText = `# Sınav Kartları: ${item.title}\n\n` +
+                              fcs.map((fc: any, i: number) => `### Kart ${i+1}\n**Soru:** ${fc.question}\n**Cevap:** ${fc.answer}\n`).join("\n");
+                            downloadTextFile(exportText, `${item.courseCode || 'ders'}-flashcards.md`);
+                            triggerToast("Sınav kartları Markdown olarak indirildi.");
+                          }}
+                          className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Kartları İndir</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* İnteraktif Çevrilebilir Flashcard */}
@@ -2066,16 +2090,18 @@ function ShareContent() {
                       <div className="text-xs text-purple-400 font-bold mb-1">
                         {item.year} • {item.director}
                       </div>
-                      <button
-                        onClick={() => {
-                          exportMovieCollection([item], item.title);
-                          triggerToast(`"${item.title}" film arşivi JSON olarak indirildi.`);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Kaydı İndir (.json)</span>
-                      </button>
+                      {isFeatureEnabled("enableMovieArchiveExport") && (
+                        <button
+                          onClick={() => {
+                            exportMovieCollection([item], item.title);
+                            triggerToast(`"${item.title}" film arşivi JSON olarak indirildi.`);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Kaydı İndir (.json)</span>
+                        </button>
+                      )}
                     </div>
                     <h1 className="text-2xl font-extrabold text-white">
                       {item.title}

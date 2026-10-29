@@ -15,6 +15,7 @@ import {
   Heart,
   Share2,
   Trash2,
+  Pencil,
   Edit3,
   Clock,
   Volume2,
@@ -33,6 +34,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import useEscKey from "@/hooks/useEscKey";
 import BatchActionBar from "@/components/BatchActionBar";
 import { exportAudioFile } from "@/lib/exportUtils";
 import { formatBytes } from "@/lib/uploadUtils";
@@ -44,6 +46,11 @@ import {
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
+  activateShareToken,
+  getContainerByFormatOrType,
+  syncContainerItemCount,
+  updateContainerDetails,
+  Container,
 } from "@/lib/appStore";
 
 export interface AudioItem {
@@ -173,6 +180,16 @@ export default function AudioContainerPage() {
   const [formTags, setFormTags] = useState("");
   const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
 
+  // Değişiklik Kontrolü & ESC Kapatma Desteği (PM-CONTROL Satır 101)
+  const isAudioDirty = editingItem
+    ? formTitle !== editingItem.title || formTranscript !== (editingItem.transcript || "")
+    : Boolean(formTitle.trim() || formTranscript.trim() || uploadedAudioUrl);
+
+  useEscKey(isModalOpen, () => setIsModalOpen(false), isAudioDirty);
+  useEscKey(isNewFolderOpen, () => setIsNewFolderOpen(false));
+  useEscKey(Boolean(folderToDelete), () => setFolderToDelete(null));
+  useEscKey(Boolean(folderToRename), () => setFolderToRename(null));
+
   const handleAudioFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -205,16 +222,53 @@ export default function AudioContainerPage() {
   const [lastTrashBatchIds, setLastTrashBatchIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    const stored = getStoredCollection<AudioItem>("audios", INITIAL_AUDIOS);
-    setAudios(stored);
+  // Depo Özelleştirme
+  const [currentContainer, setCurrentContainer] = useState<Container | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editContainerTitle, setEditContainerTitle] = useState("Sesli Notlar & Podcast Fikirleri");
+  const [editGradient, setEditGradient] = useState("from-amber-500 via-orange-600 to-rose-600");
 
-    const handleSync = () => {
-      setAudios(getStoredCollection<AudioItem>("audios", INITIAL_AUDIOS));
+  useEscKey(isEditModalOpen, () => setIsEditModalOpen(false));
+
+  useEffect(() => {
+    const loadData = () => {
+      const stored = getStoredCollection<AudioItem>("audios", INITIAL_AUDIOS);
+      setAudios(stored);
+
+      const cont = getContainerByFormatOrType("Ses");
+      if (cont) {
+        setCurrentContainer(cont);
+        setEditContainerTitle(cont.title);
+        setEditGradient(cont.coverGradient || "from-amber-500 via-orange-600 to-rose-600");
+      } else {
+        syncContainerItemCount("Ses", stored.length, "Sesli Notlar & Podcast Fikirleri");
+        const fresh = getContainerByFormatOrType("Ses");
+        if (fresh) {
+          setCurrentContainer(fresh);
+          setEditContainerTitle(fresh.title);
+        }
+      }
     };
-    window.addEventListener("psc-store-updated", handleSync);
-    return () => window.removeEventListener("psc-store-updated", handleSync);
+
+    loadData();
+    window.addEventListener("psc-store-updated", loadData);
+    return () => window.removeEventListener("psc-store-updated", loadData);
   }, []);
+
+  const handleSaveContainerDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editContainerTitle.trim()) return;
+    const contId = currentContainer?.id || "c6";
+    const updated = updateContainerDetails(contId, {
+      title: editContainerTitle.trim(),
+      coverGradient: editGradient,
+    });
+    if (updated) {
+      setCurrentContainer(updated);
+    }
+    setIsEditModalOpen(false);
+    showToast("Depo bilgileri güncellendi.");
+  };
 
   // Simulated playback timer
   useEffect(() => {
@@ -293,6 +347,7 @@ export default function AudioContainerPage() {
   const syncAudios = (updated: AudioItem[]) => {
     setAudios(updated);
     saveStoredCollection("audios", updated);
+    syncContainerItemCount("Ses", updated.length, currentContainer?.title);
   };
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -320,12 +375,21 @@ export default function AudioContainerPage() {
     }
   };
 
+  const speeds = [0.75, 1, 1.25, 1.5, 2];
+
   const cycleSpeed = () => {
-    const speeds = [1, 1.25, 1.5, 2];
     const nextIdx = (speeds.indexOf(playbackSpeed) + 1) % speeds.length;
-    setPlaybackSpeed(speeds[nextIdx]);
+    const newSpeed = speeds[nextIdx];
+    setPlaybackSpeed(newSpeed);
     if (audioRef.current) {
-      audioRef.current.playbackRate = speeds[nextIdx];
+      audioRef.current.playbackRate = newSpeed;
+    }
+  };
+
+  const handleSetSpeed = (speed: number) => {
+    setPlaybackSpeed(speed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
     }
   };
 
@@ -559,9 +623,19 @@ export default function AudioContainerPage() {
                 </span>
                 <span className="text-xs text-stone-400 dark:text-slate-500">1-Seviye Klasör Mimarisi</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight mt-0.5">
-                Sesli Notlar & Podcast Fikirleri
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight mt-0.5">
+                  {currentContainer?.title || "Sesli Notlar & Podcast Fikirleri"}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  title="Depo Adını ve Kapağını Düzenle"
+                  className="p-1 rounded-lg text-stone-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-stone-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -569,7 +643,10 @@ export default function AudioContainerPage() {
             <ThemeToggle />
 
             <button
-              onClick={() => window.open("/share/sesli-notlar-deposu", "_blank")}
+              onClick={() => {
+                activateShareToken("sesli-notlar-deposu");
+                window.open("/share/sesli-notlar-deposu", "_blank");
+              }}
               className="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-200 text-sm font-medium hover:bg-stone-50 dark:hover:bg-slate-700 transition shadow-sm cursor-pointer"
             >
               <Share2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -589,81 +666,142 @@ export default function AudioContainerPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-8 pt-8">
         {/* Summary Banner */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-stone-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-stone-500 uppercase tracking-wider">
+              <p className="text-xs font-medium text-stone-500 dark:text-slate-400 uppercase tracking-wider">
                 Toplam Kayıt
               </p>
-              <p className="text-2xl font-bold text-stone-900 mt-1">
+              <p className="text-2xl font-bold text-stone-900 dark:text-white mt-1">
                 {audios.length} Ses Dosyası
               </p>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+            <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400">
               <FileAudio className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-stone-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-stone-500 uppercase tracking-wider">
+              <p className="text-xs font-medium text-stone-500 dark:text-slate-400 uppercase tracking-wider">
                 Toplam Süre
               </p>
-              <p className="text-2xl font-bold text-stone-900 mt-1">
+              <p className="text-2xl font-bold text-stone-900 dark:text-white mt-1">
                 {totalMinutes} Dakika
               </p>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-orange-600">
+            <div className="w-11 h-11 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-100 dark:border-orange-900/40 flex items-center justify-center text-orange-600 dark:text-orange-400">
               <Headphones className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-stone-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-stone-500 uppercase tracking-wider">
+              <p className="text-xs font-medium text-stone-500 dark:text-slate-400 uppercase tracking-wider">
                 Klasör Sayısı
               </p>
-              <p className="text-2xl font-bold text-stone-900 mt-1">
+              <p className="text-2xl font-bold text-stone-900 dark:text-white mt-1">
                 {folders.length} Klasör
               </p>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-stone-100 border border-stone-200 flex items-center justify-center text-stone-600">
+            <div className="w-11 h-11 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 flex items-center justify-center text-stone-600 dark:text-slate-300">
               <Folder className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-stone-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-stone-500 uppercase tracking-wider">
+              <p className="text-xs font-medium text-stone-500 dark:text-slate-400 uppercase tracking-wider">
                 Oynatma Hızı
               </p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-2xl font-bold text-amber-700">
-                  {playbackSpeed}x
-                </span>
-                <button
-                  onClick={cycleSpeed}
-                  className="text-xs px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold border border-amber-200/60 transition cursor-pointer"
-                >
-                  Değiştir
-                </button>
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                {[0.75, 1, 1.25, 1.5, 2].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => handleSetSpeed(s)}
+                    className={`text-[11px] px-2 py-0.5 rounded-lg font-bold transition cursor-pointer ${
+                      playbackSpeed === s
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60"
+                    }`}
+                  >
+                    {s}x
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+            <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400">
               <FastForward className="w-5 h-5" />
             </div>
           </div>
         </div>
 
+        {/* Modern Ses Dropzone & Hızlı Kayıt Alanı (PM-CONTROL Satır 104 - image-4 Tasarımı) */}
+        <div className="mb-6 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent rounded-3xl p-6 border-2 border-dashed border-amber-300/80 dark:border-amber-700/60 transition-all hover:border-amber-500">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-5">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/30 shrink-0">
+                <Mic className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-stone-900 dark:text-white flex items-center gap-2">
+                  <span>Ses Kaydı Bırakın veya Hızlı Kayıt Başlatın</span>
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                    image-4 UI
+                  </span>
+                </h3>
+                <p className="text-xs text-stone-500 dark:text-slate-400 mt-1 max-w-xl">
+                  .mp3, .wav, .m4a ses dosyalarınızı doğrudan buraya sürükleyip bırakabilir veya mikrofon kaydı başlatarak depoya ekleyebilirsiniz.
+                </p>
+              </div>
+            </div>
+
+            {/* Simüle Edilmiş Canlı Dalga Formu (Waveform) & Eylem Butonları */}
+            <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+              <div className="hidden sm:flex items-center gap-1 h-8 px-3 rounded-xl bg-white/70 dark:bg-slate-900/80 border border-amber-200 dark:border-amber-800/80">
+                {[30, 60, 45, 90, 75, 40, 85, 55, 70, 95, 65, 40].map((h, i) => (
+                  <span
+                    key={i}
+                    style={{ height: `${h}%` }}
+                    className="w-1 bg-amber-500 rounded-full animate-pulse"
+                  />
+                ))}
+              </div>
+
+              <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-stone-50 dark:hover:bg-slate-800 text-stone-800 dark:text-white font-bold text-xs border border-stone-200 dark:border-slate-700 shadow-xs transition-colors flex items-center gap-2">
+                <Upload className="w-4 h-4 text-amber-600" />
+                <span>Dosya Seç</span>
+                <input
+                  type="file"
+                  accept="audio/*,.mp3,.wav,.m4a"
+                  className="hidden"
+                  onChange={(e) => {
+                    handleAudioFileSelect(e);
+                    setIsModalOpen(true);
+                  }}
+                />
+              </label>
+
+              <button
+                onClick={openCreateModal}
+                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md shadow-amber-900/20 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Kayıt Ekle</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* 1-Level Folder Bar */}
-        <div className="bg-white rounded-2xl p-4 border border-stone-200/80 shadow-sm mb-6">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-stone-200/80 dark:border-slate-800 shadow-sm mb-6">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-stone-400 flex items-center gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-stone-400 dark:text-slate-500 flex items-center gap-1.5">
               <Folder className="w-3.5 h-3.5 text-amber-600" />
               Klasörler (Tek Seviyeli Hiyerarşi)
             </span>
             <button
               onClick={() => setIsNewFolderOpen(!isNewFolderOpen)}
-              className="text-xs font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1 cursor-pointer"
+              className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 flex items-center gap-1 cursor-pointer"
             >
               <FolderPlus className="w-3.5 h-3.5" />
               + Yeni Klasör
@@ -673,14 +811,14 @@ export default function AudioContainerPage() {
           {isNewFolderOpen && (
             <form
               onSubmit={handleCreateFolder}
-              className="flex items-center gap-2 mb-3 pb-3 border-b border-stone-100"
+              className="flex items-center gap-2 mb-3 pb-3 border-b border-stone-100 dark:border-slate-800"
             >
               <input
                 type="text"
                 placeholder="Yeni klasör adı..."
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
-                className="flex-1 max-w-xs px-3 py-1.5 text-sm rounded-xl border border-stone-200 focus:outline-none focus:border-amber-500"
+                className="flex-1 max-w-xs px-3 py-1.5 text-sm rounded-xl border border-stone-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:border-amber-500"
                 autoFocus
               />
               <button
@@ -692,7 +830,7 @@ export default function AudioContainerPage() {
               <button
                 type="button"
                 onClick={() => setIsNewFolderOpen(false)}
-                className="p-1.5 text-stone-400 hover:text-stone-600 cursor-pointer"
+                className="p-1.5 text-stone-400 hover:text-stone-600 dark:hover:text-slate-300 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -705,7 +843,7 @@ export default function AudioContainerPage() {
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
                 selectedFolder === "all"
                   ? "bg-stone-900 text-white shadow-sm"
-                  : "bg-stone-100 text-stone-600 hover:bg-stone-200/70"
+                  : "bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 hover:bg-stone-200/70 dark:hover:bg-slate-700"
               }`}
             >
               Tümü ({audios.length})
@@ -716,7 +854,7 @@ export default function AudioContainerPage() {
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
                 selectedFolder === "favorites"
                   ? "bg-rose-600 text-white shadow-sm"
-                  : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60"
               }`}
             >
               <Heart className="w-3.5 h-3.5 fill-current" />
@@ -732,7 +870,7 @@ export default function AudioContainerPage() {
                   className={`group flex items-center rounded-xl text-xs font-semibold transition shrink-0 ${
                     isSelected
                       ? "bg-amber-600 text-white shadow-sm"
-                      : "bg-stone-100 text-stone-700 hover:bg-stone-200/70"
+                      : "bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-200 hover:bg-stone-200/70 dark:hover:bg-slate-700"
                   }`}
                 >
                   <button
@@ -750,7 +888,7 @@ export default function AudioContainerPage() {
                         setRenameFolderName(folder);
                       }}
                       className={`px-1 py-2 opacity-60 hover:opacity-100 transition cursor-pointer ${
-                        isSelected ? "text-white" : "text-stone-400 hover:text-amber-600"
+                        isSelected ? "text-white" : "text-stone-400 hover:text-amber-600 dark:hover:text-amber-400"
                       }`}
                       title="Klasörü Yeniden Adlandır"
                     >
@@ -762,7 +900,7 @@ export default function AudioContainerPage() {
                         setFolderToDelete(folder);
                       }}
                       className={`pr-2.5 pl-1 py-2 opacity-60 hover:opacity-100 transition cursor-pointer ${
-                        isSelected ? "text-white" : "text-stone-400 hover:text-rose-600"
+                        isSelected ? "text-white" : "text-stone-400 hover:text-rose-600 dark:hover:text-rose-400"
                       }`}
                       title="Klasörü Sil"
                     >
@@ -777,8 +915,8 @@ export default function AudioContainerPage() {
               onClick={() => setSelectedFolder("unorganized")}
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
                 selectedFolder === "unorganized"
-                  ? "bg-stone-700 text-white"
-                  : "bg-stone-100/80 text-stone-500 hover:bg-stone-200/60"
+                  ? "bg-stone-700 dark:bg-slate-700 text-white"
+                  : "bg-stone-100/80 dark:bg-slate-800/80 text-stone-500 dark:text-slate-400 hover:bg-stone-200/60 dark:hover:bg-slate-700"
               }`}
             >
               Klasörsüz ({audios.filter((a) => !a.folder).length})
@@ -795,11 +933,11 @@ export default function AudioContainerPage() {
               placeholder="Ses kaydı başlığı, konuşma metni (transkript) veya etiket ara..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white border border-stone-200/90 text-sm focus:outline-none focus:border-amber-500 shadow-sm"
+              className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 text-sm focus:outline-none focus:border-amber-500 dark:text-white shadow-sm"
             />
           </div>
 
-          <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-stone-200/80 shadow-sm">
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-stone-200/80 dark:border-slate-800 shadow-sm">
             {(["all", "MP3", "WAV", "M4A"] as const).map((fmt) => (
               <button
                 key={fmt}
@@ -807,7 +945,7 @@ export default function AudioContainerPage() {
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   selectedFormat === fmt
                     ? "bg-amber-600 text-white shadow-sm"
-                    : "text-stone-600 hover:bg-stone-100"
+                    : "text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800"
                 }`}
               >
                 {fmt === "all" ? "Tüm Formatlar" : fmt}
@@ -818,14 +956,14 @@ export default function AudioContainerPage() {
 
         {/* Audio List */}
         {filteredAudios.length === 0 ? (
-          <div className="bg-white rounded-3xl border border-stone-200/80 p-12 text-center shadow-sm">
-            <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-stone-200/80 dark:border-slate-800 p-12 text-center shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-4">
               <Mic className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-stone-900">
+            <h3 className="text-lg font-bold text-stone-900 dark:text-white">
               Ses Kaydı Bulunamadı
             </h3>
-            <p className="text-sm text-stone-500 max-w-md mx-auto mt-1 mb-6">
+            <p className="text-sm text-stone-500 dark:text-slate-400 max-w-md mx-auto mt-1 mb-6">
               Arama kriterlerinize veya seçili klasöre ait bir ses kaydı yok. Yeni bir sesli not ekleyebilirsiniz.
             </p>
             <button
@@ -849,12 +987,12 @@ export default function AudioContainerPage() {
               return (
                 <div
                   key={item.id}
-                  className={`bg-white rounded-3xl border transition-all duration-200 p-6 shadow-sm hover:shadow-md ${
+                  className={`bg-white dark:bg-slate-900 rounded-3xl border transition-all duration-200 p-6 shadow-sm hover:shadow-md ${
                     selectedIds.includes(item.id)
-                      ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/15"
+                      ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/15 dark:bg-amber-950/20"
                       : isPlaying
                       ? "border-amber-400 ring-2 ring-amber-500/15"
-                      : "border-stone-200/80 hover:border-stone-300"
+                      : "border-stone-200/80 dark:border-slate-800 hover:border-stone-300 dark:hover:border-slate-700"
                   }`}
                 >
                   {/* Top Row */}
@@ -863,22 +1001,22 @@ export default function AudioContainerPage() {
                       <button
                         type="button"
                         onClick={(e) => handleToggleSelect(item.id, e)}
-                        className="p-1 text-stone-400 hover:text-amber-600 transition cursor-pointer shrink-0"
+                        className="p-1 text-stone-400 hover:text-amber-600 dark:hover:text-amber-400 transition cursor-pointer shrink-0"
                         title={selectedIds.includes(item.id) ? "Seçimi Kaldır" : "Kaydı Seç"}
                       >
                         {selectedIds.includes(item.id) ? (
-                          <CheckCircle2 className="w-5 h-5 text-amber-600 fill-amber-100" />
+                          <CheckCircle2 className="w-5 h-5 text-amber-600 fill-amber-100 dark:fill-amber-950/60" />
                         ) : (
-                          <div className="w-5 h-5 rounded-md border-2 border-stone-300 hover:border-amber-500" />
+                          <div className="w-5 h-5 rounded-md border-2 border-stone-300 dark:border-slate-700 hover:border-amber-500" />
                         )}
                       </button>
-                      <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60">
                         {item.format}
                       </span>
-                      <span className="text-xs font-medium text-stone-500 bg-stone-100 px-2.5 py-1 rounded-lg">
+                      <span className="text-xs font-medium text-stone-500 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
                         {item.folder || "Klasörsüz"}
                       </span>
-                      <span className="text-xs text-stone-400">
+                      <span className="text-xs text-stone-400 dark:text-slate-500">
                         {item.size} • {item.bitrate}
                       </span>
                     </div>
@@ -888,8 +1026,8 @@ export default function AudioContainerPage() {
                         onClick={() => toggleFavorite(item.id)}
                         className={`p-2 rounded-xl transition cursor-pointer ${
                           item.isFavorite
-                            ? "text-rose-500 bg-rose-50"
-                            : "text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                            ? "text-rose-500 bg-rose-50 dark:bg-rose-950/40"
+                            : "text-stone-400 hover:bg-stone-100 dark:hover:bg-slate-800 hover:text-stone-600 dark:hover:text-slate-300"
                         }`}
                         title="Favorilere Ekle"
                       >
@@ -904,11 +1042,12 @@ export default function AudioContainerPage() {
                           const token = createOrGetShareTokenForRecord(
                             item,
                             "audio",
-                            "Sesli Notlar & Podcast Fikirleri"
+                            item.title || currentContainer?.title || "Sesli Notlar & Podcast Fikirleri"
                           );
+                          activateShareToken(token);
                           window.open(`/share/${token}`, "_blank");
                         }}
-                        className="p-2 rounded-xl text-stone-400 hover:bg-amber-50 hover:text-amber-700 transition cursor-pointer"
+                        className="p-2 rounded-xl text-stone-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-700 dark:hover:text-amber-300 transition cursor-pointer"
                         title="Bu Ses Kaydını Paylaş"
                       >
                         <Share2 className="w-4 h-4" />
@@ -921,21 +1060,21 @@ export default function AudioContainerPage() {
                             format: item.format,
                           })
                         }
-                        className="p-2 rounded-xl text-stone-400 hover:bg-amber-50 hover:text-amber-700 transition cursor-pointer"
+                        className="p-2 rounded-xl text-stone-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-700 dark:hover:text-amber-300 transition cursor-pointer"
                         title="Ses Dosyasını İndir (.mp3)"
                       >
                         <Download className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => openEditModal(item)}
-                        className="p-2 rounded-xl text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition cursor-pointer"
+                        className="p-2 rounded-xl text-stone-400 hover:bg-stone-100 dark:hover:bg-slate-800 hover:text-stone-700 dark:hover:text-slate-300 transition cursor-pointer"
                         title="Düzenle"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteAudio(item)}
-                        className="p-2 rounded-xl text-stone-400 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
+                        className="p-2 rounded-xl text-stone-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer"
                         title="Sil"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -944,19 +1083,19 @@ export default function AudioContainerPage() {
                   </div>
 
                   {/* Title */}
-                  <h3 className="text-lg font-bold text-stone-900 mb-4 leading-snug">
+                  <h3 className="text-lg font-bold text-stone-900 dark:text-white mb-4 leading-snug">
                     {item.title}
                   </h3>
 
                   {/* Waveform Player Box */}
-                  <div className="bg-[#FAF8F5] rounded-2xl p-4 border border-stone-200/70 mb-4">
+                  <div className="bg-[#FAF8F5] dark:bg-slate-800/70 rounded-2xl p-4 border border-stone-200/70 dark:border-slate-700/60 mb-4">
                     <div className="flex items-center gap-4">
                       <button
                         onClick={() => togglePlay(item.id)}
                         className={`w-12 h-12 rounded-2xl flex items-center justify-center transition shadow-sm shrink-0 cursor-pointer ${
                           isPlaying
                             ? "bg-amber-600 text-white"
-                            : "bg-stone-900 text-white hover:bg-amber-600"
+                            : "bg-stone-900 dark:bg-amber-600 text-white hover:bg-amber-600"
                         }`}
                       >
                         {isPlaying ? (
@@ -992,8 +1131,8 @@ export default function AudioContainerPage() {
                                 isActiveBar
                                   ? "bg-amber-600"
                                   : isPlaying
-                                  ? "bg-amber-300/70"
-                                  : "bg-stone-300"
+                                  ? "bg-amber-300/70 dark:bg-amber-500/50"
+                                  : "bg-stone-300 dark:bg-slate-700"
                               }`}
                             />
                           );
@@ -1001,12 +1140,13 @@ export default function AudioContainerPage() {
                       </div>
 
                       <div className="text-right shrink-0">
-                        <div className="text-xs font-mono font-bold text-stone-800">
+                        <div className="text-xs font-mono font-bold text-stone-800 dark:text-slate-200">
                           {formatSeconds(currentSec)} / {item.durationLabel}
                         </div>
                         <button
                           onClick={cycleSpeed}
-                          className="text-[11px] font-semibold text-amber-700 hover:underline cursor-pointer"
+                          title="Hızı Değiştir (0.75x, 1x, 1.25x, 1.5x, 2x)"
+                          className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
                         >
                           {playbackSpeed}x Hız
                         </button>
@@ -1015,29 +1155,29 @@ export default function AudioContainerPage() {
                   </div>
 
                   {/* Transcript / Voice Summary */}
-                  <div className="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200/50 mb-4">
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-stone-400 mb-1">
+                  <div className="bg-stone-50/80 dark:bg-slate-800/40 rounded-xl p-3.5 border border-stone-200/50 dark:border-slate-700/50 mb-4">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-stone-400 dark:text-slate-500 mb-1">
                       <AlignLeft className="w-3.5 h-3.5 text-amber-600" />
                       Transkript & Sesli Not Özeti
                     </div>
-                    <p className="text-xs text-stone-600 leading-relaxed line-clamp-2">
+                    <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed line-clamp-2">
                       {item.transcript}
                     </p>
                   </div>
 
                   {/* Footer Tags & Date */}
-                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-100">
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-100 dark:border-slate-800">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {item.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="text-[11px] font-medium text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md"
+                          className="text-[11px] font-medium text-stone-500 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded-md"
                         >
                           #{tag}
                         </span>
                       ))}
                     </div>
-                    <span className="text-xs text-stone-400 flex items-center gap-1 shrink-0">
+                    <span className="text-xs text-stone-400 dark:text-slate-500 flex items-center gap-1 shrink-0">
                       <Clock className="w-3 h-3" />
                       {item.createdAt}
                     </span>
@@ -1063,38 +1203,38 @@ export default function AudioContainerPage() {
       {/* 2-Option Folder Delete Modal (Section 10 Rule) */}
       {folderToDelete && (
         <div className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-stone-200 shadow-xl">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-stone-200 dark:border-slate-800 shadow-xl">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-stone-900">
+            <h3 className="text-lg font-bold text-stone-900 dark:text-white">
               &ldquo;{folderToDelete}&rdquo; Klasörünü Sil
             </h3>
-            <p className="text-sm text-stone-600 mt-1 mb-6">
+            <p className="text-sm text-stone-600 dark:text-slate-300 mt-1 mb-6">
               Bu klasörün içindeki ses kayıtlarına ne yapılmasını istersiniz?
             </p>
 
             <div className="space-y-3">
               <button
                 onClick={() => handleDeleteFolderKeepItems(folderToDelete)}
-                className="w-full py-3 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-900 text-sm font-semibold text-left flex items-center justify-between transition cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-900 dark:text-slate-100 text-sm font-semibold text-left flex items-center justify-between transition cursor-pointer"
               >
                 <span>İçerikleri Koru (Klasörsüz&apos;e Taşı)</span>
-                <Check className="w-4 h-4 text-stone-600" />
+                <Check className="w-4 h-4 text-stone-600 dark:text-slate-300" />
               </button>
 
               <button
                 onClick={() => handleDeleteFolderAndItems(folderToDelete)}
-                className="w-full py-3 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-sm font-semibold text-left flex items-center justify-between transition cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 text-sm font-semibold text-left flex items-center justify-between transition cursor-pointer"
               >
                 <span>Klasörü ve İçeriklerini Sil (Çöp Kutusuna)</span>
-                <Trash2 className="w-4 h-4 text-rose-600" />
+                <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
               </button>
             </div>
 
             <button
               onClick={() => setFolderToDelete(null)}
-              className="w-full mt-4 py-2.5 text-xs font-semibold text-stone-500 hover:text-stone-800 cursor-pointer"
+              className="w-full mt-4 py-2.5 text-xs font-semibold text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer"
             >
               Vazgeç
             </button>
@@ -1105,11 +1245,11 @@ export default function AudioContainerPage() {
       {/* Folder Rename Modal */}
       {folderToRename && (
         <div className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 border border-stone-200 shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-stone-900">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 border border-stone-200 dark:border-slate-800 shadow-xl space-y-4">
+            <h3 className="text-base font-bold text-stone-900 dark:text-white">
               Klasörü Yeniden Adlandır
             </h3>
-            <p className="text-xs text-stone-500">
+            <p className="text-xs text-stone-500 dark:text-slate-400">
               &ldquo;{folderToRename}&rdquo; klasörü için yeni bir isim belirleyin.
             </p>
             <form onSubmit={handleRenameFolder} className="space-y-4">
@@ -1118,14 +1258,14 @@ export default function AudioContainerPage() {
                 value={renameFolderName}
                 onChange={(e) => setRenameFolderName(e.target.value)}
                 placeholder="Klasör Adı"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs font-semibold outline-none focus:border-amber-500"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs font-semibold outline-none focus:border-amber-500"
                 autoFocus
               />
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setFolderToRename(null)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   İptal
                 </button>
@@ -1144,14 +1284,14 @@ export default function AudioContainerPage() {
       {/* Add / Edit Audio Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-stone-200 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-stone-200 dark:border-slate-800 shadow-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-stone-900">
+              <h3 className="text-xl font-bold text-stone-900 dark:text-white">
                 {editingItem ? "Ses Kaydını Düzenle" : "Yeni Ses Kaydı Ekle"}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 rounded-xl text-stone-400 hover:bg-stone-100 cursor-pointer"
+                className="p-2 rounded-xl text-stone-400 hover:bg-stone-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1171,13 +1311,13 @@ export default function AudioContainerPage() {
                   <p className="text-xs font-bold text-stone-800 dark:text-stone-200">
                     Cihazınızdan Ses Dosyası Seçin (.mp3, .wav, .m4a)
                   </p>
-                  <p className="text-[11px] text-stone-400 mt-0.5">
+                  <p className="text-[11px] text-stone-400 dark:text-slate-500 mt-0.5">
                     {uploadedAudioUrl ? "✅ Ses dosyası seçildi ve süre algılandı" : "Süre ve format otomatik algılanır"}
                   </p>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-400 mb-1.5">
                   Kayıt Başlığı
                 </label>
                 <input
@@ -1186,19 +1326,19 @@ export default function AudioContainerPage() {
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   placeholder="Örn: Bölüm 13 Podcast Giriş Kaydı"
-                  className="w-full px-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-amber-500"
+                  className="w-full px-4 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-400 mb-1.5">
                     Klasör
                   </label>
                   <select
                     value={formFolder}
                     onChange={(e) => setFormFolder(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm bg-white focus:outline-none focus:border-amber-500"
                   >
                     <option value="">Klasörsüz</option>
                     {folders.map((f) => (
@@ -1210,7 +1350,7 @@ export default function AudioContainerPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-400 mb-1.5">
                     Format
                   </label>
                   <select
@@ -1218,7 +1358,7 @@ export default function AudioContainerPage() {
                     onChange={(e) =>
                       setFormFormat(e.target.value as "MP3" | "WAV" | "M4A")
                     }
-                    className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-white focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm bg-white focus:outline-none focus:border-amber-500"
                   >
                     <option value="MP3">MP3</option>
                     <option value="WAV">WAV</option>
@@ -1227,7 +1367,7 @@ export default function AudioContainerPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-400 mb-1.5">
                     Süre (DK:SN)
                   </label>
                   <input
@@ -1235,13 +1375,13 @@ export default function AudioContainerPage() {
                     value={formDuration}
                     onChange={(e) => setFormDuration(e.target.value)}
                     placeholder="04:15"
-                    className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-400 mb-1.5">
                   Transkript / Sesli Not Özeti
                 </label>
                 <textarea
@@ -1249,12 +1389,12 @@ export default function AudioContainerPage() {
                   value={formTranscript}
                   onChange={(e) => setFormTranscript(e.target.value)}
                   placeholder="Ses kaydının metin dökümü veya önemli dakikaların notları..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-amber-500"
+                  className="w-full px-4 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-400 mb-1.5">
                   Etiketler (Virgülle ayırın)
                 </label>
                 <input
@@ -1262,15 +1402,15 @@ export default function AudioContainerPage() {
                   value={formTags}
                   onChange={(e) => setFormTags(e.target.value)}
                   placeholder="podcast, sesli-not, toplantı"
-                  className="w-full px-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-amber-500"
+                  className="w-full px-4 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm focus:outline-none focus:border-amber-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-stone-100">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-stone-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-stone-600 hover:bg-stone-100 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-stone-600 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   İptal
                 </button>
@@ -1299,6 +1439,90 @@ export default function AudioContainerPage() {
               Geri Al
             </button>
           )}
+        </div>
+      )}
+      {/* DEPO DÜZENLEME MODALI */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Depoyu Düzenle</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Ses deposu adını ve tema rengini özelleştirin</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveContainerDetails} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Depo Başlığı
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editContainerTitle}
+                  onChange={(e) => setEditContainerTitle(e.target.value)}
+                  placeholder="Örn: Sesli Notlarım"
+                  className="w-full py-2.5 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  Kapak Rengi Gradyanı
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Alev Turuncu", val: "from-amber-500 via-orange-600 to-rose-600" },
+                    { label: "Mor Gece", val: "from-purple-600 via-indigo-600 to-blue-700" },
+                    { label: "Siber Mavi", val: "from-blue-600 via-cyan-600 to-teal-500" },
+                    { label: "Zümrüt", val: "from-emerald-600 via-teal-600 to-cyan-700" },
+                    { label: "Gül & Fuşya", val: "from-rose-500 via-pink-600 to-purple-600" },
+                    { label: "Koyu Gece", val: "from-slate-800 via-slate-900 to-zinc-950" },
+                  ].map((g) => (
+                    <button
+                      key={g.val}
+                      type="button"
+                      onClick={() => setEditGradient(g.val)}
+                      className={`h-11 rounded-xl bg-gradient-to-r ${g.val} p-1 text-[10px] font-bold text-white flex items-center justify-center transition-all ${
+                        editGradient === g.val ? "ring-2 ring-amber-500 ring-offset-2 dark:ring-offset-slate-900 scale-102" : "opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-xs cursor-pointer"
+                >
+                  Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

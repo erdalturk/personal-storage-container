@@ -225,7 +225,10 @@ function saveLocalCollection<T>(storageKey: string, data: T[]): void {
 }
 
 // Dosyayı tarayıcıda doğrudan doğru depoya aktaran ve depolayan evrensel ingest motoru
-export async function autoIngestFile(file: File): Promise<{
+export async function autoIngestFile(
+  file: File,
+  overrideContainer?: TargetContainer
+): Promise<{
   success: boolean;
   container: TargetContainer;
   containerName: string;
@@ -233,9 +236,18 @@ export async function autoIngestFile(file: File): Promise<{
   route: string;
 }> {
   const detected = detectContainerForFile(file);
+  const targetContainer = overrideContainer || detected.container;
   const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ");
 
-  if (detected.container === "code") {
+  const containerMetaMap: Record<TargetContainer, { name: string; route: string }> = {
+    code: { name: "Kod Parçacıkları Deposu", route: "/containers/code" },
+    text: { name: "Metin Deposu", route: "/containers/text" },
+    media: { name: "Görüntü Deposu", route: "/containers/media" },
+    audio: { name: "Ses Deposu", route: "/containers/audio" },
+    files: { name: "Dosya & Belge Deposu", route: "/containers/files" },
+  };
+
+  if (targetContainer === "code") {
     const codeText = await readFileAsText(file);
     const snippets = getLocalCollection<any>("psc_snippets");
     const newSnippet = {
@@ -249,7 +261,7 @@ export async function autoIngestFile(file: File): Promise<{
       isFavorite: false,
     };
     saveLocalCollection("psc_snippets", [newSnippet, ...snippets]);
-  } else if (detected.container === "text") {
+  } else if (targetContainer === "text") {
     const textContent = await readFileAsText(file);
     const texts = getLocalCollection<any>("psc_texts");
     const words = textContent.trim().split(/\s+/).filter(Boolean).length;
@@ -265,7 +277,7 @@ export async function autoIngestFile(file: File): Promise<{
       lineCount: lines,
     };
     saveLocalCollection("psc_texts", [newText, ...texts]);
-  } else if (detected.container === "media") {
+  } else if (targetContainer === "media") {
     let finalUrl = "";
     let resolution = "1920 × 1080";
     let sizeStr = formatBytes(file.size);
@@ -300,7 +312,7 @@ export async function autoIngestFile(file: File): Promise<{
       isFavorite: false,
     };
     saveLocalCollection("psc_media_items", [newMedia, ...mediaList]);
-  } else if (detected.container === "audio") {
+  } else if (targetContainer === "audio") {
     const dataUrl = await readFileAsDataUrl(file);
     const audios = getLocalCollection<any>("psc_audio_items");
     const newAudio = {
@@ -340,11 +352,13 @@ export async function autoIngestFile(file: File): Promise<{
     saveLocalCollection("psc_file_items", [newFile, ...files]);
   }
 
+  const meta = containerMetaMap[targetContainer] || { name: detected.categoryLabel, route: detected.route };
+
   return {
     success: true,
-    container: detected.container,
-    containerName: detected.categoryLabel,
+    container: targetContainer,
+    containerName: meta.name,
     title: cleanTitle || file.name,
-    route: detected.route,
+    route: meta.route,
   };
 }

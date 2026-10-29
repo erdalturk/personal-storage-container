@@ -8,9 +8,16 @@ import {
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
+  activateShareToken,
+  getContainerByFormatOrType,
+  syncContainerItemCount,
+  updateContainerDetails,
+  Container,
 } from "@/lib/appStore";
 import {
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
   Search,
   Plus,
   Compass,
@@ -21,6 +28,7 @@ import {
   Heart,
   Share2,
   Trash2,
+  Pencil,
   ExternalLink,
   RotateCcw,
   SlidersHorizontal,
@@ -40,8 +48,16 @@ import {
   Upload,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import useEscKey from "@/hooks/useEscKey";
 import { exportTravelGuide } from "@/lib/exportUtils";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 import { compressImageClient } from "@/lib/uploadUtils";
+import {
+  TURKEY_PROVINCES,
+  WORLD_COUNTRIES,
+  searchProvinces,
+  searchCountries,
+} from "@/lib/geoData";
 
 export type TravelCategory = "deniz" | "kultur" | "doga" | "sehir" | "gastronomi";
 
@@ -217,12 +233,19 @@ export default function TravelContainerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "domestic" | "international" | "favorites" | "completed" | "planned">("all");
   const [sortBy, setSortBy] = useState<"rating" | "date" | "title">("rating");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   // Detay & Düzenleme Modalları
   const [selectedTravel, setSelectedTravel] = useState<TravelMemory | null>(null);
   const [activePhotoPreview, setActivePhotoPreview] = useState<string | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingTravel, setEditingTravel] = useState<TravelMemory | null>(null);
+
+  // Depo Özelleştirme State'leri
+  const [currentContainer, setCurrentContainer] = useState<Container | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("Gezi & Seyahat Anıları");
+  const [editGradient, setEditGradient] = useState("from-amber-500 via-orange-600 to-rose-600");
 
   // Form State'leri
   const [formTitle, setFormTitle] = useState("");
@@ -243,17 +266,59 @@ export default function TravelContainerPage() {
   const [copiedShareUrl, setCopiedShareUrl] = useState<string | null>(null);
   const [deletedBackup, setDeletedBackup] = useState<TravelMemory | null>(null);
 
+  // Değişiklik Kontrolü & ESC Kapatma Desteği (PM-CONTROL Satır 61)
+  const isEditorDirty = editingTravel
+    ? formTitle !== editingTravel.title ||
+      formDestination !== editingTravel.destination ||
+      formExperiencesNote !== editingTravel.experiencesNote
+    : Boolean(formTitle.trim() || formDestination.trim() || formExperiencesNote.trim());
+
+  useEscKey(Boolean(activePhotoPreview), () => setActivePhotoPreview(null));
+  useEscKey(Boolean(selectedTravel), () => setSelectedTravel(null));
+  useEscKey(isEditorOpen, () => setIsEditorOpen(false), isEditorDirty);
+  useEscKey(isEditModalOpen, () => setIsEditModalOpen(false));
+
   // Merkezi Store ile Senkronizasyon
   useEffect(() => {
-    setTravels(getStoredCollection("travels", INITIAL_TRAVELS));
+    const loadData = () => {
+      const stored = getStoredCollection<TravelMemory>("travels", INITIAL_TRAVELS);
+      setTravels(stored);
 
-    const handleUpdate = () => {
-      setTravels(getStoredCollection("travels", INITIAL_TRAVELS));
+      const cont = getContainerByFormatOrType("Gezi & Seyahat");
+      if (cont) {
+        setCurrentContainer(cont);
+        setEditTitle(cont.title);
+        setEditGradient(cont.coverGradient || "from-amber-500 via-orange-600 to-rose-600");
+      } else {
+        syncContainerItemCount("Gezi & Seyahat", stored.length, "Gezi & Seyahat Anıları");
+        const fresh = getContainerByFormatOrType("Gezi & Seyahat");
+        if (fresh) {
+          setCurrentContainer(fresh);
+          setEditTitle(fresh.title);
+        }
+      }
     };
 
-    window.addEventListener("psc-store-updated", handleUpdate);
-    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+    loadData();
+    window.addEventListener("psc-store-updated", loadData);
+    return () => window.removeEventListener("psc-store-updated", loadData);
   }, []);
+
+  const handleSaveContainerDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTitle.trim()) return;
+    const contId = currentContainer?.id || "c2";
+    const updated = updateContainerDetails(contId, {
+      title: editTitle.trim(),
+      coverGradient: editGradient,
+    });
+    if (updated) {
+      setCurrentContainer(updated);
+    }
+    setIsEditModalOpen(false);
+    setToastMessage("Depo bilgileri güncellendi.");
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   // Toplam İstatistikler
   const totalCountries = useMemo(() => {
@@ -289,11 +354,14 @@ export default function TravelContainerPage() {
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "rating") return b.rating - a.rating;
-        if (sortBy === "title") return a.title.localeCompare(b.title);
-        return 0; // Tarih varsayılan akışı
+        let comp = 0;
+        if (sortBy === "rating") comp = a.rating - b.rating;
+        else if (sortBy === "title") comp = a.title.localeCompare(b.title);
+        else comp = (a.startDate || "").localeCompare(b.startDate || "");
+
+        return sortDirection === "asc" ? comp : -comp;
       });
-  }, [travels, searchQuery, activeTab, sortBy]);
+  }, [travels, searchQuery, activeTab, sortBy, sortDirection]);
 
   // 1-Tıkla Favorileme (Toggle)
   const toggleFavorite = (id: string, e?: React.MouseEvent) => {
@@ -415,6 +483,7 @@ export default function TravelContainerPage() {
       const updated = [newItem, ...travels];
       setTravels(updated);
       saveStoredCollection("travels", updated);
+      syncContainerItemCount("Gezi & Seyahat", updated.length, currentContainer?.title);
       setToastMessage("Yeni seyahat rotası arşive eklendi.");
     }
 
@@ -431,7 +500,7 @@ export default function TravelContainerPage() {
     // 1. Çöp Kutusuna Gönder (ve varsa paylaşılan içeriklerden anında kaldır/iptal et)
     addToTrash({
       title: target.title,
-      originContainer: "Gezi & Seyahat Anıları",
+      originContainer: currentContainer?.title || "Gezi & Seyahat Anıları",
       type: "travel",
       posterUrl: target.coverPhoto,
       contentPreview: `${target.destination} • ${target.country} • ${target.durationDays} gün`,
@@ -442,6 +511,7 @@ export default function TravelContainerPage() {
     const updated = travels.filter((t) => t.id !== id);
     setTravels(updated);
     saveStoredCollection("travels", updated);
+    syncContainerItemCount("Gezi & Seyahat", updated.length, currentContainer?.title);
     if (selectedTravel && selectedTravel.id === id) {
       setSelectedTravel(null);
     }
@@ -458,6 +528,7 @@ export default function TravelContainerPage() {
       const updated = [deletedBackup, ...travels];
       setTravels(updated);
       saveStoredCollection("travels", updated);
+      syncContainerItemCount("Gezi & Seyahat", updated.length, currentContainer?.title);
       setDeletedBackup(null);
       setToastMessage(`"${deletedBackup.title}" geri yüklendi.`);
       setTimeout(() => setToastMessage(null), 3000);
@@ -471,11 +542,13 @@ export default function TravelContainerPage() {
       const token = createOrGetShareTokenForRecord(
         itemOrSlug,
         "travel",
-        "Gezi & Seyahat Anıları"
+        itemOrSlug.title || currentContainer?.title || "Gezi & Seyahat Anıları"
       );
+      activateShareToken(token);
       window.open(`/share/${token}`, "_blank");
     } else {
       const slug = typeof itemOrSlug === "string" ? itemOrSlug : "gezi-ve-seyahat-deposu";
+      activateShareToken(slug);
       window.open(`/share/${slug}`, "_blank");
     }
   };
@@ -499,8 +572,16 @@ export default function TravelContainerPage() {
                 <Compass className="w-4 h-4" />
               </div>
               <h1 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
-                Gezi & Seyahat Anıları
+                {currentContainer?.title || "Gezi & Seyahat Anıları"}
               </h1>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(true)}
+                title="Depo Adını ve Kapağını Düzenle"
+                className="p-1 rounded-lg text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
                 Akıllı Depo
               </span>
@@ -538,45 +619,45 @@ export default function TravelContainerPage() {
       <section className="bg-gradient-to-b from-amber-500/10 via-amber-500/5 to-transparent border-b border-amber-500/15 py-6 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shrink-0">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-100 dark:border-amber-800/60 shrink-0">
                 <Globe2 className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xl font-extrabold text-slate-900">{totalCountries}</span>
-                <p className="text-[11px] text-slate-500 font-medium">Ziyaret Edilen Ülke</p>
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white">{totalCountries}</span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Ziyaret Edilen Ülke</p>
               </div>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 shrink-0">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 flex items-center justify-center border border-orange-100 dark:border-orange-800/60 shrink-0">
                 <Compass className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xl font-extrabold text-slate-900">{travels.length}</span>
-                <p className="text-[11px] text-slate-500 font-medium">Kayıtlı Rota & Anı</p>
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white">{travels.length}</span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Kayıtlı Rota & Anı</p>
               </div>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/60 shrink-0">
                 <MapPin className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xl font-extrabold text-slate-900">{totalPlacesCount}</span>
-                <p className="text-[11px] text-slate-500 font-medium">Ziyaret Edilen Durak</p>
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white">{totalPlacesCount}</span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Ziyaret Edilen Durak</p>
               </div>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shrink-0">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-100 dark:border-rose-800/60 shrink-0">
                 <Heart className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xl font-extrabold text-slate-900">
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white">
                   {travels.filter((t) => t.isFavorite).length}
                 </span>
-                <p className="text-[11px] text-slate-500 font-medium">Favori Seyahat</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Favori Seyahat</p>
               </div>
             </div>
           </div>
@@ -585,14 +666,16 @@ export default function TravelContainerPage() {
 
       {/* 3. ANA İÇERİK ALANI */}
       <main className="max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 flex-1">
-        {/* Arama, Filtre Sekmeleri ve Sıralama */}
+        {/* Arama, Filtre Sekmeleri ve Sıralama (PM-CONTROL Satır 70) */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* Filtre Sekmeleri */}
-          <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 bg-slate-200/60 dark:bg-slate-800/80 p-1 rounded-xl overflow-x-auto no-scrollbar">
             <button
               onClick={() => setActiveTab("all")}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 ${
-                activeTab === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "all"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               Tümü ({travels.length})
@@ -600,7 +683,9 @@ export default function TravelContainerPage() {
             <button
               onClick={() => setActiveTab("domestic")}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 ${
-                activeTab === "domestic" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "domestic"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               Yurt İçi 🇹🇷 ({travels.filter((t) => !t.isInternational).length})
@@ -608,7 +693,9 @@ export default function TravelContainerPage() {
             <button
               onClick={() => setActiveTab("international")}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 ${
-                activeTab === "international" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "international"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               Yurt Dışı 🌍 ({travels.filter((t) => t.isInternational).length})
@@ -616,7 +703,9 @@ export default function TravelContainerPage() {
             <button
               onClick={() => setActiveTab("favorites")}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 ${
-                activeTab === "favorites" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "favorites"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               Favoriler ⭐ ({travels.filter((t) => t.isFavorite).length})
@@ -624,7 +713,9 @@ export default function TravelContainerPage() {
             <button
               onClick={() => setActiveTab("planned")}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 ${
-                activeTab === "planned" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "planned"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               Planlananlar 📌 ({travels.filter((t) => !t.isCompleted).length})
@@ -640,19 +731,31 @@ export default function TravelContainerPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Şehir, ülke veya mekan ara..."
-                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-amber-500 shadow-2xs"
+                className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-amber-500 shadow-2xs"
               />
             </div>
 
             <select
               value={sortBy}
               onChange={(e: any) => setSortBy(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-amber-500 shadow-2xs cursor-pointer"
+              className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-amber-500 shadow-2xs cursor-pointer"
             >
-              <option value="rating">Puana Göre (En Yüksek)</option>
+              <option value="rating">Puana Göre</option>
               <option value="date">Tarihe Göre</option>
-              <option value="title">İsme Göre (A-Z)</option>
+              <option value="title">İsme Göre</option>
             </select>
+
+            <button
+              onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
+              className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 transition-colors shadow-2xs cursor-pointer"
+              title={sortDirection === "asc" ? "Sıralama Yönü: Artan (A-Z / Düşük-Yüksek)" : "Sıralama Yönü: Azalan (Z-A / Yüksek-Düşük)"}
+            >
+              {sortDirection === "asc" ? (
+                <ArrowUp className="w-4 h-4" />
+              ) : (
+                <ArrowDown className="w-4 h-4" />
+              )}
+            </button>
           </div>
         </div>
 
@@ -827,7 +930,7 @@ export default function TravelContainerPage() {
         )}
       </main>
 
-      {/* 5. GEZİ DETAY VE ROTA MODALI */}
+      {/* 5. GEZİ DETAY VE ROTA MODALI (PM-CONTROL Satır 61, 66, 67, 69) */}
       <AnimatePresence>
         {selectedTravel && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -843,18 +946,18 @@ export default function TravelContainerPage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-slate-200 z-10 p-6 sm:p-8 space-y-6"
+              className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 z-10 p-6 sm:p-8 space-y-6"
             >
               {/* Kapat Butonu */}
               <button
                 onClick={() => setSelectedTravel(null)}
-                className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors z-20"
+                className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors z-20"
               >
                 <X className="w-5 h-5" />
               </button>
 
               {/* Büyük Kapak Fotoğrafı */}
-              <div className="relative h-64 sm:h-80 w-full rounded-2xl overflow-hidden bg-slate-100 shadow-md">
+              <div className="relative h-64 sm:h-80 w-full rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-md">
                 <img
                   src={selectedTravel.coverPhoto}
                   alt={selectedTravel.title}
@@ -894,7 +997,7 @@ export default function TravelContainerPage() {
               {/* Galeri Küçük Resimleri */}
               {selectedTravel.galleryPhotos && selectedTravel.galleryPhotos.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Camera className="w-3.5 h-3.5" />
                     Fotoğraf Galerisi ({selectedTravel.galleryPhotos.length} Kare)
                   </h4>
@@ -903,7 +1006,7 @@ export default function TravelContainerPage() {
                       <div
                         key={pIdx}
                         onClick={() => setActivePhotoPreview(photo)}
-                        className="relative w-24 h-20 rounded-xl overflow-hidden shrink-0 border border-slate-200 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-amber-500 transition-all"
+                        className="relative w-24 h-20 rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-amber-500 transition-all"
                       >
                         <img src={photo} alt="galeri" className="w-full h-full object-cover" />
                       </div>
@@ -914,7 +1017,7 @@ export default function TravelContainerPage() {
 
               {/* Rota Durakları (Adım Adım Yol Haritası) */}
               <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <Navigation className="w-3.5 h-3.5 text-amber-600" />
                   Önemli Duraklar & Gezilen Yerler
                 </h4>
@@ -922,7 +1025,7 @@ export default function TravelContainerPage() {
                   {selectedTravel.highlightPlaces.map((place, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5 text-xs font-semibold text-slate-800"
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 flex items-center gap-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200"
                     >
                       <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] font-bold shrink-0">
                         {idx + 1}
@@ -935,18 +1038,18 @@ export default function TravelContainerPage() {
 
               {/* Seyahat Notları & Deneyimler */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Seyahat Deneyimi & Anılar
                 </h4>
-                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-amber-50/40 p-4 rounded-2xl border border-amber-200/50">
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed bg-amber-50/40 dark:bg-amber-950/30 p-4 rounded-2xl border border-amber-200/50 dark:border-amber-800/50">
                   {selectedTravel.experiencesNote}
                 </p>
               </div>
 
               {/* Mutlaka Denenmeli / Tavsiyeler */}
               {selectedTravel.topRecommendations && (
-                <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 text-xs text-indigo-950 space-y-1">
-                  <div className="font-bold flex items-center gap-1.5 text-indigo-700">
+                <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 text-xs text-indigo-950 dark:text-indigo-200 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
                     <Sparkles className="w-4 h-4" />
                     Mutlaka Denenmeli / İpuçları
                   </div>
@@ -955,38 +1058,40 @@ export default function TravelContainerPage() {
               )}
 
               {/* Alt Butonlar */}
-              <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <button
                   onClick={() => handleDeleteTravel(selectedTravel.id)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                   Çöp Kutusuna Taşı
                 </button>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      exportTravelGuide({
-                        title: selectedTravel.title,
-                        destination: selectedTravel.destination,
-                        country: selectedTravel.country,
-                        durationDays: selectedTravel.durationDays,
-                        rating: selectedTravel.rating,
-                        overview: selectedTravel.experiencesNote,
-                        userNote: selectedTravel.topRecommendations,
-                        highlightPlaces: selectedTravel.highlightPlaces,
-                      });
-                    }}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
-                    title="Gezi Rehberini Markdown Olarak İndir"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Rehberi İndir (.md)</span>
-                  </button>
+                  {isFeatureEnabled("enableMarkdownExportTravel") && (
+                    <button
+                      onClick={() => {
+                        exportTravelGuide({
+                          title: selectedTravel.title,
+                          destination: selectedTravel.destination,
+                          country: selectedTravel.country,
+                          durationDays: selectedTravel.durationDays,
+                          rating: selectedTravel.rating,
+                          overview: selectedTravel.experiencesNote,
+                          userNote: selectedTravel.topRecommendations,
+                          highlightPlaces: selectedTravel.highlightPlaces,
+                        });
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors"
+                      title="Gezi Rehberini Markdown Olarak İndir"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Rehberi İndir (.md)</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => handleOpenEditTravel(selectedTravel)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5" />
                     Düzenle
@@ -1022,20 +1127,20 @@ export default function TravelContainerPage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-slate-200 z-10 p-6 sm:p-8 space-y-5"
+              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 z-10 p-6 sm:p-8 space-y-5"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/60">
                     {editingTravel ? "Rotayı Düzenle" : "Yeni Seyahat Anısı"}
                   </span>
-                  <h3 className="text-xl font-extrabold text-slate-900 mt-1">
+                  <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
                     {editingTravel ? editingTravel.title : "Yeni Bir Rota Kaydet"}
                   </h3>
                 </div>
                 <button
                   onClick={() => setIsEditorOpen(false)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1044,62 +1149,114 @@ export default function TravelContainerPage() {
               {/* Form Alanları */}
               <div className="space-y-4 text-xs">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Gezi / Rota Başlığı *</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Gezi / Rota Başlığı *</label>
                   <input
                     type="text"
                     value={formTitle}
                     onChange={(e) => setFormTitle(e.target.value)}
                     placeholder="Örn: Yaz 2026 Ege & Akdeniz Gezisi"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Şehir / Bölge *</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Şehir / İl *</label>
                     <input
                       type="text"
+                      list="turkey-provinces-list"
                       value={formDestination}
-                      onChange={(e) => setFormDestination(e.target.value)}
-                      placeholder="Örn: Kaş, Kalkan, Fethiye"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormDestination(val);
+                        const found = TURKEY_PROVINCES.find((p) => p.name.toLowerCase() === val.toLowerCase());
+                        if (found && (!formCountry || formCountry.includes("Türkiye"))) {
+                          setFormCountry("Türkiye 🇹🇷");
+                        }
+                      }}
+                      placeholder="Örn: Kaş, Kalkan veya 81 İl (Antalya, Muğla...)"
+                      className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium"
                     />
+                    <datalist id="turkey-provinces-list">
+                      {TURKEY_PROVINCES.map((p) => (
+                        <option key={p.plate} value={p.name}>
+                          {p.plate} - {p.name}
+                        </option>
+                      ))}
+                    </datalist>
+                    <div className="mt-1 flex items-center gap-1 overflow-x-auto text-[10px] text-slate-400 no-scrollbar">
+                      <span className="shrink-0 font-bold">Hızlı:</span>
+                      {["Antalya", "Muğla", "İzmir", "Nevşehir", "İstanbul"].map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            setFormDestination(c);
+                            setFormCountry("Türkiye 🇹🇷");
+                          }}
+                          className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:text-amber-600 dark:hover:text-amber-400 transition-colors shrink-0"
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Ülke *</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Ülke *</label>
                     <input
                       type="text"
+                      list="world-countries-list"
                       value={formCountry}
                       onChange={(e) => setFormCountry(e.target.value)}
                       placeholder="Örn: Türkiye 🇹🇷 veya İtalya 🇮🇹"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
+                      className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium"
                     />
+                    <datalist id="world-countries-list">
+                      {WORLD_COUNTRIES.map((c) => (
+                        <option key={c.name} value={`${c.name} ${c.flag}`}>
+                          {c.flag} {c.name}
+                        </option>
+                      ))}
+                    </datalist>
+                    <div className="mt-1 flex items-center gap-1 overflow-x-auto text-[10px] text-slate-400 no-scrollbar">
+                      <span className="shrink-0 font-bold">Popüler:</span>
+                      {WORLD_COUNTRIES.slice(0, 5).map((c) => (
+                        <button
+                          key={c.name}
+                          type="button"
+                          onClick={() => setFormCountry(`${c.name} ${c.flag}`)}
+                          className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:text-amber-600 dark:hover:text-amber-400 transition-colors shrink-0"
+                        >
+                          {c.flag} {c.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Tarih / Dönem</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Tarih / Dönem</label>
                     <input
                       type="text"
                       value={formStartDate}
                       onChange={(e) => setFormStartDate(e.target.value)}
                       placeholder="Örn: Temmuz 2026"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
+                      className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium"
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Süre (Gün Sayısı)</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Süre (Gün Sayısı)</label>
                     <input
                       type="number"
                       value={formDurationDays}
                       onChange={(e) => setFormDurationDays(e.target.value)}
                       placeholder="Örn: 7"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
+                      className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium"
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Puan (1-10)</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Puan (1-10)</label>
                     <input
                       type="number"
                       step="0.1"
@@ -1107,18 +1264,18 @@ export default function TravelContainerPage() {
                       max="10"
                       value={formRating}
                       onChange={(e) => setFormRating(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
+                      className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Kategori</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Kategori</label>
                     <select
                       value={formCategory}
                       onChange={(e: any) => setFormCategory(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium cursor-pointer"
+                      className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium cursor-pointer"
                     >
                       <option value="deniz">🏖️ Deniz & Kıyı</option>
                       <option value="kultur">🏛️ Kültür & Tarih</option>
@@ -1129,11 +1286,11 @@ export default function TravelContainerPage() {
                   </div>
 
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Gezi Durumu</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Gezi Durumu</label>
                     <select
                       value={formIsCompleted ? "true" : "false"}
                       onChange={(e) => setFormIsCompleted(e.target.value === "true")}
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium cursor-pointer"
+                      className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium cursor-pointer"
                     >
                       <option value="true">✓ Gerçekleşti (Tamamlanan Anı)</option>
                       <option value="false">📌 Planlanan Gezi (Gelecek Rota)</option>
@@ -1144,7 +1301,7 @@ export default function TravelContainerPage() {
                 {/* Kapak Fotoğrafı URL, Cihazdan Yükleme ve Hızlı Şablonlar */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700 block text-xs">Kapak Fotoğrafı</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block text-xs">Kapak Fotoğrafı</label>
                     <label className="cursor-pointer px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] transition-colors flex items-center gap-1.5 shadow-xs">
                       <Upload className="w-3.5 h-3.5" />
                       <span>Cihazdan Fotoğraf Yükle</span>
@@ -1170,16 +1327,16 @@ export default function TravelContainerPage() {
                     value={formCoverPhoto}
                     onChange={(e) => setFormCoverPhoto(e.target.value)}
                     placeholder="https://images.unsplash.com/... veya Cihazdan Yükleyin"
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium text-xs"
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium text-xs"
                   />
                   {formCoverPhoto && (
-                    <div className="mt-2 flex items-center gap-3 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="mt-2 flex items-center gap-3 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                       <img
                         src={formCoverPhoto}
                         alt="Kapak önizleme"
                         className="w-14 h-10 object-cover rounded-lg shadow-xs"
                       />
-                      <span className="text-[11px] text-slate-500 font-medium line-clamp-1">
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium line-clamp-1">
                         Kapak görseli seçildi
                       </span>
                     </div>
@@ -1194,8 +1351,8 @@ export default function TravelContainerPage() {
                         onClick={() => setFormCoverPhoto(preset.url)}
                         className={`text-[10px] px-2.5 py-1 rounded-lg border shrink-0 transition-colors ${
                           formCoverPhoto === preset.url
-                            ? "bg-amber-50 border-amber-300 text-amber-700 font-bold"
-                            : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600"
+                            ? "bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold"
+                            : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                         }`}
                       >
                         {preset.name}
@@ -1205,45 +1362,45 @@ export default function TravelContainerPage() {
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Önemli Duraklar (Virgülle Ayırın)</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Önemli Duraklar (Virgülle Ayırın)</label>
                   <input
                     type="text"
                     value={formHighlightPlaces}
                     onChange={(e) => setFormHighlightPlaces(e.target.value)}
                     placeholder="Kaputaş Plajı, Kekova Batık Şehir, Patara Kum Tepeleri"
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Seyahat Deneyimi & Anı Notları</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Seyahat Deneyimi & Anı Notları</label>
                   <textarea
                     rows={3}
                     value={formExperiencesNote}
                     onChange={(e) => setFormExperiencesNote(e.target.value)}
                     placeholder="Bu gezide hissettikleriniz, rota detayları, karşılaştığınız ilginç anlar..."
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium leading-relaxed resize-none"
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium leading-relaxed resize-none"
                   />
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Mutlaka Denenmeli / Tavsiyeler (Opsiyonel)</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Mutlaka Denenmeli / Tavsiyeler (Opsiyonel)</label>
                   <input
                     type="text"
                     value={formTopRecommendations}
                     onChange={(e) => setFormTopRecommendations(e.target.value)}
                     placeholder="Örn: Gün batımında tepeye çıkın, falanca restoranda deniz ürünlerini tadın."
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-amber-500 font-medium"
                   />
                 </div>
               </div>
 
               {/* Alt Eylemler */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsEditorOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   İptal
                 </button>
@@ -1277,6 +1434,98 @@ export default function TravelContainerPage() {
                 className="w-full h-full object-contain max-h-[85vh]"
               />
             </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* DEPO DÜZENLEME MODALI */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl relative"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Depoyu Düzenle</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Gezi deposu adını ve tema rengini özelleştirin</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveContainerDetails} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Depo Başlığı
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="Örn: Gezi Günlüğüm"
+                    className="w-full py-2.5 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    Kapak Rengi Gradyanı
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "Alev Turuncu", val: "from-amber-500 via-orange-600 to-rose-600" },
+                      { label: "Mor Gece", val: "from-purple-600 via-indigo-600 to-blue-700" },
+                      { label: "Siber Mavi", val: "from-blue-600 via-cyan-600 to-teal-500" },
+                      { label: "Zümrüt", val: "from-emerald-600 via-teal-600 to-cyan-700" },
+                      { label: "Gül & Fuşya", val: "from-rose-500 via-pink-600 to-purple-600" },
+                      { label: "Koyu Gece", val: "from-slate-800 via-slate-900 to-zinc-950" },
+                    ].map((g) => (
+                      <button
+                        key={g.val}
+                        type="button"
+                        onClick={() => setEditGradient(g.val)}
+                        className={`h-11 rounded-xl bg-gradient-to-r ${g.val} p-1 text-[10px] font-bold text-white flex items-center justify-center transition-all ${
+                          editGradient === g.val ? "ring-2 ring-amber-500 ring-offset-2 dark:ring-offset-slate-900 scale-102" : "opacity-80 hover:opacity-100"
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-xs cursor-pointer"
+                  >
+                    Kaydet
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

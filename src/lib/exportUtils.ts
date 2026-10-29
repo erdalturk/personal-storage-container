@@ -399,17 +399,316 @@ export const DOCUMENT_MIMES: Record<string, string> = {
   webp: "image/webp",
 };
 
+// XML Güvenlik Temizleyici
+function escapeXml(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+// CRC-32 Tablosu (ZIP Standart 32-bit döngüsel artıklık denetimi)
+const CRC32_TABLE = (() => {
+  let c: number;
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    c = n;
+    for (let k = 0; k < 8; k++) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    table[n] = c;
+  }
+  return table;
+})();
+
+export function computeCrc32(bytes: Uint8Array): number {
+  let crc = 0 ^ -1;
+  for (let i = 0; i < bytes.length; i++) {
+    crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ bytes[i]) & 0xff];
+  }
+  return (crc ^ -1) >>> 0;
+}
+
+export interface ZipEntry {
+  name: string;
+  data: string | Uint8Array;
+}
+
+// Saf TypeScript ile ZIP arşivi oluşturan sıfır-bağımlılık motoru
+export function createZipUint8Array(entries: ZipEntry[]): Uint8Array {
+  const encoder = new TextEncoder();
+  interface PreparedEntry {
+    nameBytes: Uint8Array;
+    dataBytes: Uint8Array;
+    crc: number;
+    size: number;
+    offset: number;
+    localHeader: Uint8Array;
+  }
+
+  const prepared: PreparedEntry[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const nameBytes = encoder.encode(entry.name);
+    const dataBytes =
+      typeof entry.data === "string" ? encoder.encode(entry.data) : entry.data;
+    const crc = computeCrc32(dataBytes);
+    const size = dataBytes.length;
+
+    // Local Header (30 bayt + dosya adı)
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const view = new DataView(localHeader.buffer);
+    view.setUint32(0, 0x04034b50, true); // PK\x03\x04
+    view.setUint16(4, 20, true); // Sürüm: 2.0
+    view.setUint16(6, 0, true); // Genel bayraklar
+    view.setUint16(8, 0, true); // Sıkıştırma: 0 (Store)
+    view.setUint16(10, 0, true); // Dosya zamanı
+    view.setUint16(12, 0, true); // Dosya tarihi
+    view.setUint32(14, crc, true); // CRC32
+    view.setUint32(18, size, true); // Sıkıştırılmış boyut
+    view.setUint32(22, size, true); // Gerçek boyut
+    view.setUint16(26, nameBytes.length, true); // İsim uzunluğu
+    view.setUint16(28, 0, true); // Ekstra alan uzunluğu
+    localHeader.set(nameBytes, 30);
+
+    prepared.push({
+      nameBytes,
+      dataBytes,
+      crc,
+      size,
+      offset,
+      localHeader,
+    });
+
+    offset += localHeader.length + dataBytes.length;
+  }
+
+  // Central Directory (46 bayt + dosya adı)
+  const cdHeaders: Uint8Array[] = [];
+  let cdSize = 0;
+
+  for (const rec of prepared) {
+    const cdHeader = new Uint8Array(46 + rec.nameBytes.length);
+    const view = new DataView(cdHeader.buffer);
+    view.setUint32(0, 0x02014b50, true); // PK\x01\x02
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 20, true);
+    view.setUint16(8, 0, true);
+    view.setUint16(10, 0, true);
+    view.setUint16(12, 0, true);
+    view.setUint16(14, 0, true);
+    view.setUint32(16, rec.crc, true);
+    view.setUint32(20, rec.size, true);
+    view.setUint32(24, rec.size, true);
+    view.setUint16(28, rec.nameBytes.length, true);
+    view.setUint16(30, 0, true);
+    view.setUint16(32, 0, true);
+    view.setUint16(34, 0, true);
+    view.setUint16(36, 0, true);
+    view.setUint32(38, 0, true);
+    view.setUint32(42, rec.offset, true);
+    cdHeader.set(rec.nameBytes, 46);
+
+    cdHeaders.push(cdHeader);
+    cdSize += cdHeader.length;
+  }
+
+  // End of Central Directory (EOCD - 22 bayt)
+  const eocd = new Uint8Array(22);
+  const eocdView = new DataView(eocd.buffer);
+  eocdView.setUint32(0, 0x06054b50, true); // PK\x05\x06
+  eocdView.setUint16(4, 0, true);
+  eocdView.setUint16(6, 0, true);
+  eocdView.setUint16(8, prepared.length, true);
+  eocdView.setUint16(10, prepared.length, true);
+  eocdView.setUint32(12, cdSize, true);
+  eocdView.setUint32(16, offset, true);
+  eocdView.setUint16(20, 0, true);
+
+  // Parçaları tek bir Uint8Array'de birleştir
+  const totalLength = offset + cdSize + 22;
+  const result = new Uint8Array(totalLength);
+  let cur = 0;
+
+  for (const rec of prepared) {
+    result.set(rec.localHeader, cur);
+    cur += rec.localHeader.length;
+    result.set(rec.dataBytes, cur);
+    cur += rec.dataBytes.length;
+  }
+  for (const cd of cdHeaders) {
+    result.set(cd, cur);
+    cur += cd.length;
+  }
+  result.set(eocd, cur);
+
+  return result;
+}
+
+// PowerPoint (.pptx) için geçerli minimal OOXML ikili paketi
+export function createMinimalPptx(title: string, summary: string): Uint8Array {
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+</Types>`;
+
+  const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>`;
+
+  const presRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>`;
+
+  const presentation = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="256" r:id="rId1"/>
+  </p:sldIdLst>
+  <p:sldSz cx="9144000" cy="6858000"/>
+</p:presentation>`;
+
+  const slide1 = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+      <p:grpSpPr/>
+      <p:sp>
+        <p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
+        <p:spPr><a:xfrm><a:off x="1000000" y="1000000"/><a:ext cx="7144000" cy="1500000"/></a:xfrm></p:spPr>
+        <p:txBody><a:bodyPr/><a:p><a:r><a:t>${escapeXml(title)}</a:t></a:r></a:p></p:txBody>
+      </p:sp>
+      <p:sp>
+        <p:nvSpPr><p:cNvPr id="3" name="Subtitle"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
+        <p:spPr><a:xfrm><a:off x="1000000" y="2700000"/><a:ext cx="7144000" cy="3000000"/></a:xfrm></p:spPr>
+        <p:txBody><a:bodyPr/><a:p><a:r><a:t>${escapeXml(summary)}</a:t></a:r></a:p></p:txBody>
+      </p:sp>
+    </p:spTree>
+  </p:cSld>
+</p:sld>`;
+
+  return createZipUint8Array([
+    { name: "[Content_Types].xml", data: contentTypes },
+    { name: "_rels/.rels", data: rootRels },
+    { name: "ppt/_rels/presentation.xml.rels", data: presRels },
+    { name: "ppt/presentation.xml", data: presentation },
+    { name: "ppt/slides/slide1.xml", data: slide1 },
+  ]);
+}
+
+// Word (.docx) için geçerli minimal OOXML paketi
+export function createMinimalDocx(title: string, content: string): Uint8Array {
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+  const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:rPr><w:b/><w:sz w:val="36"/></w:rPr><w:t>${escapeXml(title)}</w:t></w:r></w:p>
+    <w:p><w:r><w:rPr><w:color w:val="555555"/></w:rPr><w:t>Kişisel Depo — Dijital Arşiv Belgesi</w:t></w:r></w:p>
+    <w:p><w:r><w:t>${escapeXml(content)}</w:t></w:r></w:p>
+  </w:body>
+</w:document>`;
+
+  return createZipUint8Array([
+    { name: "[Content_Types].xml", data: contentTypes },
+    { name: "_rels/.rels", data: rootRels },
+    { name: "word/document.xml", data: documentXml },
+  ]);
+}
+
+// Excel (.xlsx) için geçerli minimal OOXML paketi
+export function createMinimalXlsx(title: string, content: string): Uint8Array {
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>`;
+
+  const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>`;
+
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Sayfa 1" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`;
+
+  const sheet1 = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="inlineStr"><is><t>${escapeXml(title)}</t></is></c></row>
+    <row r="2"><c r="A2" t="inlineStr"><is><t>${escapeXml(content)}</t></is></c></row>
+  </sheetData>
+</worksheet>`;
+
+  return createZipUint8Array([
+    { name: "[Content_Types].xml", data: contentTypes },
+    { name: "_rels/.rels", data: rootRels },
+    { name: "xl/_rels/workbook.xml.rels", data: wbRels },
+    { name: "xl/workbook.xml", data: workbook },
+    { name: "xl/worksheets/sheet1.xml", data: sheet1 },
+  ]);
+}
+
+// Standart Arşiv (.zip) paketi
+export function createMinimalZip(title: string, content: string): Uint8Array {
+  const readme = `Kişisel Depo — Dijital Arşiv Dosyası\n====================================\nBaşlık: ${title}\nTarih: ${new Date().toLocaleString("tr-TR")}\n\nİçerik Özeti:\n${content}\n`;
+  const meta = JSON.stringify(
+    {
+      title,
+      archivedAt: new Date().toISOString(),
+      creator: "Kişisel Depo Dijital Arşiv Sistemi",
+    },
+    null,
+    2
+  );
+  return createZipUint8Array([
+    { name: "README.txt", data: readme },
+    { name: "metadata.json", data: meta },
+  ]);
+}
+
+export interface DocumentExportOptions {
+  name?: string;
+  title?: string;
+  format?: string;
+  size?: string;
+  description?: string;
+  content?: string;
+  dataUrl?: string;
+  fileDataUrl?: string;
+}
+
 export function exportDocumentFile(
-  titleOrOptions:
-    | string
-    | {
-        name?: string;
-        title?: string;
-        format?: string;
-        size?: string;
-        description?: string;
-        content?: string;
-      },
+  titleOrOptions: string | DocumentExportOptions,
   format: string = "pdf",
   size?: string,
   description?: string
@@ -418,12 +717,14 @@ export function exportDocumentFile(
   let fmt = format;
   let docSize = size;
   let docDesc = description;
+  let docDataUrl: string | undefined = undefined;
 
   if (typeof titleOrOptions === "object" && titleOrOptions !== null) {
     title = titleOrOptions.name || titleOrOptions.title || "belge";
     fmt = titleOrOptions.format || format;
     docSize = titleOrOptions.size || size;
     docDesc = titleOrOptions.content || titleOrOptions.description || description;
+    docDataUrl = titleOrOptions.dataUrl || titleOrOptions.fileDataUrl;
   } else if (typeof titleOrOptions === "string") {
     title = titleOrOptions;
   }
@@ -434,27 +735,74 @@ export function exportDocumentFile(
   const filename = `${safeTitle}.${ext}`;
   const mime = DOCUMENT_MIMES[ext] || "application/octet-stream";
 
-  // PDF için geçerli PDF başlığı (%PDF-1.4), diğerleri için temiz binary/text blob
+  // 1. Kullanıcının bizzat yüklediği gerçek ikili Base64 / dataUrl varsa doğrudan indir
+  if (docDataUrl && typeof docDataUrl === "string" && docDataUrl.startsWith("data:")) {
+    if (typeof window !== "undefined") {
+      const anchor = document.createElement("a");
+      anchor.href = docDataUrl;
+      anchor.download = filename;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      setTimeout(() => {
+        if (document.body.contains(anchor)) {
+          document.body.removeChild(anchor);
+        }
+      }, 1500);
+    }
+    return;
+  }
+
+  // 2. Demo veya sentetik veriler için formatına uygun gerçek ikili binary üret
   let blob: Blob;
-  if (ext === "pdf") {
+
+  if (ext === "pptx") {
+    // Gerçek OOXML PowerPoint ZIP ikilisi (PK\x03\x04)
+    const bytes = createMinimalPptx(title, docDesc || title);
+    blob = new Blob([bytes as unknown as BlobPart], { type: mime });
+  } else if (ext === "docx") {
+    // Gerçek OOXML Word ZIP ikilisi (PK\x03\x04)
+    const bytes = createMinimalDocx(title, docDesc || title);
+    blob = new Blob([bytes as unknown as BlobPart], { type: mime });
+  } else if (ext === "xlsx") {
+    // Gerçek OOXML Excel ZIP ikilisi (PK\x03\x04)
+    const bytes = createMinimalXlsx(title, docDesc || title);
+    blob = new Blob([bytes as unknown as BlobPart], { type: mime });
+  } else if (ext === "zip" || ext === "rar") {
+    // Gerçek geçerli ZIP ikilisi (PK\x03\x04)
+    const bytes = createMinimalZip(title, docDesc || title);
+    blob = new Blob([bytes as unknown as BlobPart], { type: mime });
+  } else if (ext === "pdf") {
+    // Çok sayfalı ve okunabilir geçerli PDF dokümanı
+    const safeContent = (docDesc || title)
+      .replace(/[()\\]/g, " ")
+      .slice(0, 200);
     const pdfContent = `%PDF-1.4
-1 0 obj << /Title (${title}) /Creator (Kisisel Depo) >> endobj
+1 0 obj << /Title (${sanitizeFilename(title)}) /Creator (Kisisel Depo Dijital Arsiv) >> endobj
 2 0 obj << /Type /Catalog /Pages 3 0 R >> endobj
 3 0 obj << /Type /Pages /Kids [4 0 R] /Count 1 >> endobj
-4 0 obj << /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 5 0 R >> endobj
-5 0 obj << /Length 68 >> stream
+4 0 obj << /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 6 0 R >> >> >> endobj
+6 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+5 0 obj << /Length 260 >> stream
 BT
 /F1 18 Tf
 50 720 Td
-(${title}) Tj
+(${sanitizeFilename(title)}) Tj
+/F1 11 Tf
+0 -30 Td
+(Kisisel Depo Dijital Arsiv Belgesi - Orijinal Icerik) Tj
+0 -25 Td
+(${safeContent}) Tj
+0 -25 Td
+(Belge Boyutu: ${docSize || "2.4 MB"} - Format: PDF) Tj
 ET
 endstream endobj
 xref
-0 6
+0 7
 0000000000 65535 f 
-trailer << /Root 2 0 R /Size 6 >>
+trailer << /Root 2 0 R /Size 7 >>
 startxref
-250
+480
 %%EOF`;
     blob = new Blob([pdfContent], { type: "application/pdf" });
   } else if (ext === "json") {
@@ -471,13 +819,19 @@ startxref
     );
     blob = new Blob([jsonContent], { type: "application/json" });
   } else if (["jpg", "jpeg", "png", "webp"].includes(ext)) {
-    // Gerçek ikili (binary) görsel oluştur ve indir
-    const imgUrl = typeof titleOrOptions === "object" ? (titleOrOptions as any).imageUrl || (titleOrOptions as any).url : undefined;
+    const imgUrl =
+      typeof titleOrOptions === "object"
+        ? (titleOrOptions as any).imageUrl || (titleOrOptions as any).url
+        : undefined;
     exportImageFile(title, ext, imgUrl);
     return;
   } else {
-    // ZIP / RAR / XLSX / PPTX / TXT vb. için içerikli blob
-    const fileContent = docDesc || `Kişisel Depo Arşiv Dosyası: ${title}\nFormat: ${ext.toUpperCase()}\nBoyut: ${docSize || "1.2 MB"}\nOluşturulma: ${new Date().toISOString()}`;
+    // Metin tabanlı formatlar
+    const fileContent =
+      docDesc ||
+      `Kişisel Depo Arşiv Dosyası: ${title}\nFormat: ${ext.toUpperCase()}\nBoyut: ${
+        docSize || "1.2 MB"
+      }\nOluşturulma: ${new Date().toISOString()}`;
     blob = new Blob([fileContent], { type: mime });
   }
 

@@ -320,9 +320,43 @@ export function calculateDaysRemaining(item: TrashItem, retentionDays: TrashRete
   return retentionDays - elapsed;
 }
 
+export function getUserStoragePrefix(): string {
+  const user = getCurrentUser();
+  if (!user || !user.isAuthenticated || user.id === "erdal_turk" || user.email === "erdal.turk@kisiseldepo.com") {
+    return "erdal_turk";
+  }
+  return user.id || user.email.replace(/[^a-zA-Z0-9]/g, "_");
+}
+
+export function resolveTrashKey(): string {
+  const prefix = getUserStoragePrefix();
+  if (prefix === "erdal_turk") {
+    return STORAGE_KEYS.TRASH;
+  }
+  return `psc_u_${prefix}_trash`;
+}
+
+export function resolveSharedKey(): string {
+  const prefix = getUserStoragePrefix();
+  if (prefix === "erdal_turk") {
+    return STORAGE_KEYS.SHARED;
+  }
+  return `psc_u_${prefix}_shared`;
+}
+
+export function resolveDeletedTokensKey(): string {
+  const prefix = getUserStoragePrefix();
+  if (prefix === "erdal_turk") {
+    return STORAGE_KEYS.DELETED_TOKENS;
+  }
+  return `psc_u_${prefix}_deleted_tokens`;
+}
+
 export function purgeExpiredTrashItems(retentionDays?: TrashRetentionDays): { remaining: TrashItem[]; purgedCount: number } {
   const days = retentionDays || getTrashRetentionDays();
-  const current = safeGet<TrashItem[]>(STORAGE_KEYS.TRASH, INITIAL_TRASH);
+  const trashKey = resolveTrashKey();
+  const isDemo = getUserStoragePrefix() === "erdal_turk";
+  const current = safeGet<TrashItem[]>(trashKey, isDemo ? INITIAL_TRASH : []);
   const remaining: TrashItem[] = [];
   let purgedCount = 0;
 
@@ -339,7 +373,7 @@ export function purgeExpiredTrashItems(retentionDays?: TrashRetentionDays): { re
   }
 
   if (purgedCount > 0) {
-    safeSet(STORAGE_KEYS.TRASH, remaining);
+    safeSet(trashKey, remaining);
     notifyStoreUpdate();
   }
   return { remaining, purgedCount };
@@ -355,7 +389,9 @@ export function setTrashRetentionDays(days: TrashRetentionDays): void {
 }
 
 export function getTrashItems(): TrashItem[] {
-  const items = safeGet<TrashItem[]>(STORAGE_KEYS.TRASH, INITIAL_TRASH);
+  const trashKey = resolveTrashKey();
+  const isDemo = getUserStoragePrefix() === "erdal_turk";
+  const items = safeGet<TrashItem[]>(trashKey, isDemo ? INITIAL_TRASH : []);
   const retention = getTrashRetentionDays();
   return items.map((item) => ({
     ...item,
@@ -376,7 +412,8 @@ export function addToTrash(item: Omit<TrashItem, "id" | "deletedAt" | "daysRemai
   };
 
   const updated = [newItem, ...current];
-  safeSet(STORAGE_KEYS.TRASH, updated);
+  const trashKey = resolveTrashKey();
+  safeSet(trashKey, updated);
 
   // KRİTİK KURAL:
   // - Eğer bir DEPO (type === "container") silindiyse, o depoya ve içindeki öğelere ait paylaşımları iptal et.
@@ -393,37 +430,38 @@ export function restoreFromTrash(trashId: string): TrashItem | null {
   if (!target) return null;
 
   const updated = current.filter((i) => i.id !== trashId);
-  safeSet(STORAGE_KEYS.TRASH, updated);
+  const trashKey = resolveTrashKey();
+  safeSet(trashKey, updated);
 
   // Orijinal koleksiyonuna geri koy
   if (target.originalData) {
     if (target.type === "container") {
-      const containers = safeGet<any[]>(STORAGE_KEYS.CONTAINERS, []);
-      safeSet(STORAGE_KEYS.CONTAINERS, [target.originalData, ...containers]);
+      const containers = getStoredCollection("containers", []);
+      saveStoredCollection("containers", [target.originalData, ...containers]);
     } else if (target.type === "movie") {
-      const movies = safeGet<any[]>(STORAGE_KEYS.MOVIES, []);
-      safeSet(STORAGE_KEYS.MOVIES, [target.originalData, ...movies]);
+      const movies = getStoredCollection("movies", []);
+      saveStoredCollection("movies", [target.originalData, ...movies]);
     } else if (target.type === "text") {
-      const texts = safeGet<any[]>(STORAGE_KEYS.TEXTS, []);
-      safeSet(STORAGE_KEYS.TEXTS, [target.originalData, ...texts]);
+      const texts = getStoredCollection("texts", []);
+      saveStoredCollection("texts", [target.originalData, ...texts]);
     } else if (target.type === "code") {
-      const snippets = safeGet<any[]>(STORAGE_KEYS.SNIPPETS, []);
-      safeSet(STORAGE_KEYS.SNIPPETS, [target.originalData, ...snippets]);
+      const snippets = getStoredCollection("snippets", []);
+      saveStoredCollection("snippets", [target.originalData, ...snippets]);
     } else if (target.type === "travel") {
-      const travels = safeGet<any[]>(STORAGE_KEYS.TRAVELS, []);
-      safeSet(STORAGE_KEYS.TRAVELS, [target.originalData, ...travels]);
+      const travels = getStoredCollection("travels", []);
+      saveStoredCollection("travels", [target.originalData, ...travels]);
     } else if (target.type === "study") {
-      const studies = safeGet<any[]>(STORAGE_KEYS.STUDY, []);
-      safeSet(STORAGE_KEYS.STUDY, [target.originalData, ...studies]);
+      const studies = getStoredCollection("study", []);
+      saveStoredCollection("study", [target.originalData, ...studies]);
     } else if (target.type === "audio") {
-      const audios = safeGet<any[]>(STORAGE_KEYS.AUDIOS, []);
-      safeSet(STORAGE_KEYS.AUDIOS, [target.originalData, ...audios]);
+      const audios = getStoredCollection("audios", []);
+      saveStoredCollection("audios", [target.originalData, ...audios]);
     } else if (target.type === "image") {
-      const media = safeGet<any[]>(STORAGE_KEYS.MEDIA, []);
-      safeSet(STORAGE_KEYS.MEDIA, [target.originalData, ...media]);
+      const media = getStoredCollection("media", []);
+      saveStoredCollection("media", [target.originalData, ...media]);
     } else if (target.type === "file") {
-      const files = safeGet<any[]>(STORAGE_KEYS.FILES, []);
-      safeSet(STORAGE_KEYS.FILES, [target.originalData, ...files]);
+      const files = getStoredCollection("files", []);
+      saveStoredCollection("files", [target.originalData, ...files]);
     }
   }
 
@@ -437,7 +475,8 @@ export function restoreFromTrash(trashId: string): TrashItem | null {
 export function permanentDeleteFromTrash(trashId: string): void {
   const current = getTrashItems();
   const updated = current.filter((i) => i.id !== trashId);
-  safeSet(STORAGE_KEYS.TRASH, updated);
+  const trashKey = resolveTrashKey();
+  safeSet(trashKey, updated);
   notifyStoreUpdate();
 }
 
@@ -457,7 +496,8 @@ export function addBatchToTrash(
   }));
 
   const updated = [...newItems, ...current];
-  safeSet(STORAGE_KEYS.TRASH, updated);
+  const trashKey = resolveTrashKey();
+  safeSet(trashKey, updated);
 
   for (const it of newItems) {
     revokeSharesForDeletedItem(it.title, it.type === "container");
@@ -474,37 +514,38 @@ export function restoreBatchFromTrash(trashIds: string[]): TrashItem[] {
   if (targets.length === 0) return [];
 
   const updated = current.filter((i) => !trashIds.includes(i.id));
-  safeSet(STORAGE_KEYS.TRASH, updated);
+  const trashKey = resolveTrashKey();
+  safeSet(trashKey, updated);
 
   for (const target of targets) {
     if (target.originalData) {
       if (target.type === "container") {
-        const containers = safeGet<any[]>(STORAGE_KEYS.CONTAINERS, []);
-        safeSet(STORAGE_KEYS.CONTAINERS, [target.originalData, ...containers]);
+        const containers = getStoredCollection("containers", []);
+        saveStoredCollection("containers", [target.originalData, ...containers]);
       } else if (target.type === "movie") {
-        const movies = safeGet<any[]>(STORAGE_KEYS.MOVIES, []);
-        safeSet(STORAGE_KEYS.MOVIES, [target.originalData, ...movies]);
+        const movies = getStoredCollection("movies", []);
+        saveStoredCollection("movies", [target.originalData, ...movies]);
       } else if (target.type === "text") {
-        const texts = safeGet<any[]>(STORAGE_KEYS.TEXTS, []);
-        safeSet(STORAGE_KEYS.TEXTS, [target.originalData, ...texts]);
+        const texts = getStoredCollection("texts", []);
+        saveStoredCollection("texts", [target.originalData, ...texts]);
       } else if (target.type === "code") {
-        const snippets = safeGet<any[]>(STORAGE_KEYS.SNIPPETS, []);
-        safeSet(STORAGE_KEYS.SNIPPETS, [target.originalData, ...snippets]);
+        const snippets = getStoredCollection("snippets", []);
+        saveStoredCollection("snippets", [target.originalData, ...snippets]);
       } else if (target.type === "travel") {
-        const travels = safeGet<any[]>(STORAGE_KEYS.TRAVELS, []);
-        safeSet(STORAGE_KEYS.TRAVELS, [target.originalData, ...travels]);
+        const travels = getStoredCollection("travels", []);
+        saveStoredCollection("travels", [target.originalData, ...travels]);
       } else if (target.type === "study") {
-        const studies = safeGet<any[]>(STORAGE_KEYS.STUDY, []);
-        safeSet(STORAGE_KEYS.STUDY, [target.originalData, ...studies]);
+        const studies = getStoredCollection("study", []);
+        saveStoredCollection("study", [target.originalData, ...studies]);
       } else if (target.type === "audio") {
-        const audios = safeGet<any[]>(STORAGE_KEYS.AUDIOS, []);
-        safeSet(STORAGE_KEYS.AUDIOS, [target.originalData, ...audios]);
+        const audios = getStoredCollection("audios", []);
+        saveStoredCollection("audios", [target.originalData, ...audios]);
       } else if (target.type === "image") {
-        const media = safeGet<any[]>(STORAGE_KEYS.MEDIA, []);
-        safeSet(STORAGE_KEYS.MEDIA, [target.originalData, ...media]);
+        const media = getStoredCollection("media", []);
+        saveStoredCollection("media", [target.originalData, ...media]);
       } else if (target.type === "file") {
-        const files = safeGet<any[]>(STORAGE_KEYS.FILES, []);
-        safeSet(STORAGE_KEYS.FILES, [target.originalData, ...files]);
+        const files = getStoredCollection("files", []);
+        saveStoredCollection("files", [target.originalData, ...files]);
       }
     }
     restoreSharesForItem(target.title, target.type === "container");
@@ -519,13 +560,15 @@ export function permanentDeleteBatchFromTrash(trashIds: string[]): number {
   const current = getTrashItems();
   const updated = current.filter((i) => !trashIds.includes(i.id));
   const deletedCount = current.length - updated.length;
-  safeSet(STORAGE_KEYS.TRASH, updated);
+  const trashKey = resolveTrashKey();
+  safeSet(trashKey, updated);
   notifyStoreUpdate();
   return deletedCount;
 }
 
 export function emptyTrash(): void {
-  safeSet(STORAGE_KEYS.TRASH, []);
+  const trashKey = resolveTrashKey();
+  safeSet(trashKey, []);
   notifyStoreUpdate();
 }
 
@@ -534,11 +577,26 @@ export function emptyTrash(): void {
 /* ========================================================================== */
 
 export function getSharedLinks(): SharedLink[] {
-  return safeGet<SharedLink[]>(STORAGE_KEYS.SHARED, INITIAL_SHARED);
+  const prefix = getUserStoragePrefix();
+  const key = resolveSharedKey();
+  if (prefix === "erdal_turk") {
+    return safeGet<SharedLink[]>(key, INITIAL_SHARED);
+  }
+  return safeGet<SharedLink[]>(key, []);
+}
+
+export function saveSharedLinks(links: SharedLink[]): void {
+  safeSet(resolveSharedKey(), links);
+  notifyStoreUpdate();
 }
 
 export function getDeletedTokens(): string[] {
-  return safeGet<string[]>(STORAGE_KEYS.DELETED_TOKENS, ["silinmis-icerik-ornegi"]);
+  const prefix = getUserStoragePrefix();
+  const key = resolveDeletedTokensKey();
+  if (prefix === "erdal_turk") {
+    return safeGet<string[]>(key, ["silinmis-icerik-ornegi"]);
+  }
+  return safeGet<string[]>(key, []);
 }
 
 export function isTokenDeleted(token: string): boolean {
@@ -650,12 +708,12 @@ export function createOrGetShareTokenForRecord(
   const currentDeleted = getDeletedTokens();
   if (currentDeleted.includes(token)) {
     safeSet(
-      STORAGE_KEYS.DELETED_TOKENS,
+      resolveDeletedTokensKey(),
       currentDeleted.filter((t) => t !== token)
     );
   }
 
-  // 3. Shared links listesine ekle (profil ve merkezi yönetim için)
+  // 3. Shared links listesine ekle (profil ve merkezi yönetim için - kullanıcı bazlı izole)
   const currentShares = getSharedLinks();
   const exists = currentShares.some((s) => s.token === token);
   if (!exists) {
@@ -670,10 +728,10 @@ export function createOrGetShareTokenForRecord(
       views: 1,
       isActive: true,
     };
-    safeSet(STORAGE_KEYS.SHARED, [newSharedLink, ...currentShares]);
+    safeSet(resolveSharedKey(), [newSharedLink, ...currentShares]);
   } else {
     safeSet(
-      STORAGE_KEYS.SHARED,
+      resolveSharedKey(),
       currentShares.map((s) => (s.token === token ? { ...s, isActive: true } : s))
     );
   }
@@ -685,23 +743,30 @@ export function createOrGetShareTokenForRecord(
 // Kullanıcı mevcut (silinmemiş) bir depo veya içerikte "Paylaş" butonuna bastığında bağlantıyı aktif eder
 export function activateShareToken(token: string): void {
   const currentDeleted = getDeletedTokens();
-  if (currentDeleted.includes(token)) {
-    safeSet(
-      STORAGE_KEYS.DELETED_TOKENS,
-      currentDeleted.filter((t) => t !== token)
-    );
-  }
+  safeSet(
+    resolveDeletedTokensKey(),
+    currentDeleted.filter((t) => t !== token)
+  );
+  try {
+    const legacy = safeGet<string[]>(STORAGE_KEYS.DELETED_TOKENS, []);
+    if (legacy.includes(token)) {
+      safeSet(
+        STORAGE_KEYS.DELETED_TOKENS,
+        legacy.filter((t) => t !== token)
+      );
+    }
+  } catch {}
 
   const currentShares = getSharedLinks();
   const exists = currentShares.some((s) => s.token === token);
   if (!exists) {
     const template = INITIAL_SHARED.find((s) => s.token === token);
     if (template) {
-      safeSet(STORAGE_KEYS.SHARED, [{ ...template, isActive: true }, ...currentShares]);
+      safeSet(resolveSharedKey(), [{ ...template, isActive: true }, ...currentShares]);
     }
   } else {
     safeSet(
-      STORAGE_KEYS.SHARED,
+      resolveSharedKey(),
       currentShares.map((s) => (s.token === token ? { ...s, isActive: true } : s))
     );
   }
@@ -737,14 +802,14 @@ export function restoreSharesForItem(itemTitle: string, isContainerRestore: bool
   if (matchingTemplates.length > 0) {
     const restoredTokens = new Set(matchingTemplates.map((m) => m.token));
     safeSet(
-      STORAGE_KEYS.DELETED_TOKENS,
+      resolveDeletedTokensKey(),
       currentDeleted.filter((t) => !restoredTokens.has(t))
     );
 
     const existingTokens = new Set(currentShares.map((s) => s.token));
     const toAdd = matchingTemplates.filter((m) => !existingTokens.has(m.token));
     if (toAdd.length > 0) {
-      safeSet(STORAGE_KEYS.SHARED, [...toAdd, ...currentShares]);
+      safeSet(resolveSharedKey(), [...toAdd, ...currentShares]);
     }
   }
 }
@@ -758,6 +823,7 @@ export function revokeSharesForDeletedItem(
   const currentDeletedTokens = getDeletedTokens();
 
   const titleLower = itemTitle.toLowerCase().trim();
+  if (!titleLower) return;
 
   const remainingShares: SharedLink[] = [];
   const newlyDeletedTokens: string[] = [];
@@ -767,28 +833,26 @@ export function revokeSharesForDeletedItem(
     const shareContainerLower = share.containerName.toLowerCase().trim();
 
     if (isContainerDeletion) {
-      // Depo silindiyse: hem deponun kendi paylaşımını hem de o depodaki içerik paylaşımlarını iptal et
-      const isMatch =
-        shareTitleLower === titleLower ||
-        shareContainerLower === titleLower ||
-        shareTitleLower.includes(titleLower) ||
-        titleLower.includes(shareTitleLower);
+      // Depo silindiyse: YALNIZCA o deponun kendi ana paylaşımını (scope === "container")
+      // veya o deponun tam adına ait içerik paylaşımlarını iptal et.
+      const isExactContainer =
+        share.scope === "container" &&
+        (shareTitleLower === titleLower || shareContainerLower === titleLower);
+      const isItemBelongingToContainer =
+        share.scope === "item" && shareContainerLower === titleLower;
 
-      if (isMatch) {
+      if (isExactContainer || isItemBelongingToContainer) {
         newlyDeletedTokens.push(share.token);
       } else {
         remainingShares.push(share);
       }
     } else {
-      // Sadece tek bir içerik silindiyse: YALNIZCA o tekil içeriğin (scope === "item") paylaşımını iptal et!
-      // Deponun tamamına ait paylaşımı (scope === "container") ASLA iptal etme!
-      const isDirectItemMatch =
-        share.scope === "item" &&
-        (shareTitleLower === titleLower ||
-          shareTitleLower.includes(titleLower) ||
-          titleLower.includes(shareTitleLower));
+      // Sadece tek bir içerik silindiyse: Deponun tamamına ait paylaşımı (scope === "container") ASLA iptal etme!
+      // Ve kesin başlık eşitliği (exact match) ara, alt-dize (substring) eşleşmesiyle diğer içerikleri yakma!
+      const isExactItemMatch =
+        share.scope === "item" && shareTitleLower === titleLower;
 
-      if (isDirectItemMatch) {
+      if (isExactItemMatch) {
         newlyDeletedTokens.push(share.token);
       } else {
         remainingShares.push(share);
@@ -797,11 +861,11 @@ export function revokeSharesForDeletedItem(
   });
 
   if (newlyDeletedTokens.length > 0) {
-    safeSet(STORAGE_KEYS.SHARED, remainingShares);
+    safeSet(resolveSharedKey(), remainingShares);
     const updatedDeletedTokens = Array.from(
       new Set([...currentDeletedTokens, ...newlyDeletedTokens])
     );
-    safeSet(STORAGE_KEYS.DELETED_TOKENS, updatedDeletedTokens);
+    safeSet(resolveDeletedTokensKey(), updatedDeletedTokens);
   }
 }
 
@@ -815,7 +879,7 @@ export function toggleShareLinkActive(id: string): SharedLink | null {
     }
     return s;
   });
-  safeSet(STORAGE_KEYS.SHARED, updated);
+  safeSet(resolveSharedKey(), updated);
   notifyStoreUpdate();
   return updatedLink;
 }
@@ -825,11 +889,187 @@ export function deleteSharedLink(id: string): void {
   const target = current.find((s) => s.id === id);
   if (target) {
     const deletedTokens = getDeletedTokens();
-    safeSet(STORAGE_KEYS.DELETED_TOKENS, [...deletedTokens, target.token]);
+    safeSet(resolveDeletedTokensKey(), [...deletedTokens, target.token]);
   }
   const updated = current.filter((s) => s.id !== id);
-  safeSet(STORAGE_KEYS.SHARED, updated);
+  safeSet(resolveSharedKey(), updated);
   notifyStoreUpdate();
+}
+
+/* ========================================================================== */
+/* DEPO YARDIMCILARI & SENKRONİZASYON (CONTAINER SYNC & SETUP WIZARD)         */
+/* ========================================================================== */
+
+export interface Container {
+  id: string;
+  title: string;
+  type?: "smart" | "standard" | string;
+  formatTitle?: string;
+  itemCount: number;
+  lastUpdated?: string;
+  isLocked?: boolean;
+  coverGradient?: string;
+  icon?: any;
+  [key: string]: any;
+}
+export type ContainerItem = Container;
+
+export function getDefaultContainerTitle(typeOrFormat: string): string {
+  const k = (typeOrFormat || "").toLowerCase();
+  if (k.includes("film") || k.includes("movie")) return "Film & Dizi Koleksiyonum";
+  if (k.includes("kod") || k.includes("code") || k.includes("snippet")) return "Kod Parçacıkları & Snippet'lar";
+  if (k.includes("gezi") || k.includes("travel") || k.includes("seyahat")) return "Gezi & Seyahat Rotalarım";
+  if (k.includes("ders") || k.includes("study") || k.includes("not")) return "Ders & Çalışma Notlarım";
+  if (k.includes("metin") || k.includes("text")) return "Kişisel Notlarım & Yazılarım";
+  if (k.includes("ses") || k.includes("audio")) return "Sesli Notlarım & Kayıtlarım";
+  if (k.includes("görsel") || k.includes("image") || k.includes("media") || k.includes("foto")) return "Fotoğraf & Tasarım Arşivim";
+  if (k.includes("dosya") || k.includes("file") || k.includes("belge")) return "Sözleşmeler & Belgelerim";
+  return "Yeni Depom";
+}
+
+export function getDefaultContainerDesc(typeOrFormat: string): string {
+  const k = (typeOrFormat || "").toLowerCase();
+  if (k.includes("film") || k.includes("movie")) return "İzlediğim ve izleyeceğim filmler, puanlarım ve incelemelerim.";
+  if (k.includes("kod") || k.includes("code") || k.includes("snippet")) return "Sık kullandığım frontend, backend ve fullstack kod blokları.";
+  if (k.includes("gezi") || k.includes("travel") || k.includes("seyahat")) return "Ziyaret ettiğim şehirler, seyahat planları ve gezi notları.";
+  if (k.includes("ders") || k.includes("study") || k.includes("not")) return "Ders özetleri, vize/final hazırlıkları ve çalışma kartları.";
+  if (k.includes("metin") || k.includes("text")) return "Şiirler, edebi metinler ve serbest düşünce notları.";
+  if (k.includes("ses") || k.includes("audio")) return "Toplantı ses kayıtları, podcast fikirleri ve sesli notlar.";
+  if (k.includes("görsel") || k.includes("image") || k.includes("media") || k.includes("foto")) return "Tasarım ilhamları, yüksek çözünürlüklü fotoğraflar ve grafikler.";
+  if (k.includes("dosya") || k.includes("file") || k.includes("belge")) return "PDF dokümanları, resmi sözleşmeler ve tablolar.";
+  return "Kişisel dijital hafıza deposu.";
+}
+
+export function getNormalizedFormatTitle(typeOrFormat: string): string {
+  const k = (typeOrFormat || "").toLowerCase();
+  if (k.includes("film") || k.includes("movie")) return "Film & Dizi";
+  if (k.includes("kod") || k.includes("code") || k.includes("snippet")) return "Kod Parçacıkları";
+  if (k.includes("gezi") || k.includes("travel") || k.includes("seyahat")) return "Gezi & Seyahat";
+  if (k.includes("ders") || k.includes("study") || k.includes("not")) return "Ders & Notlar";
+  if (k.includes("metin") || k.includes("text")) return "Metin";
+  if (k.includes("ses") || k.includes("audio")) return "Ses";
+  if (k.includes("görsel") || k.includes("image") || k.includes("media") || k.includes("foto")) return "Görüntü";
+  if (k.includes("dosya") || k.includes("file") || k.includes("belge")) return "Dosya & Belge";
+  return "Genel";
+}
+
+export function getDefaultGradient(typeOrFormat: string): string {
+  const k = (typeOrFormat || "").toLowerCase();
+  if (k.includes("film") || k.includes("movie")) return "from-purple-600 via-indigo-600 to-blue-700";
+  if (k.includes("kod") || k.includes("code") || k.includes("snippet")) return "from-emerald-600 via-teal-600 to-cyan-700";
+  if (k.includes("gezi") || k.includes("travel") || k.includes("seyahat")) return "from-amber-500 via-orange-500 to-red-600";
+  if (k.includes("ders") || k.includes("study") || k.includes("not")) return "from-sky-500 via-blue-600 to-indigo-700";
+  if (k.includes("metin") || k.includes("text")) return "from-slate-700 via-zinc-800 to-neutral-900";
+  if (k.includes("ses") || k.includes("audio")) return "from-amber-600 via-orange-600 to-amber-800";
+  if (k.includes("görsel") || k.includes("image") || k.includes("media") || k.includes("foto")) return "from-rose-600 via-pink-600 to-rose-800";
+  if (k.includes("dosya") || k.includes("file") || k.includes("belge")) return "from-emerald-700 via-teal-700 to-slate-800";
+  return "from-indigo-600 to-purple-700";
+}
+
+export function isSmartType(typeOrFormat: string): boolean {
+  const k = (typeOrFormat || "").toLowerCase();
+  return (
+    k.includes("film") ||
+    k.includes("movie") ||
+    k.includes("kod") ||
+    k.includes("code") ||
+    k.includes("snippet") ||
+    k.includes("gezi") ||
+    k.includes("travel") ||
+    k.includes("seyahat") ||
+    k.includes("ders") ||
+    k.includes("study")
+  );
+}
+
+export function getContainerByFormatOrType(typeOrFormat: string): any | null {
+  const containers = getStoredCollection<any>("containers", []);
+  const normalized = getNormalizedFormatTitle(typeOrFormat).toLowerCase();
+  const k = (typeOrFormat || "").toLowerCase();
+  return (
+    containers.find((c: any) => {
+      const f = (c.formatTitle || "").toLowerCase();
+      const t = (c.title || "").toLowerCase();
+      const id = (c.id || "").toLowerCase();
+      return f === normalized || f.includes(k) || k.includes(f) || t.includes(k) || id === k;
+    }) || null
+  );
+}
+
+export function syncContainerItemCount(
+  typeOrFormat: string,
+  count: number,
+  customTitle?: string,
+  extra?: Record<string, any>
+): any[] {
+  const containers = getStoredCollection<any>("containers", []);
+  const normalizedFormat = getNormalizedFormatTitle(typeOrFormat);
+  const normalizedKey = typeOrFormat.toLowerCase();
+
+  const matchIndex = containers.findIndex((c: any) => {
+    const f = (c.formatTitle || "").toLowerCase();
+    const t = (c.title || "").toLowerCase();
+    const id = (c.id || "").toLowerCase();
+    return (
+      f === normalizedFormat.toLowerCase() ||
+      f.includes(normalizedKey) ||
+      normalizedKey.includes(f) ||
+      t.includes(normalizedKey) ||
+      id === normalizedKey
+    );
+  });
+
+  let updated: any[];
+  if (matchIndex >= 0) {
+    updated = containers.map((c: any, idx: number) => {
+      if (idx === matchIndex) {
+        return {
+          ...c,
+          itemCount: count,
+          lastUpdated: "Az önce",
+          ...(customTitle ? { title: customTitle } : {}),
+          ...(extra || {}),
+        };
+      }
+      return c;
+    });
+  } else {
+    // Depo henüz oluşturulmamışsa kullanıcının containers listesine yeni kayıt olarak ekle
+    const newCont = {
+      id: `c_${Date.now()}`,
+      title: customTitle || getDefaultContainerTitle(typeOrFormat),
+      type: isSmartType(typeOrFormat) ? "smart" : "standard",
+      formatTitle: normalizedFormat,
+      itemCount: count,
+      lastUpdated: "Az önce",
+      isLocked: false,
+      coverGradient: extra?.coverGradient || getDefaultGradient(typeOrFormat),
+      ...(extra || {}),
+    };
+    updated = [newCont, ...containers];
+  }
+
+  saveStoredCollection("containers", updated);
+  return updated;
+}
+
+export function updateContainerDetails(
+  containerId: string,
+  details: { title?: string; description?: string; coverGradient?: string }
+): any | null {
+  const containers = getStoredCollection<any>("containers", []);
+  let target: any = null;
+  const updated = containers.map((c: any) => {
+    if (c.id === containerId) {
+      target = { ...c, ...details, lastUpdated: "Az önce" };
+      return target;
+    }
+    return c;
+  });
+  if (target) {
+    saveStoredCollection("containers", updated);
+  }
+  return target;
 }
 
 /* ========================================================================== */
@@ -848,30 +1088,43 @@ export type CollectionKey =
   | "files";
 
 function resolveStorageKey(key: CollectionKey): string {
-  switch (key) {
-    case "containers":
-      return STORAGE_KEYS.CONTAINERS;
-    case "movies":
-      return STORAGE_KEYS.MOVIES;
-    case "texts":
-      return STORAGE_KEYS.TEXTS;
-    case "snippets":
-      return STORAGE_KEYS.SNIPPETS;
-    case "travels":
-      return STORAGE_KEYS.TRAVELS;
-    case "study":
-      return STORAGE_KEYS.STUDY;
-    case "audios":
-      return STORAGE_KEYS.AUDIOS;
-    case "media":
-      return STORAGE_KEYS.MEDIA;
-    case "files":
-      return STORAGE_KEYS.FILES;
+  const prefix = getUserStoragePrefix();
+  if (prefix === "erdal_turk") {
+    switch (key) {
+      case "containers":
+        return STORAGE_KEYS.CONTAINERS;
+      case "movies":
+        return STORAGE_KEYS.MOVIES;
+      case "texts":
+        return STORAGE_KEYS.TEXTS;
+      case "snippets":
+        return STORAGE_KEYS.SNIPPETS;
+      case "travels":
+        return STORAGE_KEYS.TRAVELS;
+      case "study":
+        return STORAGE_KEYS.STUDY;
+      case "audios":
+        return STORAGE_KEYS.AUDIOS;
+      case "media":
+        return STORAGE_KEYS.MEDIA;
+      case "files":
+        return STORAGE_KEYS.FILES;
+    }
   }
+  return `psc_u_${prefix}_${key}`;
 }
 
 export function getStoredCollection<T>(key: CollectionKey, fallback: T[]): T[] {
-  return safeGet<T[]>(resolveStorageKey(key), fallback);
+  const prefix = getUserStoragePrefix();
+  const storageKey = resolveStorageKey(key);
+
+  if (prefix === "erdal_turk") {
+    return safeGet<T[]>(storageKey, fallback);
+  }
+
+  // Yeni veya farklı bir kullanıcı:
+  // Kendi anahtarında veri yoksa, Erdal Türk'ün demo verilerini almaz; boş liste başlar!
+  return safeGet<T[]>(storageKey, []);
 }
 
 export function saveStoredCollection<T>(key: CollectionKey, data: T[]): void {
@@ -880,26 +1133,56 @@ export function saveStoredCollection<T>(key: CollectionKey, data: T[]): void {
 }
 
 /* ========================================================================== */
-/* KULLANICI OTURUMU (AUTH) YÖNETİMİ                                          */
+/* KULLANICI OTURUMU (AUTH) YÖNETİMİ & BİREYSEL HESAP İZOLASYONU              */
 /* ========================================================================== */
 
 export interface AuthUser {
+  id?: string;
   name: string;
   email: string;
   avatar: string;
+  avatarImage?: string | null;
   title: string;
   isAuthenticated: boolean;
   lastLoginAt: string;
 }
 
+export interface RegisteredUser {
+  id: string;
+  email: string;
+  name: string;
+  password?: string;
+  avatar: string;
+  avatarImage?: string | null;
+  createdAt: string;
+}
+
 const DEFAULT_AUTH_USER: AuthUser = {
+  id: "erdal_turk",
   name: "Erdal Türk",
   email: "erdal.turk@kisiseldepo.com",
   avatar: "ET",
+  avatarImage: null,
   title: "Yazılım Geliştirici & Koleksiyoner",
   isAuthenticated: true,
   lastLoginAt: "Bugün",
 };
+
+const REGISTERED_USERS_KEY = "psc_registered_users";
+
+export function getRegisteredUsers(): RegisteredUser[] {
+  const defaultUsers: RegisteredUser[] = [
+    {
+      id: "erdal_turk",
+      email: "erdal.turk@kisiseldepo.com",
+      name: "Erdal Türk",
+      password: "password123",
+      avatar: "ET",
+      createdAt: "2026-10-01",
+    },
+  ];
+  return safeGet<RegisteredUser[]>(REGISTERED_USERS_KEY, defaultUsers);
+}
 
 const AUTH_STORAGE_KEY = "psc_auth_user";
 
@@ -907,42 +1190,275 @@ export function getCurrentUser(): AuthUser {
   return safeGet<AuthUser>(AUTH_STORAGE_KEY, DEFAULT_AUTH_USER);
 }
 
-export function loginUser(email: string, name?: string): AuthUser {
-  const cleanEmail = email.trim().toLowerCase() || DEFAULT_AUTH_USER.email;
-  const resolvedName =
-    name?.trim() ||
-    (cleanEmail.startsWith("erdal")
-      ? "Erdal Türk"
-      : cleanEmail
-          .split("@")[0]
-          .replace(/[._-]+/g, " ")
-          .replace(/\b\w/g, (l) => l.toUpperCase()));
-
+export function registerUser(
+  email: string,
+  name: string,
+  password?: string
+): { success: boolean; user?: AuthUser; message?: string } {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    return { success: false, message: "Lütfen geçerli bir e-posta adresi girin." };
+  }
+  const users = getRegisteredUsers();
+  const existing = users.find((u) => u.email === cleanEmail);
+  if (existing) {
+    return { success: false, message: "Bu e-posta adresiyle zaten kayıtlı bir hesap var. Lütfen giriş yapın." };
+  }
+  const cleanName = name.trim() || cleanEmail.split("@")[0];
+  const safeId = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
   const initials =
-    resolvedName
+    cleanName
       .split(" ")
       .filter(Boolean)
       .slice(0, 2)
       .map((p) => p[0]?.toUpperCase() || "")
       .join("") || "KD";
 
-  const user: AuthUser = {
-    name: resolvedName,
+  const newUser: RegisteredUser = {
+    id: safeId,
+    email: cleanEmail,
+    name: cleanName,
+    password: password || "",
+    avatar: initials,
+    createdAt: new Date().toISOString(),
+  };
+  safeSet(REGISTERED_USERS_KEY, [...users, newUser]);
+
+  const authUser: AuthUser = {
+    id: safeId,
+    name: cleanName,
     email: cleanEmail,
     avatar: initials,
-    title: "Yazılım Geliştirici & Koleksiyoner",
+    title: "Koleksiyoner",
     isAuthenticated: true,
     lastLoginAt: "Az önce",
   };
-  safeSet(AUTH_STORAGE_KEY, user);
+  safeSet(AUTH_STORAGE_KEY, authUser);
   notifyStoreUpdate();
-  return user;
+  return { success: true, user: authUser };
+}
+
+export function loginUser(email: string, name?: string, password?: string): AuthUser {
+  const cleanEmail = email.trim().toLowerCase() || DEFAULT_AUTH_USER.email;
+  const isErdal = cleanEmail.startsWith("erdal") || cleanEmail.includes("erdal.turk");
+  const safeId = isErdal ? "erdal_turk" : cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
+
+  const users = getRegisteredUsers();
+  let matchedUser = users.find((u) => u.email === cleanEmail);
+
+  if (!matchedUser) {
+    const cleanName =
+      name?.trim() ||
+      (isErdal
+        ? "Erdal Türk"
+        : cleanEmail
+            .split("@")[0]
+            .replace(/[._-]+/g, " ")
+            .replace(/\b\w/g, (l) => l.toUpperCase()));
+    const initials =
+      cleanName
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0]?.toUpperCase() || "")
+        .join("") || (isErdal ? "ET" : "KD");
+
+    matchedUser = {
+      id: safeId,
+      email: cleanEmail,
+      name: isErdal ? "Erdal Türk" : cleanName,
+      password: password || "",
+      avatar: isErdal ? "ET" : initials,
+      createdAt: new Date().toISOString(),
+    };
+    safeSet(REGISTERED_USERS_KEY, [...users, matchedUser]);
+  }
+
+  const authUser: AuthUser = {
+    id: matchedUser.id,
+    name: matchedUser.name,
+    email: matchedUser.email,
+    avatar: matchedUser.avatar,
+    title: matchedUser.id === "erdal_turk" ? "Yazılım Geliştirici & Koleksiyoner" : "Koleksiyoner",
+    isAuthenticated: true,
+    lastLoginAt: "Az önce",
+  };
+  safeSet(AUTH_STORAGE_KEY, authUser);
+  notifyStoreUpdate();
+  return authUser;
 }
 
 export function logoutUser(): void {
   const current = getCurrentUser();
   safeSet(AUTH_STORAGE_KEY, { ...current, isAuthenticated: false });
   notifyStoreUpdate();
+}
+
+export function updateUserAvatar(imageDataUrl: string | null): AuthUser {
+  const current = getCurrentUser();
+  const updated: AuthUser = {
+    ...current,
+    avatarImage: imageDataUrl,
+  };
+  safeSet(AUTH_STORAGE_KEY, updated);
+
+  const users = getRegisteredUsers();
+  const idx = users.findIndex(
+    (u) =>
+      (u.email && u.email.toLowerCase() === (current.email || "").toLowerCase()) ||
+      u.id === current.id
+  );
+  if (idx !== -1) {
+    users[idx] = { ...users[idx], avatarImage: imageDataUrl };
+    safeSet(REGISTERED_USERS_KEY, users);
+  }
+
+  notifyStoreUpdate();
+  return updated;
+}
+
+/* ========================================================================== */
+/* E-POSTA DOĞRULAMA & DEĞİŞTİRME MOTORU (PM-CONTROL Satır 123)                */
+/* ========================================================================== */
+
+const PENDING_EMAIL_VERIFICATION_KEY = "psc_pending_email_verification";
+
+export interface PendingEmailVerification {
+  newEmail: string;
+  code: string;
+  expiresAt: number;
+}
+
+export function requestEmailChangeVerification(newEmail: string): {
+  success: boolean;
+  code?: string;
+  message: string;
+} {
+  const cleanEmail = newEmail.trim().toLowerCase();
+  const currentUser = getCurrentUser();
+
+  if (!cleanEmail || !cleanEmail.includes("@") || !cleanEmail.includes(".")) {
+    return { success: false, message: "Lütfen geçerli bir e-posta adresi girin." };
+  }
+
+  if (cleanEmail === (currentUser.email || "").toLowerCase()) {
+    return { success: false, message: "Girdiğiniz e-posta zaten mevcut adresiniz ile aynı." };
+  }
+
+  const users = getRegisteredUsers();
+  const existing = users.find(
+    (u) => u.email.toLowerCase() === cleanEmail && u.id !== currentUser.id
+  );
+  if (existing) {
+    return { success: false, message: "Bu e-posta adresi başka bir kullanıcı tarafından kullanılıyor." };
+  }
+
+  // 6 haneli güvenlik doğrulama kodu üret
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const pending: PendingEmailVerification = {
+    newEmail: cleanEmail,
+    code,
+    expiresAt: Date.now() + 10 * 60 * 1000, // 10 dakika geçerli
+  };
+
+  safeSet(PENDING_EMAIL_VERIFICATION_KEY, pending);
+  return {
+    success: true,
+    code,
+    message: `6 haneli güvenlik doğrulama kodunuz (${code}) oluşturuldu.`,
+  };
+}
+
+export function confirmEmailChangeVerification(code: string): {
+  success: boolean;
+  user?: AuthUser;
+  message: string;
+} {
+  const cleanCode = code.trim();
+  const pending = safeGet<PendingEmailVerification | null>(PENDING_EMAIL_VERIFICATION_KEY, null);
+
+  if (!pending) {
+    return { success: false, message: "Bekleyen bir e-posta doğrulama talebi bulunamadı." };
+  }
+
+  if (Date.now() > pending.expiresAt) {
+    try {
+      localStorage.removeItem(PENDING_EMAIL_VERIFICATION_KEY);
+    } catch {}
+    return { success: false, message: "Doğrulama kodunun süresi dolmuş. Lütfen yeniden kod isteyin." };
+  }
+
+  if (cleanCode !== pending.code) {
+    return { success: false, message: "Hatalı doğrulama kodu! Lütfen tekrar kontrol edin." };
+  }
+
+  const current = getCurrentUser();
+  const updatedUser: AuthUser = {
+    ...current,
+    email: pending.newEmail,
+  };
+  safeSet(AUTH_STORAGE_KEY, updatedUser);
+
+  const users = getRegisteredUsers();
+  const idx = users.findIndex(
+    (u) => u.id === current.id || (u.email && u.email.toLowerCase() === (current.email || "").toLowerCase())
+  );
+  if (idx !== -1) {
+    users[idx] = {
+      ...users[idx],
+      email: pending.newEmail,
+    };
+    safeSet(REGISTERED_USERS_KEY, users);
+  }
+
+  try {
+    localStorage.removeItem(PENDING_EMAIL_VERIFICATION_KEY);
+  } catch {}
+
+  notifyStoreUpdate();
+  return {
+    success: true,
+    user: updatedUser,
+    message: "E-posta adresiniz başarıyla güncellendi.",
+  };
+}
+
+/* ========================================================================== */
+/* DEPO KİLİT (MASTER PIN) YARDIMCI MOTORU (PM-CONTROL Satır 131)              */
+/* ========================================================================== */
+
+export function isContainerLocked(containerIdOrType: string): boolean {
+  const containers = getStoredCollection<any>("containers", []);
+  const found = containers.find(
+    (c) =>
+      c.id === containerIdOrType ||
+      (c.formatTitle && c.formatTitle.toLowerCase().includes(containerIdOrType.toLowerCase())) ||
+      (c.title && c.title.toLowerCase().includes(containerIdOrType.toLowerCase()))
+  );
+  return !!found?.isLocked;
+}
+
+export function setContainerLock(containerIdOrType: string, isLocked: boolean): boolean {
+  const containers = getStoredCollection<any>("containers", []);
+  let found = false;
+  const updated = containers.map((c) => {
+    if (
+      c.id === containerIdOrType ||
+      (c.formatTitle && c.formatTitle.toLowerCase().includes(containerIdOrType.toLowerCase())) ||
+      (c.title && c.title.toLowerCase().includes(containerIdOrType.toLowerCase()))
+    ) {
+      found = true;
+      return { ...c, isLocked };
+    }
+    return c;
+  });
+
+  if (found) {
+    saveStoredCollection("containers", updated);
+    notifyStoreUpdate();
+    return true;
+  }
+  return false;
 }
 
 /* ========================================================================== */

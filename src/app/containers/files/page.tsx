@@ -15,6 +15,7 @@ import {
   Heart,
   Share2,
   Trash2,
+  Pencil,
   Edit3,
   Download,
   Eye,
@@ -40,6 +41,11 @@ import {
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
+  activateShareToken,
+  getContainerByFormatOrType,
+  syncContainerItemCount,
+  updateContainerDetails,
+  Container,
 } from "@/lib/appStore";
 
 export type FileExtension = "PDF" | "ZIP" | "DOCX" | "XLSX" | "PPTX" | "JSON";
@@ -151,6 +157,26 @@ function getBadgeStyle(ext: FileExtension) {
   }
 }
 
+function renderExtensionBadge(ext: FileExtension) {
+  let icon = <FileText className="w-3.5 h-3.5 text-rose-600" />;
+  if (ext === "XLSX") icon = <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />;
+  else if (ext === "DOCX") icon = <FileText className="w-3.5 h-3.5 text-blue-600" />;
+  else if (ext === "PPTX") icon = <FolderArchive className="w-3.5 h-3.5 text-amber-600" />;
+  else if (ext === "ZIP") icon = <FolderArchive className="w-3.5 h-3.5 text-purple-600" />;
+  else if (ext === "JSON") icon = <FileCode className="w-3.5 h-3.5 text-stone-600" />;
+
+  return (
+    <span
+      className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 ${getBadgeStyle(
+        ext
+      )}`}
+    >
+      {icon}
+      <span>{ext}</span>
+    </span>
+  );
+}
+
 export default function FilesContainerPage() {
   const [files, setFiles] = useState<FileItem[]>(INITIAL_FILES);
   const [folders, setFolders] = useState<string[]>(INITIAL_FOLDERS);
@@ -206,16 +232,51 @@ export default function FilesContainerPage() {
   const [lastTrashBatchIds, setLastTrashBatchIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    const stored = getStoredCollection<FileItem>("files", INITIAL_FILES);
-    setFiles(stored);
+  // Depo Özelleştirme
+  const [currentContainer, setCurrentContainer] = useState<Container | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editContainerTitle, setEditContainerTitle] = useState("Sözleşmeler, Faturalar & Belgelerim");
+  const [editGradient, setEditGradient] = useState("from-slate-800 via-slate-900 to-zinc-950");
 
-    const handleSync = () => {
-      setFiles(getStoredCollection<FileItem>("files", INITIAL_FILES));
+  useEffect(() => {
+    const loadData = () => {
+      const stored = getStoredCollection<FileItem>("files", INITIAL_FILES);
+      setFiles(stored);
+
+      const cont = getContainerByFormatOrType("Dosya & Belge");
+      if (cont) {
+        setCurrentContainer(cont);
+        setEditContainerTitle(cont.title);
+        setEditGradient(cont.coverGradient || "from-slate-800 via-slate-900 to-zinc-950");
+      } else {
+        syncContainerItemCount("Dosya & Belge", stored.length, "Sözleşmeler, Faturalar & Belgelerim");
+        const fresh = getContainerByFormatOrType("Dosya & Belge");
+        if (fresh) {
+          setCurrentContainer(fresh);
+          setEditContainerTitle(fresh.title);
+        }
+      }
     };
-    window.addEventListener("psc-store-updated", handleSync);
-    return () => window.removeEventListener("psc-store-updated", handleSync);
+
+    loadData();
+    window.addEventListener("psc-store-updated", loadData);
+    return () => window.removeEventListener("psc-store-updated", loadData);
   }, []);
+
+  const handleSaveContainerDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editContainerTitle.trim()) return;
+    const contId = currentContainer?.id || "c8";
+    const updated = updateContainerDetails(contId, {
+      title: editContainerTitle.trim(),
+      coverGradient: editGradient,
+    });
+    if (updated) {
+      setCurrentContainer(updated);
+    }
+    setIsEditModalOpen(false);
+    showToast("Depo bilgileri güncellendi.");
+  };
 
   const showToast = (msg: string, trashId?: string) => {
     setToastMessage(msg);
@@ -273,6 +334,7 @@ export default function FilesContainerPage() {
   const syncFiles = (updated: FileItem[]) => {
     setFiles(updated);
     saveStoredCollection("files", updated);
+    syncContainerItemCount("Dosya & Belge", updated.length, currentContainer?.title);
   };
 
   const toggleFavorite = (id: string) => {
@@ -508,9 +570,19 @@ export default function FilesContainerPage() {
                 </span>
                 <span className="text-xs text-stone-400 dark:text-slate-500">1-Seviye Klasör & Doküman Kasası</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight mt-0.5">
-                Sözleşmeler, Faturalar & Belgelerim
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight mt-0.5">
+                  {currentContainer?.title || "Sözleşmeler, Faturalar & Belgelerim"}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  title="Depo Adını ve Kapağını Düzenle"
+                  className="p-1 rounded-lg text-stone-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-stone-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -518,9 +590,10 @@ export default function FilesContainerPage() {
             <ThemeToggle />
 
             <button
-              onClick={() =>
-                window.open("/share/belge-ve-dosya-deposu", "_blank")
-              }
+              onClick={() => {
+                activateShareToken("belge-ve-dosya-deposu");
+                window.open("/share/belge-ve-dosya-deposu", "_blank");
+              }}
               className="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 text-stone-700 dark:text-slate-200 text-sm font-medium hover:bg-stone-50 dark:hover:bg-slate-700 transition shadow-sm cursor-pointer"
             >
               <Share2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -729,7 +802,7 @@ export default function FilesContainerPage() {
           </div>
 
           <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-stone-200/80 shadow-sm overflow-x-auto">
-            {(["all", "PDF", "XLSX", "PPTX", "DOCX", "ZIP"] as const).map(
+            {(["all", "PDF", "XLSX", "PPTX", "DOCX", "ZIP", "JSON"] as const).map(
               (ext) => (
                 <button
                   key={ext}
@@ -793,13 +866,7 @@ export default function FilesContainerPage() {
                           <div className="w-5 h-5 rounded-md border-2 border-stone-300 hover:border-emerald-500" />
                         )}
                       </button>
-                      <span
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${getBadgeStyle(
-                          item.extension
-                        )}`}
-                      >
-                        {item.extension}
-                      </span>
+                      {renderExtensionBadge(item.extension)}
                       <span className="text-xs font-semibold text-stone-600 bg-stone-100 px-2.5 py-1 rounded-lg">
                         {item.folder || "Klasörsüz"}
                       </span>
@@ -828,8 +895,9 @@ export default function FilesContainerPage() {
                           const token = createOrGetShareTokenForRecord(
                             item,
                             "file",
-                            "Sözleşmeler, Faturalar & Belgelerim"
+                            item.title || currentContainer?.title || "Sözleşmeler, Faturalar & Belgelerim"
                           );
+                          activateShareToken(token);
                           window.open(`/share/${token}`, "_blank");
                         }}
                         className="p-2 rounded-xl text-stone-400 hover:bg-emerald-50 hover:text-emerald-700 transition cursor-pointer"
@@ -894,6 +962,7 @@ export default function FilesContainerPage() {
                             size: item.sizeLabel,
                             format: item.extension,
                             content: item.previewContent,
+                            dataUrl: item.fileDataUrl,
                           });
                           showToast(`"${item.title}" başarıyla indirildi.`);
                         }}
@@ -925,7 +994,7 @@ export default function FilesContainerPage() {
       {/* Document Preview Modal */}
       {previewFile && (
         <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 border border-stone-200 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-6 sm:p-8 border border-stone-200 dark:border-slate-800 shadow-2xl">
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
@@ -936,57 +1005,62 @@ export default function FilesContainerPage() {
                   >
                     {previewFile.extension}
                   </span>
-                  <span className="text-xs text-stone-500">
+                  <span className="text-xs text-stone-500 dark:text-slate-400">
                     {previewFile.sizeLabel} • {previewFile.version}
                   </span>
                 </div>
-                <h3 className="text-xl font-bold text-stone-900">
+                <h3 className="text-xl font-bold text-stone-900 dark:text-white">
                   {previewFile.title}
                 </h3>
               </div>
               <button
                 onClick={() => setPreviewFile(null)}
-                className="p-2 rounded-xl text-stone-400 hover:bg-stone-100 cursor-pointer"
+                className="p-2 rounded-xl text-stone-400 hover:bg-stone-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="bg-[#FAF8F5] rounded-2xl p-5 border border-stone-200/80 font-mono text-xs text-stone-800 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto mb-6">
-              {previewFile.previewContent}
-            </div>
+            {previewFile.fileDataUrl && previewFile.extension === "PDF" ? (
+              <div className="w-full bg-slate-950 rounded-2xl overflow-hidden mb-6 h-96">
+                <iframe
+                  src={previewFile.fileDataUrl}
+                  title={previewFile.title}
+                  className="w-full h-full border-0 bg-white"
+                />
+              </div>
+            ) : (
+              <div className="bg-[#FAF8F5] dark:bg-slate-800/60 rounded-2xl p-5 border border-stone-200/80 dark:border-slate-700/80 font-mono text-xs text-stone-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto mb-6">
+                {previewFile.previewContent}
+              </div>
+            )}
 
-            <div className="flex items-center justify-between pt-4 border-t border-stone-100">
+            <div className="flex items-center justify-between pt-4 border-t border-stone-100 dark:border-slate-800">
               <button
                 onClick={() => {
                   const token = createOrGetShareTokenForRecord(
                     previewFile,
                     "file",
-                    "Sözleşmeler, Faturalar & Belgelerim"
+                    previewFile.title || currentContainer?.title || "Sözleşmeler, Faturalar & Belgelerim"
                   );
+                  activateShareToken(token);
                   window.open(`/share/${token}`, "_blank");
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold transition cursor-pointer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-slate-200 text-xs font-semibold transition cursor-pointer"
               >
-                <Share2 className="w-4 h-4 text-emerald-700" />
+                <Share2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 Paylaşım Kartını Aç
               </button>
 
               <button
                 onClick={() => {
-                  if (previewFile.fileDataUrl) {
-                    const link = document.createElement("a");
-                    link.href = previewFile.fileDataUrl;
-                    link.download = previewFile.title;
-                    link.click();
-                  } else {
-                    exportDocumentFile({
-                      name: previewFile.title,
-                      size: previewFile.sizeLabel,
-                      format: previewFile.extension,
-                      content: previewFile.previewContent,
-                    });
-                  }
+                  exportDocumentFile({
+                    name: previewFile.title,
+                    size: previewFile.sizeLabel,
+                    format: previewFile.extension,
+                    content: previewFile.previewContent,
+                    dataUrl: previewFile.fileDataUrl,
+                  });
                   showToast(`"${previewFile.title}" başarıyla indirildi.`);
                   setPreviewFile(null);
                 }}
@@ -1254,6 +1328,90 @@ export default function FilesContainerPage() {
               Geri Al
             </button>
           )}
+        </div>
+      )}
+      {/* DEPO DÜZENLEME MODALI */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Depoyu Düzenle</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Dosya & belge deposu adını ve tema rengini özelleştirin</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveContainerDetails} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Depo Başlığı
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editContainerTitle}
+                  onChange={(e) => setEditContainerTitle(e.target.value)}
+                  placeholder="Örn: Belgelerim & Faturalarım"
+                  className="w-full py-2.5 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  Kapak Rengi Gradyanı
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Koyu Gece", val: "from-slate-800 via-slate-900 to-zinc-950" },
+                    { label: "Zümrüt", val: "from-emerald-600 via-teal-600 to-cyan-700" },
+                    { label: "Siber Mavi", val: "from-blue-600 via-cyan-600 to-teal-500" },
+                    { label: "Alev Turuncu", val: "from-amber-500 via-orange-600 to-rose-600" },
+                    { label: "Mor Gece", val: "from-purple-600 via-indigo-600 to-blue-700" },
+                    { label: "Gül & Fuşya", val: "from-rose-500 via-pink-600 to-purple-600" },
+                  ].map((g) => (
+                    <button
+                      key={g.val}
+                      type="button"
+                      onClick={() => setEditGradient(g.val)}
+                      className={`h-11 rounded-xl bg-gradient-to-r ${g.val} p-1 text-[10px] font-bold text-white flex items-center justify-center transition-all ${
+                        editGradient === g.val ? "ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-slate-900 scale-102" : "opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer"
+                >
+                  Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

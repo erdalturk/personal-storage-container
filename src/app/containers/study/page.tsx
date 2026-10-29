@@ -8,9 +8,16 @@ import {
   getStoredCollection,
   saveStoredCollection,
   createOrGetShareTokenForRecord,
+  activateShareToken,
+  getContainerByFormatOrType,
+  syncContainerItemCount,
+  updateContainerDetails,
+  Container,
 } from "@/lib/appStore";
 import {
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
   Search,
   Plus,
   GraduationCap,
@@ -20,6 +27,7 @@ import {
   Heart,
   Share2,
   Trash2,
+  Pencil,
   ExternalLink,
   RotateCcw,
   SlidersHorizontal,
@@ -39,8 +47,10 @@ import {
   Layers,
   HelpCircle,
   Upload,
+  Presentation,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import useEscKey from "@/hooks/useEscKey";
 import { exportStudyNotes, exportDocumentFile, downloadTextFile } from "@/lib/exportUtils";
 import { readFileAsDataUrl, formatBytes } from "@/lib/uploadUtils";
 
@@ -52,6 +62,14 @@ export interface Flashcard {
   id: string;
   question: string;
   answer: string;
+}
+
+export interface SlideItem {
+  id: string;
+  slideNumber: number;
+  title: string;
+  bullets: string[];
+  presenterNote?: string;
 }
 
 export interface CourseStudyNote {
@@ -75,6 +93,7 @@ export interface CourseStudyNote {
     dataUrl?: string;
   };
   flashcards: Flashcard[];
+  slides?: SlideItem[]; // PM-CONTROL Satır 84: PPTX Slayt Sunum Desteği
   priority: PriorityLevel;
   status: StudyStatus;
   isFavorite: boolean;
@@ -117,6 +136,44 @@ const INITIAL_STUDY_NOTES: CourseStudyNote[] = [
         id: "fc-3",
         question: "A* algoritmasında Consistency (Monotonluk) ne sağlar?",
         answer: "Tutarlı bir heuristic kullanıldığında A* her düğümü en fazla bir kez genişletir (kapalı kümedeki düğümler yeniden açılmaz).",
+      },
+    ],
+    slides: [
+      {
+        id: "sl-1",
+        slideNumber: 1,
+        title: "A* Algoritması: Giriş & Temel Kavramlar",
+        bullets: [
+          "Bilgilendirilmiş (Heuristic) Arama Yöntemleri",
+          "Maliyet Fonksiyonu: f(n) = g(n) + h(n)",
+          "g(n): Başlangıçtan n düğümüne kadar olan gerçek maliyet",
+          "h(n): n düğümünden hedefe tahmini maliyet (heuristic)",
+        ],
+        presenterNote: "Sınavda formülün tanımı ve terimlerin anlamı kesin çıkıyor.",
+      },
+      {
+        id: "sl-2",
+        slideNumber: 2,
+        title: "Admissibility (Kabul Edilebilirlik) Kuralı",
+        bullets: [
+          "Tanım: h(n) <= h*(n) her n düğümü için sağlanmalıdır.",
+          "h*(n): n düğümünden hedefe olan gerçek minimum maliyet.",
+          "Sezgisel değer asla gerçek maliyeti fazla tahmin etmemelidir.",
+          "Admissible ise: Tree Search optimal rotayı garanti eder.",
+        ],
+        presenterNote: "Örnek problem: Kuş uçuşu mesafe her zaman admissible bir heuristictir.",
+      },
+      {
+        id: "sl-3",
+        slideNumber: 3,
+        title: "Consistency (Monotonluk) & Graph Search",
+        bullets: [
+          "Üçgen eşitsizliği: h(n) <= c(n, a, n') + h(n')",
+          "Tutarlı heuristic, f(n) değerlerinin yol boyunca azalmayacağını garanti eder.",
+          "Graph Search'te daha önce kapatılmış düğümlerin tekrar açılmasını engeller.",
+          "Zaman karmaşıklığı: O(b^d), tutarlılıkla optimize edilir.",
+        ],
+        presenterNote: "Consistency, Admissibility'den daha güçlü bir şarttır.",
       },
     ],
     priority: "yuksek",
@@ -262,6 +319,29 @@ const INITIAL_STUDY_NOTES: CourseStudyNote[] = [
         answer: "Rastgele seçilen seçim zaman aşımı (randomized election timeout, 150-300ms) süreleri kullanılarak.",
       },
     ],
+    slides: [
+      {
+        id: "sl-4",
+        slideNumber: 1,
+        title: "Raft Konsensus Protokolü: Temel Yapı",
+        bullets: [
+          "Paxos'un karmaşıklığına alternatif olarak anlaşılabilirlik odaklı tasarım",
+          "Düğümlerin 3 temel durumu: Leader, Follower, Candidate",
+          "Normal çalışma akışında tek bir aktif Leader bulunur",
+        ],
+      },
+      {
+        id: "sl-5",
+        slideNumber: 2,
+        title: "Lider Seçimi (Leader Election)",
+        bullets: [
+          "Follower'lar Leader'dan heartbeat alamazsa Candidate durumuna geçer",
+          "Term numarasını artırarak RequestVote RPC mesajları gönderir",
+          "Çoğunluğun (Quorum = ⌊N/2⌋ + 1) oyunu alan düğüm Leader seçilir",
+          "Split vote riskine karşı rastgele zaman aşımı (150-300ms) kullanılır",
+        ],
+      },
+    ],
     priority: "yuksek",
     status: "calisiliyor",
     isFavorite: false,
@@ -274,11 +354,18 @@ export default function StudyContainerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "vize" | "final" | "urgent" | "pdf" | "favorites">("all");
   const [sortBy, setSortBy] = useState<"examDate" | "priority" | "title">("examDate");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // Detay & Düzenleme Modalları
   const [selectedNote, setSelectedNote] = useState<CourseStudyNote | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<CourseStudyNote | null>(null);
+
+  // Depo Özelleştirme State'leri
+  const [currentContainer, setCurrentContainer] = useState<Container | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("Ders & Çalışma Notları");
+  const [editGradient, setEditGradient] = useState("from-blue-600 via-cyan-600 to-teal-500");
 
   // Flashcards (Ezber Kartları) Çalışma Modalı
   const [flashcardStudyNote, setFlashcardStudyNote] = useState<CourseStudyNote | null>(null);
@@ -287,6 +374,10 @@ export default function StudyContainerPage() {
 
   // PDF Doküman Önizleme Modalı
   const [pdfPreviewNote, setPdfPreviewNote] = useState<CourseStudyNote | null>(null);
+
+  // PPTX Slayt Sunum Oynatıcı Modalı (PM-CONTROL Satır 84)
+  const [slideDeckNote, setSlideDeckNote] = useState<CourseStudyNote | null>(null);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
   // Form State'leri
   const [formCourseCode, setFormCourseCode] = useState("");
@@ -311,17 +402,79 @@ export default function StudyContainerPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [deletedBackup, setDeletedBackup] = useState<CourseStudyNote | null>(null);
 
+  // Değişiklik Kontrolü & ESC Kapatma Desteği (PM-CONTROL Satır 75)
+  const isEditorDirty = editingNote
+    ? formTitle !== editingNote.title ||
+      formCourseName !== editingNote.courseName ||
+      formSummary !== editingNote.summary
+    : Boolean(formTitle.trim() || formCourseName.trim() || formSummary.trim());
+
+  useEscKey(Boolean(selectedNote), () => setSelectedNote(null));
+  useEscKey(Boolean(flashcardStudyNote), () => setFlashcardStudyNote(null));
+  useEscKey(Boolean(pdfPreviewNote), () => setPdfPreviewNote(null));
+  useEscKey(Boolean(slideDeckNote), () => setSlideDeckNote(null));
+  useEscKey(isEditorOpen, () => setIsEditorOpen(false), isEditorDirty);
+  useEscKey(isEditModalOpen, () => setIsEditModalOpen(false));
+
+  // PPTX Slayt Klavye Yön Tuşları ile Geçiş (PM-CONTROL Satır 84)
+  useEffect(() => {
+    if (!slideDeckNote) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === "Space") {
+        e.preventDefault();
+        setActiveSlideIndex((prev) =>
+          prev < (slideDeckNote.slides?.length || 1) - 1 ? prev + 1 : prev
+        );
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setActiveSlideIndex((prev) => (prev > 0 ? prev - 1 : 0));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [slideDeckNote]);
+
   // Merkezi Store ile Senkronizasyon
   useEffect(() => {
-    setNotes(getStoredCollection("study", INITIAL_STUDY_NOTES));
+    const loadData = () => {
+      const stored = getStoredCollection<CourseStudyNote>("study", INITIAL_STUDY_NOTES);
+      setNotes(stored);
 
-    const handleUpdate = () => {
-      setNotes(getStoredCollection("study", INITIAL_STUDY_NOTES));
+      const cont = getContainerByFormatOrType("Ders & Notlar");
+      if (cont) {
+        setCurrentContainer(cont);
+        setEditTitle(cont.title);
+        setEditGradient(cont.coverGradient || "from-blue-600 via-cyan-600 to-teal-500");
+      } else {
+        syncContainerItemCount("Ders & Notlar", stored.length, "Ders & Çalışma Notları");
+        const fresh = getContainerByFormatOrType("Ders & Notlar");
+        if (fresh) {
+          setCurrentContainer(fresh);
+          setEditTitle(fresh.title);
+        }
+      }
     };
 
-    window.addEventListener("psc-store-updated", handleUpdate);
-    return () => window.removeEventListener("psc-store-updated", handleUpdate);
+    loadData();
+    window.addEventListener("psc-store-updated", loadData);
+    return () => window.removeEventListener("psc-store-updated", loadData);
   }, []);
+
+  const handleSaveContainerDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTitle.trim()) return;
+    const contId = currentContainer?.id || "c3";
+    const updated = updateContainerDetails(contId, {
+      title: editTitle.trim(),
+      coverGradient: editGradient,
+    });
+    if (updated) {
+      setCurrentContainer(updated);
+    }
+    setIsEditModalOpen(false);
+    setToastMessage("Depo bilgileri güncellendi.");
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   // İstatistikler
   const totalFlashcardsCount = useMemo(() => {
@@ -361,15 +514,16 @@ export default function StudyContainerPage() {
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "examDate") return a.daysLeft - b.daysLeft;
-        if (sortBy === "title") return a.title.localeCompare(b.title);
-        if (sortBy === "priority") {
+        let comp = 0;
+        if (sortBy === "examDate") comp = a.daysLeft - b.daysLeft;
+        else if (sortBy === "title") comp = a.title.localeCompare(b.title);
+        else if (sortBy === "priority") {
           const pMap: Record<PriorityLevel, number> = { yuksek: 3, orta: 2, dusuk: 1 };
-          return pMap[b.priority] - pMap[a.priority];
+          comp = pMap[b.priority] - pMap[a.priority];
         }
-        return 0;
+        return sortDirection === "asc" ? comp : -comp;
       });
-  }, [notes, searchQuery, activeTab, sortBy]);
+  }, [notes, searchQuery, activeTab, sortBy, sortDirection]);
 
   // 1-Tıkla Favorileme (Toggle)
   const toggleFavorite = (id: string, e?: React.MouseEvent) => {
@@ -516,6 +670,7 @@ export default function StudyContainerPage() {
       const updated = [newItem, ...notes];
       setNotes(updated);
       saveStoredCollection("study", updated);
+      syncContainerItemCount("Ders & Notlar", updated.length, currentContainer?.title);
       setToastMessage("Yeni ders notu arşive eklendi.");
     }
 
@@ -531,7 +686,7 @@ export default function StudyContainerPage() {
 
     addToTrash({
       title: target.title,
-      originContainer: "Yapay Zekâ & Algoritmalar Dersi",
+      originContainer: currentContainer?.title || "Ders & Çalışma Notları",
       type: "study",
       contentPreview: `${target.courseCode} • ${target.courseName} • Sınava ${target.daysLeft} gün kaldı`,
       originalData: target,
@@ -541,6 +696,7 @@ export default function StudyContainerPage() {
     const updated = notes.filter((n) => n.id !== id);
     setNotes(updated);
     saveStoredCollection("study", updated);
+    syncContainerItemCount("Ders & Notlar", updated.length, currentContainer?.title);
     if (selectedNote && selectedNote.id === id) {
       setSelectedNote(null);
     }
@@ -555,6 +711,7 @@ export default function StudyContainerPage() {
       const updated = [deletedBackup, ...notes];
       setNotes(updated);
       saveStoredCollection("study", updated);
+      syncContainerItemCount("Ders & Notlar", updated.length, currentContainer?.title);
       setDeletedBackup(null);
       setToastMessage(`"${deletedBackup.title}" geri yüklendi.`);
       setTimeout(() => setToastMessage(null), 3000);
@@ -568,11 +725,13 @@ export default function StudyContainerPage() {
       const token = createOrGetShareTokenForRecord(
         itemOrSlug,
         "study",
-        "Yapay Zekâ & Algoritmalar Dersi"
+        itemOrSlug.title || currentContainer?.title || "Ders & Çalışma Notları"
       );
+      activateShareToken(token);
       window.open(`/share/${token}`, "_blank");
     } else {
       const slug = typeof itemOrSlug === "string" ? itemOrSlug : "yapay-zeka-ve-algoritmalar-deposu";
+      activateShareToken(slug);
       window.open(`/share/${slug}`, "_blank");
     }
   };
@@ -604,8 +763,16 @@ export default function StudyContainerPage() {
                 <GraduationCap className="w-4 h-4" />
               </div>
               <h1 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
-                Ders & Çalışma Notları
+                {currentContainer?.title || "Ders & Çalışma Notları"}
               </h1>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(true)}
+                title="Depo Adını ve Kapağını Düzenle"
+                className="p-1 rounded-lg text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60">
                 Akıllı Depo
               </span>
@@ -644,42 +811,42 @@ export default function StudyContainerPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center border border-sky-100 dark:border-sky-800/60 shrink-0">
                 <GraduationCap className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xl font-extrabold text-slate-900">{notes.length}</span>
-                <p className="text-[11px] text-slate-500 font-medium">Toplam Ders Notu</p>
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white">{notes.length}</span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Toplam Ders Notu</p>
               </div>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shrink-0">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-100 dark:border-rose-800/60 shrink-0">
                 <Clock className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xl font-extrabold text-slate-900">{urgentExamsCount}</span>
-                <p className="text-[11px] text-slate-500 font-medium">Sınavı Yaklaşan (&lt;25 gün)</p>
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white">{urgentExamsCount}</span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Sınavı Yaklaşan (&lt;25 gün)</p>
               </div>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shrink-0">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-800/60 shrink-0">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xl font-extrabold text-slate-900">{totalFlashcardsCount}</span>
-                <p className="text-[11px] text-slate-500 font-medium">Ezber &amp; Sınav Kartı</p>
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white">{totalFlashcardsCount}</span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Ezber &amp; Sınav Kartı</p>
               </div>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shrink-0">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800/60 shrink-0">
                 <FileText className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xl font-extrabold text-slate-900">{pdfCount}</span>
-                <p className="text-[11px] text-slate-500 font-medium">PDF &amp; Slayt Dosyası</p>
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white">{pdfCount}</span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">PDF &amp; Slayt Dosyası</p>
               </div>
             </div>
           </div>
@@ -690,11 +857,13 @@ export default function StudyContainerPage() {
       <section className="max-w-7xl w-full mx-auto px-4 sm:px-8 pt-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Sekmeler */}
-          <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-2xl flex-wrap">
+          <div className="flex items-center gap-1.5 bg-slate-200/60 dark:bg-slate-800/80 p-1 rounded-2xl flex-wrap">
             <button
               onClick={() => setActiveTab("all")}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                activeTab === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "all"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               Tümü ({notes.length})
@@ -702,7 +871,9 @@ export default function StudyContainerPage() {
             <button
               onClick={() => setActiveTab("vize")}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                activeTab === "vize" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "vize"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               Vize Notları ({notes.filter((n) => n.targetExam === "vize").length})
@@ -710,7 +881,9 @@ export default function StudyContainerPage() {
             <button
               onClick={() => setActiveTab("final")}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                activeTab === "final" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "final"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               Final Notları ({notes.filter((n) => n.targetExam === "final").length})
@@ -718,7 +891,9 @@ export default function StudyContainerPage() {
             <button
               onClick={() => setActiveTab("urgent")}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                activeTab === "urgent" ? "bg-white text-rose-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "urgent"
+                  ? "bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               Sınavı Yaklaşanlar ({urgentExamsCount})
@@ -726,7 +901,9 @@ export default function StudyContainerPage() {
             <button
               onClick={() => setActiveTab("pdf")}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                activeTab === "pdf" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "pdf"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               PDF'liler ({pdfCount})
@@ -734,7 +911,9 @@ export default function StudyContainerPage() {
             <button
               onClick={() => setActiveTab("favorites")}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1 ${
-                activeTab === "favorites" ? "bg-white text-amber-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                activeTab === "favorites"
+                  ? "bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               <Heart className="w-3 h-3 fill-amber-500 text-amber-500" />
@@ -742,7 +921,7 @@ export default function StudyContainerPage() {
             </button>
           </div>
 
-          {/* Arama & Sıralama */}
+          {/* Arama & Sıralama (PM-CONTROL Satır 75) */}
           <div className="flex items-center gap-3">
             <div className="relative w-full sm:w-64">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -751,28 +930,40 @@ export default function StudyContainerPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Ders, konu, hoca ara..."
-                className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-sky-500 shadow-2xs"
+                className="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-sky-500 shadow-2xs"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            <div className="flex items-center gap-1 text-xs text-slate-500 shrink-0">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 shrink-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-sky-500 shadow-2xs"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-sky-500 shadow-2xs cursor-pointer"
               >
                 <option value="examDate">Sınav Tarihine Göre</option>
                 <option value="priority">Önceliğe Göre</option>
                 <option value="title">İsme Göre</option>
               </select>
+
+              <button
+                onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
+                className="p-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:text-sky-600 dark:hover:text-sky-400 transition-colors shadow-2xs cursor-pointer"
+                title={sortDirection === "asc" ? "Sıralama Yönü: Artan (A-Z / Düşük-Yüksek)" : "Sıralama Yönü: Azalan (Z-A / Yüksek-Düşük)"}
+              >
+                {sortDirection === "asc" ? (
+                  <ArrowUp className="w-4 h-4" />
+                ) : (
+                  <ArrowDown className="w-4 h-4" />
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -904,28 +1095,47 @@ export default function StudyContainerPage() {
                     </div>
                   )}
 
-                  {/* PDF ve Sınav Kartları Önizleme Butonları */}
+                  {/* PDF, Slayt ve Sınav Kartları Önizleme Butonları (PM-CONTROL Satır 84) */}
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                    {note.pdfAttachment ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPdfPreviewNote(note);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 text-[11px] font-bold transition-colors"
-                        title="PDF Önizle"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-sky-600" />
-                        <span>{note.pdfAttachment.pages}s PDF</span>
-                      </button>
-                    ) : (
-                      <span className="text-[11px] text-slate-400">PDF Yok</span>
-                    )}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {note.pdfAttachment && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPdfPreviewNote(note);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 text-[11px] font-bold transition-colors cursor-pointer"
+                          title="PDF Önizle"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-sky-600" />
+                          <span>{note.pdfAttachment.pages}s PDF</span>
+                        </button>
+                      )}
+
+                      {note.slides && note.slides.length > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSlideDeckNote(note);
+                            setActiveSlideIndex(0);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold transition-colors cursor-pointer"
+                          title="PPTX Slayt Sunumu Oynat"
+                        >
+                          <Presentation className="w-3.5 h-3.5 text-amber-600" />
+                          <span>{note.slides.length} Slayt</span>
+                        </button>
+                      )}
+
+                      {!note.pdfAttachment && (!note.slides || note.slides.length === 0) && (
+                        <span className="text-[11px] text-slate-400">Ek Materyal Yok</span>
+                      )}
+                    </div>
 
                     {note.flashcards && note.flashcards.length > 0 && (
                       <button
                         onClick={(e) => handleStartFlashcards(note, e)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold transition-colors"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold transition-colors cursor-pointer"
                         title="Sınav Kartlarını Çalış"
                       >
                         <Sparkles className="w-3 h-3 text-indigo-600" />
@@ -986,7 +1196,7 @@ export default function StudyContainerPage() {
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 10 }}
-              className="relative w-full max-w-3xl bg-white rounded-3xl overflow-hidden shadow-2xl z-10 max-h-[90vh] flex flex-col"
+              className="relative w-full max-w-3xl bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl z-10 max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800"
             >
               {/* Modal Başlık Çubuğu */}
               <div className="p-6 bg-gradient-to-r from-sky-600 to-blue-700 text-white shrink-0 relative">
@@ -1028,7 +1238,7 @@ export default function StudyContainerPage() {
                       {selectedNote.topics.map((t, idx) => (
                         <span
                           key={idx}
-                          className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-xs font-semibold"
+                          className="px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-900 dark:text-sky-300 text-xs font-semibold"
                         >
                           #{t}
                         </span>
@@ -1042,7 +1252,7 @@ export default function StudyContainerPage() {
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Ders &amp; Konu Özeti
                   </h4>
-                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700">
                     {selectedNote.summary}
                   </p>
                 </div>
@@ -1064,12 +1274,12 @@ export default function StudyContainerPage() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                         Sınav Soru - Cevap Kartları ({selectedNote.flashcards.length})
                       </h4>
                       <button
                         onClick={() => handleStartFlashcards(selectedNote)}
-                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                        className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1"
                       >
                         Tam Ekran Çalış →
                       </button>
@@ -1078,12 +1288,12 @@ export default function StudyContainerPage() {
                       {selectedNote.flashcards.map((fc) => (
                         <div
                           key={fc.id}
-                          className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-xs space-y-1.5"
+                          className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 text-xs space-y-1.5"
                         >
-                          <span className="font-bold text-indigo-900 block">
+                          <span className="font-bold text-indigo-900 dark:text-indigo-200 block">
                             Soru: {fc.question}
                           </span>
-                          <p className="text-slate-700 font-medium bg-white p-2.5 rounded-xl border border-indigo-100/60">
+                          <p className="text-slate-700 dark:text-slate-200 font-medium bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-indigo-100/60 dark:border-slate-700">
                             Cevap: {fc.answer}
                           </p>
                         </div>
@@ -1094,16 +1304,16 @@ export default function StudyContainerPage() {
 
                 {/* PDF Ek Dosyası */}
                 {selectedNote.pdfAttachment && (
-                  <div className="p-4 rounded-2xl bg-sky-50/50 border border-sky-200/70 flex items-center justify-between gap-4">
+                  <div className="p-4 rounded-2xl bg-sky-50/50 dark:bg-slate-800/60 border border-sky-200/70 dark:border-slate-700 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                         <FileText className="w-5 h-5" />
                       </div>
                       <div>
-                        <h5 className="font-bold text-xs text-slate-900">
+                        <h5 className="font-bold text-xs text-slate-900 dark:text-white">
                           {selectedNote.pdfAttachment.name}
                         </h5>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
                           {selectedNote.pdfAttachment.pages} Sayfa • {selectedNote.pdfAttachment.size} • Ders Slaytı
                         </p>
                       </div>
@@ -1114,11 +1324,13 @@ export default function StudyContainerPage() {
                           exportDocumentFile({
                             name: selectedNote.pdfAttachment?.name || "ders_notu.pdf",
                             size: selectedNote.pdfAttachment?.size || "3.5 MB",
-                            format: "PDF",
+                            format: selectedNote.pdfAttachment?.name?.split(".").pop() || "PDF",
+                            dataUrl: selectedNote.pdfAttachment?.dataUrl,
+                            description: selectedNote.summary,
                           })
                         }
-                        className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-colors flex items-center gap-1"
-                        title="PDF Olarak İndir"
+                        className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors flex items-center gap-1"
+                        title="Ders Materyalini İndir"
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>İndir</span>
@@ -1132,42 +1344,48 @@ export default function StudyContainerPage() {
                     </div>
                   </div>
                 )}
+
+                {/* PPTX Slayt Sunum Dosyası (PM-CONTROL Satır 84) */}
+                {selectedNote.slides && selectedNote.slides.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-slate-800/60 border border-amber-200/70 dark:border-slate-700 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Presentation className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-xs text-slate-900 dark:text-white">
+                          {selectedNote.title} - Ders Sunumu
+                        </h5>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {selectedNote.slides.length} Slayt • PPTX Sunum Modülü (Klavye Ok Tuşları Destekli)
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSlideDeckNote(selectedNote);
+                        setActiveSlideIndex(0);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Presentation className="w-3.5 h-3.5" />
+                      <span>Sunumu Başlat</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Alt Eylemler */}
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <button
                   onClick={() => handleDeleteNote(selectedNote.id)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                   Çöp Kutusuna Taşı
                 </button>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      exportStudyNotes({
-                        title: selectedNote.title,
-                        courseCode: selectedNote.courseCode,
-                        instructor: selectedNote.instructor,
-                        term: selectedNote.term,
-                        targetExam: selectedNote.targetExam,
-                        overview: selectedNote.summary,
-                        topics: selectedNote.topics,
-                        userNote: selectedNote.keyFormulas,
-                        flashcards: selectedNote.flashcards,
-                        pdfName: selectedNote.pdfAttachment?.name,
-                        pdfSize: selectedNote.pdfAttachment?.size,
-                        pdfPages: selectedNote.pdfAttachment?.pages,
-                      });
-                    }}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
-                    title="Ders Notunu Markdown Olarak İndir"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Notları İndir (.md)</span>
-                  </button>
                   <button
                     onClick={() => handleOpenEditNote(selectedNote)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
@@ -1205,15 +1423,15 @@ export default function StudyContainerPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-8 shadow-2xl z-10 space-y-6"
+              className="relative w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl z-10 space-y-6"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 flex items-center justify-center">
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-sm text-slate-900">
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
                       Sınav Ezber Kartları (Flashcards)
                     </h3>
                     <p className="text-[11px] text-slate-400">
@@ -1223,7 +1441,7 @@ export default function StudyContainerPage() {
                 </div>
                 <button
                   onClick={() => setFlashcardStudyNote(null)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1231,7 +1449,7 @@ export default function StudyContainerPage() {
 
               {/* İlerleme Çubuğu */}
               <div>
-                <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1.5">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">
                   <span>
                     Kart {activeFlashcardIndex + 1} / {flashcardStudyNote.flashcards.length}
                   </span>
@@ -1239,7 +1457,7 @@ export default function StudyContainerPage() {
                     %{Math.round(((activeFlashcardIndex + 1) / flashcardStudyNote.flashcards.length) * 100)} Tamamlandı
                   </span>
                 </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-sky-500 to-indigo-600 transition-all duration-300"
                     style={{
@@ -1253,29 +1471,29 @@ export default function StudyContainerPage() {
               {flashcardStudyNote.flashcards[activeFlashcardIndex] && (
                 <div
                   onClick={() => setIsAnswerRevealed(!isAnswerRevealed)}
-                  className="p-8 rounded-3xl bg-gradient-to-b from-indigo-50/50 to-white border-2 border-indigo-200/80 shadow-md min-h-[220px] flex flex-col justify-between cursor-pointer hover:border-indigo-400 transition-all"
+                  className="p-8 rounded-3xl bg-gradient-to-b from-indigo-50/50 to-white dark:from-slate-800 dark:to-slate-900 border-2 border-indigo-200/80 dark:border-indigo-900/60 shadow-md min-h-[220px] flex flex-col justify-between cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-all"
                 >
                   <div className="space-y-2">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300">
                       Soru {activeFlashcardIndex + 1}
                     </span>
-                    <h4 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                    <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug">
                       {flashcardStudyNote.flashcards[activeFlashcardIndex].question}
                     </h4>
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-indigo-100">
+                  <div className="pt-4 mt-4 border-t border-indigo-100 dark:border-slate-800">
                     {isAnswerRevealed ? (
                       <motion.div
                         initial={{ opacity: 0, y: 5 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="p-4 rounded-2xl bg-white border border-indigo-200 text-xs sm:text-sm text-slate-800 font-medium shadow-xs"
+                        className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 text-xs sm:text-sm text-slate-800 dark:text-slate-100 font-medium shadow-xs"
                       >
-                        <span className="font-bold text-indigo-700 block mb-1">Cevap:</span>
+                        <span className="font-bold text-indigo-700 dark:text-indigo-400 block mb-1">Cevap:</span>
                         {flashcardStudyNote.flashcards[activeFlashcardIndex].answer}
                       </motion.div>
                     ) : (
-                      <div className="text-center py-2 text-xs font-bold text-indigo-600 flex items-center justify-center gap-1.5">
+                      <div className="text-center py-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5">
                         <HelpCircle className="w-4 h-4" />
                         <span>Cevabı Görmek İçin Tıkla</span>
                       </div>
@@ -1359,18 +1577,13 @@ export default function StudyContainerPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      if (pdfPreviewNote.pdfAttachment?.dataUrl) {
-                        const link = document.createElement("a");
-                        link.href = pdfPreviewNote.pdfAttachment.dataUrl;
-                        link.download = pdfPreviewNote.pdfAttachment.name;
-                        link.click();
-                      } else {
-                        exportDocumentFile(
-                          pdfPreviewNote.pdfAttachment?.name || "ders_notu.pdf",
-                          pdfPreviewNote.summary || "Ders Özeti",
-                          "pdf"
-                        );
-                      }
+                      exportDocumentFile({
+                        name: pdfPreviewNote.pdfAttachment?.name || "ders_notu.pdf",
+                        size: pdfPreviewNote.pdfAttachment?.size || "3.5 MB",
+                        format: pdfPreviewNote.pdfAttachment?.name?.split(".").pop() || "PDF",
+                        dataUrl: pdfPreviewNote.pdfAttachment?.dataUrl,
+                        description: pdfPreviewNote.summary,
+                      });
                       setToastMessage(`"${pdfPreviewNote.pdfAttachment?.name}" indirildi.`);
                     }}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white transition-colors"
@@ -1387,42 +1600,179 @@ export default function StudyContainerPage() {
                 </div>
               </div>
 
-              {/* PDF Belge Simülatörü */}
-              <div className="p-8 overflow-y-auto flex-1 bg-slate-900 space-y-6">
-                <div className="max-w-xl mx-auto bg-white text-slate-900 p-8 sm:p-12 rounded-2xl shadow-xl space-y-6 border border-slate-200">
-                  <div className="border-b border-slate-200 pb-4 text-center">
-                    <span className="text-xs font-bold uppercase tracking-wider text-sky-600">
-                      {pdfPreviewNote.courseCode} — {pdfPreviewNote.courseName}
-                    </span>
-                    <h2 className="text-xl font-extrabold text-slate-900 mt-1">
-                      {pdfPreviewNote.title}
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {pdfPreviewNote.instructor} • {pdfPreviewNote.term}
-                    </p>
-                  </div>
+              {/* PDF Çok Sayfalı Görüntüleyici veya Belge Önizleme */}
+              {pdfPreviewNote.pdfAttachment.dataUrl ? (
+                <div className="w-full flex-1 bg-slate-950 p-2 sm:p-4 min-h-[500px] flex flex-col">
+                  <iframe
+                    src={pdfPreviewNote.pdfAttachment.dataUrl}
+                    title={pdfPreviewNote.pdfAttachment.name}
+                    className="w-full h-full min-h-[550px] rounded-2xl border-0 bg-white"
+                  />
+                </div>
+              ) : (
+                <div className="p-8 overflow-y-auto flex-1 bg-slate-900 space-y-6">
+                  <div className="max-w-xl mx-auto bg-white text-slate-900 p-8 sm:p-12 rounded-2xl shadow-xl space-y-6 border border-slate-200">
+                    <div className="border-b border-slate-200 pb-4 text-center">
+                      <span className="text-xs font-bold uppercase tracking-wider text-sky-600">
+                        {pdfPreviewNote.courseCode} — {pdfPreviewNote.courseName}
+                      </span>
+                      <h2 className="text-xl font-extrabold text-slate-900 mt-1">
+                        {pdfPreviewNote.title}
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {pdfPreviewNote.instructor} • {pdfPreviewNote.term}
+                      </p>
+                    </div>
 
-                  <div className="space-y-4 text-xs leading-relaxed text-slate-700">
-                    <p className="font-semibold text-slate-900">
-                      {pdfPreviewNote.pdfAttachment.previewText || pdfPreviewNote.summary}
-                    </p>
-                    <p>
-                      Bu döküman, {pdfPreviewNote.courseName} dersi kapsamında işlenen {pdfPreviewNote.title} konusuna ait resmi ders sunum slaytlarını ve laboratuvar notlarını içermektedir.
-                    </p>
+                    <div className="space-y-4 text-xs leading-relaxed text-slate-700">
+                      <p className="font-semibold text-slate-900">
+                        {pdfPreviewNote.pdfAttachment.previewText || pdfPreviewNote.summary}
+                      </p>
+                      <p>
+                        Bu döküman, {pdfPreviewNote.courseName} dersi kapsamında işlenen {pdfPreviewNote.title} konusuna ait resmi ders sunum slaytlarını ve laboratuvar notlarını içermektedir.
+                      </p>
 
-                    {pdfPreviewNote.keyFormulas && (
-                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-800">
-                        <span className="font-bold text-sky-700 block mb-1">Ders Formülleri:</span>
-                        <pre className="whitespace-pre font-mono">{pdfPreviewNote.keyFormulas}</pre>
-                      </div>
-                    )}
-                  </div>
+                      {pdfPreviewNote.keyFormulas && (
+                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-800">
+                          <span className="font-bold text-sky-700 block mb-1">Ders Formülleri:</span>
+                          <pre className="whitespace-pre font-mono">{pdfPreviewNote.keyFormulas}</pre>
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="pt-6 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                    <span>Sayfa 1 / {pdfPreviewNote.pdfAttachment.pages}</span>
-                    <span>Kişisel Dijital Arşiv Okuyucu</span>
+                    <div className="pt-6 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Sayfa 1 / {pdfPreviewNote.pdfAttachment.pages}</span>
+                      <span>Kişisel Dijital Arşiv Okuyucu</span>
+                    </div>
                   </div>
                 </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* PPTX SLAYT SUNUM OYNATICI (SLIDE DECK PLAYER - PM-CONTROL Satır 84) */}
+      <AnimatePresence>
+        {slideDeckNote && slideDeckNote.slides && slideDeckNote.slides.length > 0 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/90 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="relative w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col h-[85vh] max-h-[700px] overflow-hidden text-white"
+            >
+              {/* Oynatıcı Üst Barı */}
+              <div className="px-6 py-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                    <Presentation className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-white line-clamp-1">
+                      {slideDeckNote.courseCode} - {slideDeckNote.title}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      PPTX Slayt Sunumu • Klavye Yön Tuşları (← / →) ile Kontrol Edin
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="px-3 py-1 rounded-full bg-slate-800 text-xs font-bold text-amber-400 border border-amber-500/30">
+                    Slayt {activeSlideIndex + 1} / {slideDeckNote.slides.length}
+                  </span>
+                  <button
+                    onClick={() => setSlideDeckNote(null)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Kapat (ESC)"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Slayt Ekranı (Merkez Sunum Alanı) */}
+              <div className="flex-1 p-6 sm:p-10 flex flex-col justify-between overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-900/90 to-slate-950">
+                <div className="space-y-6 max-w-2xl mx-auto w-full">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/10 text-amber-400 text-xs font-mono font-bold">
+                      #{activeSlideIndex + 1}
+                    </span>
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                      {slideDeckNote.slides[activeSlideIndex]?.title}
+                    </h2>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    {slideDeckNote.slides[activeSlideIndex]?.bullets.map((bullet, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/50 text-slate-200 text-sm leading-relaxed"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-2" />
+                        <span>{bullet}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {slideDeckNote.slides[activeSlideIndex]?.presenterNote && (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+                      <span className="font-bold block mb-1">💡 Sunucu & Sınav Notu:</span>
+                      <p>{slideDeckNote.slides[activeSlideIndex]?.presenterNote}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Slayt İlerleme Çubuğu */}
+                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-6">
+                  <div
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 h-full transition-all duration-300"
+                    style={{
+                      width: `${((activeSlideIndex + 1) / slideDeckNote.slides.length) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Alt Kontrol Butonları */}
+              <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between shrink-0">
+                <button
+                  disabled={activeSlideIndex === 0}
+                  onClick={() => setActiveSlideIndex((prev) => Math.max(0, prev - 1))}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-white transition-all cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Önceki Slayt</span>
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  {slideDeckNote.slides.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveSlideIndex(idx)}
+                      className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${
+                        activeSlideIndex === idx
+                          ? "bg-amber-400 w-6"
+                          : "bg-slate-700 hover:bg-slate-600"
+                      }`}
+                      title={`Slayt ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  disabled={activeSlideIndex >= slideDeckNote.slides.length - 1}
+                  onClick={() =>
+                    setActiveSlideIndex((prev) =>
+                      Math.min(slideDeckNote.slides!.length - 1, prev + 1)
+                    )
+                  }
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-slate-950 transition-all cursor-pointer shadow-md"
+                >
+                  <span>Sonraki Slayt</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </motion.div>
           </div>
@@ -1444,20 +1794,20 @@ export default function StudyContainerPage() {
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 10 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 shadow-2xl z-10 max-h-[90vh] overflow-y-auto space-y-5"
+              className="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl z-10 max-h-[90vh] overflow-y-auto space-y-5"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center">
                     <GraduationCap className="w-4 h-4" />
                   </div>
-                  <h3 className="font-extrabold text-base text-slate-900">
+                  <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
                     {editingNote ? "Ders Notunu Düzenle" : "Yeni Ders Notu Ekle"}
                   </h3>
                 </div>
                 <button
                   onClick={() => setIsEditorOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1467,59 +1817,59 @@ export default function StudyContainerPage() {
                 {/* Ders Kodu & Adı */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Ders Kodu</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Ders Kodu</label>
                     <input
                       type="text"
                       value={formCourseCode}
                       onChange={(e) => setFormCourseCode(e.target.value)}
                       placeholder="CENG 451"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500 font-semibold"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500 font-semibold"
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="font-bold text-slate-700 block mb-1">Ders Adı</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Ders Adı</label>
                     <input
                       type="text"
                       value={formCourseName}
                       onChange={(e) => setFormCourseName(e.target.value)}
                       placeholder="Yapay Zekâ & Makine Öğrenimi"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500 font-semibold"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500 font-semibold"
                     />
                   </div>
                 </div>
 
                 {/* Not Başlığı */}
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Not / Konu Başlığı</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Not / Konu Başlığı</label>
                   <input
                     type="text"
                     value={formTitle}
                     onChange={(e) => setFormTitle(e.target.value)}
                     placeholder="A* Arama & Heuristic Fonksiyonları"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500 font-semibold"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500 font-semibold"
                   />
                 </div>
 
                 {/* Eğitmen & Dönem */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Öğretim Üyesi / Hoca</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Öğretim Üyesi / Hoca</label>
                     <input
                       type="text"
                       value={formInstructor}
                       onChange={(e) => setFormInstructor(e.target.value)}
                       placeholder="Prof. Dr. Ahmet Yılmaz"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500"
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Dönem</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Dönem</label>
                     <input
                       type="text"
                       value={formTerm}
                       onChange={(e) => setFormTerm(e.target.value)}
                       placeholder="2026 Güz"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500"
                     />
                   </div>
                 </div>
@@ -1527,11 +1877,11 @@ export default function StudyContainerPage() {
                 {/* Sınav Türü, Tarihi ve Kalan Gün */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Hedef Sınav</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Hedef Sınav</label>
                     <select
                       value={formTargetExam}
                       onChange={(e) => setFormTargetExam(e.target.value as ExamType)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500 font-semibold"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500 font-semibold"
                     >
                       <option value="vize">Vize Sınavı</option>
                       <option value="final">Final Sınavı</option>
@@ -1540,30 +1890,30 @@ export default function StudyContainerPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Sınav Tarihi</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Sınav Tarihi</label>
                     <input
                       type="text"
                       value={formExamDate}
                       onChange={(e) => setFormExamDate(e.target.value)}
                       placeholder="20 Kasım 2026"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500"
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Kalan Gün Sayısı</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Kalan Gün Sayısı</label>
                     <input
                       type="number"
                       value={formDaysLeft}
                       onChange={(e) => setFormDaysLeft(e.target.value)}
                       min="0"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500 font-semibold"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500 font-semibold"
                     />
                   </div>
                 </div>
 
                 {/* Konu Başlıkları (Virgülle) */}
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     Konu Başlıkları (Virgülle ayırın)
                   </label>
                   <input
@@ -1571,25 +1921,25 @@ export default function StudyContainerPage() {
                     value={formTopics}
                     onChange={(e) => setFormTopics(e.target.value)}
                     placeholder="Admissibility, Heuristics, Manhattan, Formüller"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500"
                   />
                 </div>
 
                 {/* Özet Not Metni */}
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Ders Özeti &amp; Kilit Notlar</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Ders Özeti &amp; Kilit Notlar</label>
                   <textarea
                     rows={4}
                     value={formSummary}
                     onChange={(e) => setFormSummary(e.target.value)}
                     placeholder="A* algoritmasının temel mantığı ve ispat adımları..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500 leading-relaxed resize-none"
                   />
                 </div>
 
                 {/* Formüller */}
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     Matematiksel Formüller (İsteğe bağlı)
                   </label>
                   <textarea
@@ -1597,20 +1947,20 @@ export default function StudyContainerPage() {
                     value={formKeyFormulas}
                     onChange={(e) => setFormKeyFormulas(e.target.value)}
                     placeholder="f(n) = g(n) + h(n)"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-500 font-mono text-[11px]"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500 font-mono text-[11px]"
                   />
                 </div>
 
-                {/* PDF Dosya Eki Bilgileri (Cihazdan Yükleme Destekli) */}
-                <div className="p-3.5 rounded-2xl bg-sky-50/50 border border-sky-100 space-y-2.5">
+                {/* PDF/Belge Dosya Eki Bilgileri (Cihazdan Yükleme Destekli - PDF, DOCX, PPTX) */}
+                <div className="p-3.5 rounded-2xl bg-sky-50/50 dark:bg-slate-800/60 border border-sky-100 dark:border-slate-700 space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sky-900 block text-xs">PDF Dosya Eki (Opsiyonel)</span>
+                    <span className="font-bold text-sky-900 dark:text-sky-300 block text-xs">Ders Dosyası Eki (PDF, DOCX, PPTX)</span>
                     <label className="cursor-pointer px-3 py-1 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-[11px] transition-colors flex items-center gap-1.5 shadow-xs">
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Cihazdan PDF Seç</span>
+                      <span>Cihazdan Dosya Seç</span>
                       <input
                         type="file"
-                        accept=".pdf,application/pdf"
+                        accept=".pdf,.docx,.pptx,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         className="hidden"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
@@ -1620,9 +1970,9 @@ export default function StudyContainerPage() {
                             setFormPdfName(file.name);
                             setFormPdfSize(formatBytes(file.size));
                             setFormPdfDataUrl(dataUrl);
-                            setFormPdfPages("15");
+                            setFormPdfPages("1");
                           } catch {
-                            alert("PDF dosyası okunamadı.");
+                            alert("Dosya okunamadı.");
                           }
                         }}
                       />
@@ -1635,19 +1985,19 @@ export default function StudyContainerPage() {
                       value={formPdfName}
                       onChange={(e) => setFormPdfName(e.target.value)}
                       placeholder="Ders_Notu_Slayt.pdf"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-sky-500 text-xs font-medium"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500 text-xs font-medium"
                     />
                     <input
                       type="number"
                       value={formPdfPages}
                       onChange={(e) => setFormPdfPages(e.target.value)}
                       placeholder="Sayfa sayısı (örn: 25)"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-sky-500 text-xs font-medium"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl outline-none focus:border-sky-500 text-xs font-medium"
                     />
                   </div>
 
                   {formPdfSize && (
-                    <div className="text-[11px] text-sky-800 font-medium">
+                    <div className="text-[11px] text-sky-800 dark:text-sky-300 font-medium">
                       Dosya Boyutu: <b>{formPdfSize}</b> {formPdfDataUrl && "• Cihazdan yüklendi (Hazır)"}
                     </div>
                   )}
@@ -1655,10 +2005,10 @@ export default function StudyContainerPage() {
               </div>
 
               {/* Form Butonları */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
                 <button
                   onClick={() => setIsEditorOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   İptal
                 </button>
@@ -1669,6 +2019,97 @@ export default function StudyContainerPage() {
                   {editingNote ? "Değişiklikleri Kaydet" : "Arşive Ekle"}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* DEPO DÜZENLEME MODALI */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl relative"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Depoyu Düzenle</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Ders deposu adını ve tema rengini özelleştirin</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveContainerDetails} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Depo Başlığı
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="Örn: Ders & Çalışma Notlarım"
+                    className="w-full py-2.5 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-sky-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    Kapak Rengi Gradyanı
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "Siber Mavi", val: "from-blue-600 via-cyan-600 to-teal-500" },
+                      { label: "Mor Gece", val: "from-purple-600 via-indigo-600 to-blue-700" },
+                      { label: "Zümrüt", val: "from-emerald-600 via-teal-600 to-cyan-700" },
+                      { label: "Alev Turuncu", val: "from-amber-500 via-orange-600 to-rose-600" },
+                      { label: "Gül & Fuşya", val: "from-rose-500 via-pink-600 to-purple-600" },
+                      { label: "Koyu Gece", val: "from-slate-800 via-slate-900 to-zinc-950" },
+                    ].map((g) => (
+                      <button
+                        key={g.val}
+                        type="button"
+                        onClick={() => setEditGradient(g.val)}
+                        className={`h-11 rounded-xl bg-gradient-to-r ${g.val} p-1 text-[10px] font-bold text-white flex items-center justify-center transition-all ${
+                          editGradient === g.val ? "ring-2 ring-sky-500 ring-offset-2 dark:ring-offset-slate-900 scale-102" : "opacity-80 hover:opacity-100"
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-xs cursor-pointer"
+                  >
+                    Kaydet
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

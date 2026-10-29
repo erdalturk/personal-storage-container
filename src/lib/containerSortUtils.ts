@@ -1,4 +1,6 @@
 export type SortOption = "updated" | "alpha" | "alpha-desc" | "count" | "manual";
+export type SortCriterion = "updated" | "alpha" | "count";
+export type SortDirection = "asc" | "desc";
 
 export interface SortableContainer {
   id: string;
@@ -52,7 +54,43 @@ export function parseTimeWeight(timeStr: string): number {
 }
 
 /**
- * Depoları seçilen kritere göre sıralar.
+ * Depoları seçilen kriter ve yöne göre sıralar.
+ */
+export function sortContainersWithDirection<T extends SortableContainer>(
+  items: T[],
+  criterion: SortCriterion,
+  direction: SortDirection = "asc"
+): T[] {
+  const cloned = [...items];
+
+  switch (criterion) {
+    case "alpha":
+      return cloned.sort((a, b) => {
+        const cmp = a.title.localeCompare(b.title, "tr", { sensitivity: "base" });
+        return direction === "asc" ? cmp : -cmp;
+      });
+
+    case "count":
+      return cloned.sort((a, b) => {
+        // asc: azdan çoğa (1, 2, 3), desc: çoktan aza (54, 38, 4)
+        const diff = a.itemCount - b.itemCount;
+        return direction === "asc" ? diff : -diff;
+      });
+
+    case "updated":
+    default:
+      return cloned.sort((a, b) => {
+        // parseTimeWeight: küçük olan daha yenidir
+        // desc: en güncel en başta (küçük timeWeight başta)
+        // asc: en eski en başta (büyük timeWeight başta)
+        const diff = parseTimeWeight(a.lastUpdated) - parseTimeWeight(b.lastUpdated);
+        return direction === "desc" ? diff : -diff;
+      });
+  }
+}
+
+/**
+ * Depoları seçilen kritere göre sıralar (Geriye dönük uyumluluk).
  */
 export function sortContainers<T extends SortableContainer>(
   items: T[],
@@ -63,13 +101,13 @@ export function sortContainers<T extends SortableContainer>(
 
   switch (sortBy) {
     case "alpha":
-      return cloned.sort((a, b) => a.title.localeCompare(b.title, "tr", { sensitivity: "base" }));
+      return sortContainersWithDirection(cloned, "alpha", "asc");
 
     case "alpha-desc":
-      return cloned.sort((a, b) => b.title.localeCompare(a.title, "tr", { sensitivity: "base" }));
+      return sortContainersWithDirection(cloned, "alpha", "desc");
 
     case "count":
-      return cloned.sort((a, b) => b.itemCount - a.itemCount);
+      return sortContainersWithDirection(cloned, "count", "desc");
 
     case "manual":
       if (!manualOrder || manualOrder.length === 0) return cloned;
@@ -84,7 +122,7 @@ export function sortContainers<T extends SortableContainer>(
 
     case "updated":
     default:
-      return cloned.sort((a, b) => parseTimeWeight(a.lastUpdated) - parseTimeWeight(b.lastUpdated));
+      return sortContainersWithDirection(cloned, "updated", "desc");
   }
 }
 
